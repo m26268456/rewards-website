@@ -206,18 +206,18 @@ async function checkAndRefreshQuotas() {
 
 /**
  * 啟動額度刷新定時任務
- * 每小時檢查一次（UTC+8 時區），確保在 00:00:00 時會執行刷新
+ * 每分鐘檢查一次（UTC+8 時區），確保在刷新時間到達時立即執行
  */
 export function startQuotaRefreshScheduler() {
-  // 每小時的第 0 分鐘執行一次（即每小時整點執行）
-  // 這樣可以確保在 UTC+8 的 00:00:00 時會執行
-  cron.schedule('0 * * * *', async () => {
+  // 每分鐘執行一次檢查，確保在刷新時間到達時立即刷新
+  // 使用 '*/1 * * * *' 表示每分鐘執行一次
+  cron.schedule('*/1 * * * *', async () => {
     await checkAndRefreshQuotas();
   }, {
     timezone: 'Asia/Taipei'
   });
 
-  console.log('✅ 額度刷新定時任務已啟動（每小時檢查一次，時區：UTC+8）');
+  console.log('✅ 額度刷新定時任務已啟動（每分鐘檢查一次，時區：UTC+8）');
   console.log('💡 提示：如果資料庫服務未運行，定時任務會自動跳過檢查，不會影響服務運行');
   
   // 啟動時延遲執行一次檢查（給資料庫一些啟動時間）
