@@ -10,6 +10,7 @@ RUN npm install
 # 複製所有必要檔案
 COPY index.html ./
 COPY src ./src
+COPY public ./public
 COPY vite.config.ts ./
 COPY tsconfig.json ./
 COPY tsconfig.node.json ./
