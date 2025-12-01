@@ -1612,9 +1612,6 @@ function PaymentMethodItem({
               dangerouslySetInnerHTML={{ __html: linkify(paymentMethod.note) }}
             />
           )}
-          <div className="text-xs text-gray-500 mt-1">
-            本身回饋: {paymentMethod.own_reward_percentage}%
-          </div>
         </div>
         <div className="flex gap-2 flex-shrink-0 flex-wrap">
           <button
@@ -2129,7 +2126,6 @@ function QuerySettings() {
     const data = {
       name: formData.get('name'),
       note: formData.get('note') || null,
-      ownRewardPercentage: parseFloat(formData.get('ownRewardPercentage') as string) || 0,
       displayOrder: parseInt(formData.get('displayOrder') as string) || 0,
     };
 
@@ -2580,16 +2576,6 @@ function QuerySettings() {
                     className="w-full px-3 py-2 border rounded"
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">本身回饋%數</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    name="ownRewardPercentage"
-                    defaultValue={editingPayment?.own_reward_percentage || 0}
-                    className="w-full px-3 py-2 border rounded"
-                  />
-                </div>
                 <input
                   type="hidden"
                   name="displayOrder"
@@ -2696,14 +2682,6 @@ function QuerySettings() {
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium mb-1">本身回饋%數</label>
-                        <input
-                          type="number"
-                          step="0.1"
-                          name="ownRewardPercentage"
-                          defaultValue={editingPayment?.own_reward_percentage || 0}
-                          className="w-full px-3 py-2 border rounded"
-                        />
                       </div>
                       <input
                         type="hidden"
