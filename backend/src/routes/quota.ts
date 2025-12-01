@@ -65,32 +65,31 @@ router.get('/', async (req: Request, res: Response) => {
        ORDER BY pm.display_order, cs.display_order, sr.display_order`
     );
 
-    // 取得純支付方式的額度（從 payment_rewards 表取得回饋組成，如果沒有則使用 own_reward_percentage）
+    // 取得純支付方式的額度（只從 payment_rewards 表取得回饋組成）
     const paymentQuotasResult = await pool.query(
       `SELECT 
          NULL::uuid as scheme_id,
          pm.id as payment_method_id,
          pm.name,
-         COALESCE(pr.id, NULL::uuid) as reward_id,
-         COALESCE(pr.reward_percentage, pm.own_reward_percentage) as reward_percentage,
-         COALESCE(pr.calculation_method, 'round'::varchar) as calculation_method,
+         pr.id as reward_id,
+         pr.reward_percentage,
+         pr.calculation_method,
          pr.quota_limit,
          pr.quota_refresh_type,
          pr.quota_refresh_value,
          pr.quota_refresh_date,
          NULL::date as activity_end_date,
-         COALESCE(pr.display_order, 0) as display_order,
+         pr.display_order,
          COALESCE(qt.used_quota, 0) as used_quota,
          qt.remaining_quota,
          COALESCE(qt.current_amount, 0) as current_amount,
          qt.next_refresh_at
        FROM payment_methods pm
-       LEFT JOIN payment_rewards pr ON pm.id = pr.payment_method_id
+       INNER JOIN payment_rewards pr ON pm.id = pr.payment_method_id
        LEFT JOIN quota_trackings qt ON pm.id = qt.payment_method_id 
-         AND (pr.id = qt.payment_reward_id OR (pr.id IS NULL AND qt.payment_reward_id IS NULL))
+         AND pr.id = qt.payment_reward_id
          AND qt.scheme_id IS NULL
-       WHERE pm.own_reward_percentage > 0 OR pr.id IS NOT NULL
-       ORDER BY pm.display_order, COALESCE(pr.display_order, 0)`
+       ORDER BY pm.display_order, pr.display_order`
     );
 
     // 組合所有結果並檢查是否需要刷新
@@ -227,9 +226,9 @@ router.get('/', async (req: Request, res: Response) => {
          NULL::uuid as scheme_id,
          pm.id as payment_method_id,
          pm.name,
-         COALESCE(pr.id, NULL::uuid) as reward_id,
-         COALESCE(pr.reward_percentage, pm.own_reward_percentage) as reward_percentage,
-         COALESCE(pr.calculation_method, 'round'::varchar) as calculation_method,
+         pr.id as reward_id,
+         pr.reward_percentage,
+         pr.calculation_method,
          pr.quota_limit,
          pr.quota_refresh_type,
          pr.quota_refresh_value,
@@ -240,12 +239,11 @@ router.get('/', async (req: Request, res: Response) => {
          COALESCE(qt.current_amount, 0) as current_amount,
          qt.next_refresh_at
        FROM payment_methods pm
-       LEFT JOIN payment_rewards pr ON pm.id = pr.payment_method_id
+       INNER JOIN payment_rewards pr ON pm.id = pr.payment_method_id
        LEFT JOIN quota_trackings qt ON pm.id = qt.payment_method_id 
-         AND (pr.id = qt.payment_reward_id OR (pr.id IS NULL AND qt.payment_reward_id IS NULL))
+         AND pr.id = qt.payment_reward_id
          AND qt.scheme_id IS NULL
-       WHERE pm.own_reward_percentage > 0 OR pr.id IS NOT NULL
-       ORDER BY pm.display_order, COALESCE(pr.display_order, 0)`
+       ORDER BY pm.display_order, pr.display_order`
     );
 
     // 組織資料格式 - 按方案和回饋組成正確分組

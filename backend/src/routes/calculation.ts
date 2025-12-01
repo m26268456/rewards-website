@@ -67,19 +67,8 @@ router.post('/calculate-with-scheme', async (req: Request, res: Response) => {
     }
 
     // 如果有支付方式，加上支付方式本身的回饋
-    if (paymentMethodId) {
-      const paymentResult = await pool.query(
-        'SELECT own_reward_percentage FROM payment_methods WHERE id = $1',
-        [paymentMethodId]
-      );
-
-      if (paymentResult.rows.length > 0 && paymentResult.rows[0].own_reward_percentage > 0) {
-        rewards.push({
-          percentage: parseFloat(paymentResult.rows[0].own_reward_percentage),
-          calculationMethod: 'round' as CalculationMethod,
-        });
-      }
-    }
+    // 移除本身回饋邏輯，統一使用回饋組成（payment_rewards）
+    // 回饋組成已在上面從 payment_scheme_links 和 payment_rewards 取得
 
     if (rewards.length === 0) {
       return res.status(400).json({

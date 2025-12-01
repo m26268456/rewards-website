@@ -47,7 +47,7 @@ router.get('/overview', async (req: Request, res: Response) => {
 // 新增支付方式
 router.post('/', async (req: Request, res: Response) => {
   try {
-    const { name, note, ownRewardPercentage, displayOrder } = req.body;
+    const { name, note, displayOrder } = req.body;
 
     if (!name) {
       return res.status(400).json({ success: false, error: '支付方式名稱必填' });
@@ -57,7 +57,7 @@ router.post('/', async (req: Request, res: Response) => {
       `INSERT INTO payment_methods (name, note, own_reward_percentage, display_order)
        VALUES ($1, $2, $3, $4)
        RETURNING id, name, note, own_reward_percentage, display_order`,
-      [name, note || null, ownRewardPercentage || 0, displayOrder || 0]
+      [name, note || null, 0, displayOrder || 0] // 不再使用本身回饋，統一使用回饋組成
     );
 
     res.json({ success: true, data: result.rows[0] });
@@ -70,15 +70,15 @@ router.post('/', async (req: Request, res: Response) => {
 router.put('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, note, ownRewardPercentage, displayOrder } = req.body;
+    const { name, note, displayOrder } = req.body;
 
     const result = await pool.query(
       `UPDATE payment_methods
-       SET name = $1, note = $2, own_reward_percentage = $3, display_order = $4,
+       SET name = $1, note = $2, display_order = $3,
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $5
+       WHERE id = $4
        RETURNING id, name, note, own_reward_percentage, display_order`,
-      [name, note || null, ownRewardPercentage || 0, displayOrder, id]
+      [name, note || null, displayOrder, id] // 不再使用本身回饋，統一使用回饋組成
     );
 
     if (result.rows.length === 0) {
