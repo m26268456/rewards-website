@@ -1,6 +1,28 @@
 import { useState, useEffect } from 'react';
 import api from '../utils/api';
 
+// 輔助函數：將文字中的網址轉換為可點擊的連結
+function linkify(text: string): string {
+  if (!text) return '';
+  
+  // URL 正則表達式：匹配 http://, https://, 或 www. 開頭的網址
+  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
+  
+  // 將網址轉換為 HTML 連結
+  return text.replace(urlRegex, (url) => {
+    // 如果網址沒有協議，添加 https://
+    const href = url.startsWith('http') ? url : `https://${url}`;
+    // 轉義 HTML 特殊字符
+    const escapedUrl = url
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+    return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 underline break-all">${escapedUrl}</a>`;
+  });
+}
+
 interface Channel {
   id: string;
   name: string;
@@ -490,7 +512,10 @@ export default function QueryRewards() {
                     <div className="bg-white p-4 rounded-lg border-2 border-blue-200 shadow-sm">
                       <div className="text-xl font-bold text-blue-800 mb-2">{selectedCardInfo.name}</div>
                       {selectedCardInfo.note && (
-                        <div className="text-sm text-gray-600 border-l-2 border-gray-300 pl-2" dangerouslySetInnerHTML={{ __html: selectedCardInfo.note }} />
+                        <div 
+                          className="text-sm text-gray-600 border-l-2 border-gray-300 pl-2" 
+                          dangerouslySetInnerHTML={{ __html: linkify(selectedCardInfo.note) }} 
+                        />
                       )}
                     </div>
                   )}
@@ -498,7 +523,10 @@ export default function QueryRewards() {
                     <div className="bg-white p-4 rounded-lg border-2 border-purple-200 shadow-sm">
                       <div className="text-xl font-bold text-purple-800 mb-2">{selectedPaymentInfo.name}</div>
                       {selectedPaymentInfo.note && (
-                        <div className="text-sm text-gray-600 border-l-2 border-gray-300 pl-2" dangerouslySetInnerHTML={{ __html: selectedPaymentInfo.note }} />
+                        <div 
+                          className="text-sm text-gray-600 border-l-2 border-gray-300 pl-2" 
+                          dangerouslySetInnerHTML={{ __html: linkify(selectedPaymentInfo.note) }} 
+                        />
                       )}
                     </div>
                   )}

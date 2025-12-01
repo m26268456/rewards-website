@@ -3,6 +3,28 @@ import api from '../utils/api';
 import { isApp, setAppMode } from '../utils/isApp';
 import type { Card, Scheme, PaymentMethod, TransactionType, CalculationScheme, Channel } from '../types';
 
+// 輔助函數：將文字中的網址轉換為可點擊的連結
+function linkify(text: string): string {
+  if (!text) return '';
+  
+  // URL 正則表達式：匹配 http://, https://, 或 www. 開頭的網址
+  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
+  
+  // 將網址轉換為 HTML 連結
+  return text.replace(urlRegex, (url) => {
+    // 如果網址沒有協議，添加 https://
+    const href = url.startsWith('http') ? url : `https://${url}`;
+    // 轉義 HTML 特殊字符
+    const escapedUrl = url
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+    return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 underline break-all">${escapedUrl}</a>`;
+  });
+}
+
 export default function Settings() {
   const [activeTab, setActiveTab] = useState<'query' | 'calculate' | 'transactions' | 'quota' | 'app'>(
     'query'
@@ -107,7 +129,12 @@ function SchemeDetailManager({
       <div className="flex items-start justify-between mb-2 gap-2">
         <div className="flex-1 min-w-0">
           <div className="font-medium">{scheme.name}</div>
-          {scheme.note && <div className="text-xs text-gray-600 break-words mt-1">{scheme.note}</div>}
+          {scheme.note && (
+            <div 
+              className="text-xs text-gray-600 break-words mt-1" 
+              dangerouslySetInnerHTML={{ __html: linkify(scheme.note) }}
+            />
+          )}
           <div className="text-xs text-gray-500 mt-1">
             {scheme.requires_switch ? '需切換' : '免切換'}
           </div>
@@ -575,7 +602,12 @@ function CardItem({
       <div className="flex items-start justify-between mb-2 gap-2">
         <div className="flex-1 min-w-0">
           <div className="font-medium">{card.name}</div>
-          {card.note && <div className="text-sm text-gray-600 break-words mt-1">{card.note}</div>}
+          {card.note && (
+            <div 
+              className="text-sm text-gray-600 break-words mt-1" 
+              dangerouslySetInnerHTML={{ __html: linkify(card.note) }}
+            />
+          )}
         </div>
         <div className="flex gap-2 flex-shrink-0">
           <button
@@ -1556,7 +1588,12 @@ function PaymentMethodItem({
       <div className="flex items-start justify-between mb-2 gap-2">
         <div className="flex-1 min-w-0">
           <div className="font-medium">{paymentMethod.name}</div>
-          {paymentMethod.note && <div className="text-sm text-gray-600 break-words mt-1">{paymentMethod.note}</div>}
+          {paymentMethod.note && (
+            <div 
+              className="text-sm text-gray-600 break-words mt-1" 
+              dangerouslySetInnerHTML={{ __html: linkify(paymentMethod.note) }}
+            />
+          )}
           <div className="text-xs text-gray-500 mt-1">
             本身回饋: {paymentMethod.own_reward_percentage}%
           </div>
