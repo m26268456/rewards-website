@@ -357,24 +357,46 @@ router.put('/:id/rewards', async (req: Request, res: Response) => {
       // 刪除現有的回饋組成
       await client.query('DELETE FROM payment_rewards WHERE payment_method_id = $1', [id]);
 
-      // 新增回饋組成
-      for (const reward of rewards) {
-        await client.query(
-          `INSERT INTO payment_rewards 
-           (payment_method_id, reward_percentage, calculation_method, quota_limit, 
-            quota_refresh_type, quota_refresh_value, quota_refresh_date, display_order)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-          [
-            id,
-            reward.percentage,
-            reward.calculationMethod || 'round',
-            reward.quotaLimit || null,
-            reward.quotaRefreshType || null,
-            reward.quotaRefreshValue || null,
-            reward.quotaRefreshDate || null,
-            reward.displayOrder || 0,
-          ]
-        );
+      // 批量插入回饋組成（優化：使用 UNNEST 批量插入）
+      if (rewards.length > 0) {
+        const validRewards = rewards.filter((r: any) => r.percentage !== undefined && r.percentage !== null);
+        if (validRewards.length > 0) {
+          // 使用 UNNEST 進行批量插入
+          const percentages = validRewards.map((r: any) => parseFloat(r.percentage) || 0);
+          const calculationMethods = validRewards.map((r: any) => r.calculationMethod || 'round');
+          const quotaLimits = validRewards.map((r: any) => {
+            const val = r.quotaLimit;
+            return val !== undefined && val !== null ? parseFloat(val) : null;
+          });
+          const quotaRefreshTypes = validRewards.map((r: any) => r.quotaRefreshType || null);
+          const quotaRefreshValues = validRewards.map((r: any) => {
+            const val = r.quotaRefreshValue;
+            return val !== undefined && val !== null ? parseFloat(val) : null;
+          });
+          const quotaRefreshDates = validRewards.map((r: any) => r.quotaRefreshDate || null);
+          const displayOrders = validRewards.map((r: any, idx: number) => {
+            const val = r.displayOrder;
+            return val !== undefined && val !== null ? parseInt(val) : idx;
+          });
+
+          await client.query(
+            `INSERT INTO payment_rewards 
+             (payment_method_id, reward_percentage, calculation_method, quota_limit, 
+              quota_refresh_type, quota_refresh_value, quota_refresh_date, display_order)
+             SELECT $1::uuid, unnest($2::numeric[]), unnest($3::text[]), unnest($4::numeric[]),
+                    unnest($5::text[]), unnest($6::numeric[]), unnest($7::date[]), unnest($8::integer[])`,
+            [
+              id,
+              percentages,
+              calculationMethods,
+              quotaLimits,
+              quotaRefreshTypes,
+              quotaRefreshValues,
+              quotaRefreshDates,
+              displayOrders,
+            ]
+          );
+        }
       }
 
       await client.query('COMMIT');
