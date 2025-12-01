@@ -403,7 +403,15 @@ export async function queryChannelRewards(
 
       // 3. 找出適用此通路的支付方式
       const paymentApplicationsResult = await pool.query(
-        `SELECT pm.id, pm.name, pm.own_reward_percentage, pca.note
+        `SELECT pm.id, pm.name, pca.note,
+                (SELECT json_agg(
+                  json_build_object(
+                    'percentage', reward_percentage,
+                    'method', calculation_method
+                  ) ORDER BY display_order
+                )
+                FROM payment_rewards pr
+                WHERE pr.payment_method_id = pm.id) as rewards
          FROM payment_channel_applications pca
          JOIN payment_methods pm ON pca.payment_method_id = pm.id
          WHERE pca.channel_id = $1`,
@@ -421,7 +429,15 @@ export async function queryChannelRewards(
                   ) ORDER BY display_order
                 )
                 FROM scheme_rewards sr
-                WHERE sr.scheme_id = cs.id) as rewards
+                WHERE sr.scheme_id = cs.id) as scheme_rewards,
+                (SELECT json_agg(
+                  json_build_object(
+                    'percentage', reward_percentage,
+                    'method', calculation_method
+                  ) ORDER BY display_order
+                )
+                FROM payment_rewards pr
+                WHERE pr.payment_method_id = pm.id) as payment_rewards
          FROM payment_scheme_links psl
          JOIN card_schemes cs ON psl.scheme_id = cs.id
          JOIN cards c ON cs.card_id = c.id
@@ -454,27 +470,46 @@ export async function queryChannelRewards(
         };
       });
 
-      const paymentResults = paymentApplicationsResult.rows.map((row) => ({
-        isExcluded: false,
-        totalRewardPercentage: parseFloat(row.own_reward_percentage),
-        rewardBreakdown: `${row.own_reward_percentage}%`,
-        schemeInfo: row.name,
-        requiresSwitch: false,
-        note: row.note || undefined,
-      }));
+      const paymentResults = paymentApplicationsResult.rows.map((row) => {
+        const rewards = row.rewards || [];
+        const totalPercentage = rewards.reduce(
+          (sum: number, r: any) => sum + parseFloat(r.percentage),
+          0
+        );
+        const breakdown = rewards
+          .map((r: any) => `${r.percentage}%`)
+          .join('+');
+
+        return {
+          isExcluded: false,
+          totalRewardPercentage: totalPercentage,
+          rewardBreakdown: breakdown || '0%',
+          schemeInfo: row.name,
+          requiresSwitch: false,
+          note: row.note || undefined,
+        };
+      });
 
       const paymentSchemeResults = paymentSchemeLinksResult.rows.map((row) => {
-        const rewards = row.rewards || [];
-        const totalPercentage =
-          rewards.reduce(
-            (sum: number, r: any) => sum + parseFloat(r.percentage),
-            0
-          ) + parseFloat(row.own_reward_percentage || 0);
-        const breakdown =
-          rewards.map((r: any) => `${r.percentage}%`).join('+') +
-          (row.own_reward_percentage > 0
-            ? `+${row.own_reward_percentage}%`
-            : '');
+        const schemeRewards = row.scheme_rewards || [];
+        const paymentRewards = row.payment_rewards || [];
+        
+        const schemeTotal = schemeRewards.reduce(
+          (sum: number, r: any) => sum + parseFloat(r.percentage),
+          0
+        );
+        const paymentTotal = paymentRewards.reduce(
+          (sum: number, r: any) => sum + parseFloat(r.percentage),
+          0
+        );
+        
+        const totalPercentage = schemeTotal + paymentTotal;
+        
+        const schemeBreakdown = schemeRewards.map((r: any) => `${r.percentage}%`).join('+');
+        const paymentBreakdown = paymentRewards.map((r: any) => `${r.percentage}%`).join('+');
+        const breakdown = [schemeBreakdown, paymentBreakdown]
+          .filter(b => b.length > 0)
+          .join('+') || '0%';
 
         return {
           isExcluded: false,
