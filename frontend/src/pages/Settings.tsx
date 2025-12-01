@@ -517,25 +517,19 @@ function CardItem({
       const exclusions = await convertChannelNamesToIds(channelExclusionsText);
 
       if (editingScheme) {
-        // 更新方案基本資訊
-        await api.put(`/schemes/${editingScheme.id}`, {
+        // 批量更新方案（優化：單次 API 調用）
+        await api.put(`/schemes/${editingScheme.id}/batch`, {
           name: schemeFormData.name,
           note: schemeFormData.note || null,
           requiresSwitch: schemeFormData.requiresSwitch,
           activityStartDate: schemeFormData.activityStartDate || null,
           activityEndDate: schemeFormData.activityEndDate || null,
           displayOrder: schemeFormData.displayOrder,
-        });
-        // 更新通路設定
-        await api.put(`/schemes/${editingScheme.id}/channels`, {
           applications: applications.map(app => ({
             channelId: app.channelId,
             note: app.note || null,
           })),
           exclusions: exclusions,
-        });
-        // 更新回饋組成
-        await api.put(`/schemes/${editingScheme.id}/rewards`, {
           rewards: rewards.map((r, idx) => ({
             percentage: r.percentage,
             calculationMethod: r.calculationMethod,
