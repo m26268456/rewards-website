@@ -9,6 +9,7 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['icon-192.png', 'icon-512.png'],
+      manifestFilename: 'manifest.json',
       manifest: {
         name: '回饋查詢/計算與記帳系統',
         short_name: '回饋系統',
