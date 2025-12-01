@@ -104,15 +104,15 @@ function SchemeDetailManager({
 
   return (
     <div className="p-2 bg-white rounded text-sm border">
-      <div className="flex items-center justify-between mb-2">
-        <div>
+      <div className="flex items-start justify-between mb-2 gap-2">
+        <div className="flex-1 min-w-0">
           <div className="font-medium">{scheme.name}</div>
-          {scheme.note && <div className="text-xs text-gray-600">{scheme.note}</div>}
-          <div className="text-xs text-gray-500">
+          {scheme.note && <div className="text-xs text-gray-600 break-words mt-1">{scheme.note}</div>}
+          <div className="text-xs text-gray-500 mt-1">
             {scheme.requires_switch ? '需切換' : '免切換'}
           </div>
         </div>
-        <div className="flex gap-1">
+        <div className="flex gap-1 flex-shrink-0">
           <button
             onClick={onExpand}
             className="px-2 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600"
@@ -258,9 +258,9 @@ function CardItem({
       
       // 如果點擊在表單外部，關閉表單
       if (showSchemeForm && schemeFormRef.current && !schemeFormRef.current.contains(target)) {
-        // 檢查是否點擊在展開的方案區域內
-        if (expandedSchemeRef.current && expandedSchemeRef.current.contains(target)) {
-          return; // 如果點擊在展開區域內，不關閉表單
+        // 檢查是否點擊在按鈕上（不關閉）
+        if (target.closest('button')) {
+          return;
         }
         setShowSchemeForm(false);
         setEditingScheme(null);
@@ -271,9 +271,9 @@ function CardItem({
       
       // 如果點擊在展開的方案外部，關閉展開
       if (expandedSchemeId && expandedSchemeRef.current && !expandedSchemeRef.current.contains(target)) {
-        // 檢查是否點擊在表單內
-        if (schemeFormRef.current && schemeFormRef.current.contains(target)) {
-          return; // 如果點擊在表單內，不關閉展開
+        // 檢查是否點擊在表單內或按鈕上
+        if (schemeFormRef.current?.contains(target) || target.closest('button')) {
+          return;
         }
         setExpandedSchemeId(null);
       }
@@ -572,12 +572,12 @@ function CardItem({
 
   return (
     <div className="p-3 bg-gray-50 rounded border">
-      <div className="flex items-center justify-between mb-2">
-        <div>
+      <div className="flex items-start justify-between mb-2 gap-2">
+        <div className="flex-1 min-w-0">
           <div className="font-medium">{card.name}</div>
-          {card.note && <div className="text-sm text-gray-600">{card.note}</div>}
+          {card.note && <div className="text-sm text-gray-600 break-words mt-1">{card.note}</div>}
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-shrink-0">
           <button
             onClick={() => {
               setShowSchemes(!showSchemes);
@@ -664,10 +664,10 @@ function CardItem({
             </div>
           </div>
 
-          {/* 方案表單 */}
-          {showSchemeForm && (
+          {/* 新增方案表單（在方案列表上方） */}
+          {showSchemeForm && !editingScheme && (
             <div ref={schemeFormRef} className="mb-4 p-3 bg-white rounded border">
-              <h4 className="font-medium mb-2">{editingScheme ? '編輯方案' : '新增方案'}</h4>
+              <h4 className="font-medium mb-2">新增方案</h4>
               <form onSubmit={handleSchemeSubmit} className="space-y-4">
                 {/* 方案名稱 */}
                 <div>
@@ -695,7 +695,7 @@ function CardItem({
                   <label className="block text-xs text-gray-600 mb-1">回饋組成</label>
                   <div className="space-y-2">
                     {rewards.map((reward, index) => (
-                      <div key={index} className="p-2 border rounded space-y-1">
+                      <div key={index} className="p-2 border rounded space-y-2">
                         <div className="grid grid-cols-2 gap-2">
                           <div>
                             <label className="text-xs block mb-1">回饋%數</label>
@@ -728,6 +728,79 @@ function CardItem({
                             </select>
                           </div>
                         </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-xs block mb-1">額度上限（留空為無上限）</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={reward.quotaLimit || ''}
+                              onChange={(e) => {
+                                const newRewards = [...rewards];
+                                newRewards[index].quotaLimit = e.target.value ? parseFloat(e.target.value) : null;
+                                setRewards(newRewards);
+                              }}
+                              className="w-full px-2 py-1 border rounded text-xs"
+                              placeholder="無上限"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs block mb-1">刷新類型</label>
+                            <select
+                              value={reward.quotaRefreshType || ''}
+                              onChange={(e) => {
+                                const newRewards = [...rewards];
+                                newRewards[index].quotaRefreshType = e.target.value || null;
+                                if (e.target.value !== 'date') {
+                                  newRewards[index].quotaRefreshDate = null;
+                                }
+                                setRewards(newRewards);
+                              }}
+                              className="w-full px-2 py-1 border rounded text-xs"
+                            >
+                              <option value="">不刷新</option>
+                              <option value="monthly">每月固定日期</option>
+                              <option value="date">指定日期</option>
+                              <option value="activity">活動結束日</option>
+                            </select>
+                          </div>
+                        </div>
+                        {(reward.quotaRefreshType === 'monthly' || reward.quotaRefreshType === 'date') && (
+                          <div className="grid grid-cols-2 gap-2">
+                            {reward.quotaRefreshType === 'monthly' && (
+                              <div>
+                                <label className="text-xs block mb-1">每月幾號（1-31）</label>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  max="31"
+                                  value={reward.quotaRefreshValue || ''}
+                                  onChange={(e) => {
+                                    const newRewards = [...rewards];
+                                    newRewards[index].quotaRefreshValue = e.target.value ? parseInt(e.target.value) : null;
+                                    setRewards(newRewards);
+                                  }}
+                                  className="w-full px-2 py-1 border rounded text-xs"
+                                />
+                              </div>
+                            )}
+                            {reward.quotaRefreshType === 'date' && (
+                              <div>
+                                <label className="text-xs block mb-1">刷新日期</label>
+                                <input
+                                  type="date"
+                                  value={reward.quotaRefreshDate || ''}
+                                  onChange={(e) => {
+                                    const newRewards = [...rewards];
+                                    newRewards[index].quotaRefreshDate = e.target.value || null;
+                                    setRewards(newRewards);
+                                  }}
+                                  className="w-full px-2 py-1 border rounded text-xs"
+                                />
+                              </div>
+                            )}
+                          </div>
+                        )}
                         <button
                           type="button"
                           onClick={() => removeReward(index)}
@@ -833,7 +906,7 @@ function CardItem({
                 <div 
                   key={scheme.id} 
                   ref={expandedSchemeId === scheme.id ? expandedSchemeRef : null}
-                  className="flex items-center gap-2"
+                  className="flex items-start gap-2"
                 >
                   <div className="flex-1">
                     <SchemeDetailManager
@@ -862,6 +935,241 @@ function CardItem({
                         }
                       }}
                     />
+                    {/* 編輯方案表單（在方案下方展開） */}
+                    {editingScheme && editingScheme.id === scheme.id && (
+                      <div ref={schemeFormRef} className="mt-2 p-3 bg-white rounded border">
+                        <h4 className="font-medium mb-2">編輯方案</h4>
+                        <form onSubmit={handleSchemeSubmit} className="space-y-4">
+                          {/* 方案名稱 */}
+                          <div>
+                            <label className="block text-xs text-gray-600 mb-1">方案名稱 *</label>
+                            <input
+                              type="text"
+                              value={schemeFormData.name}
+                              onChange={(e) => setSchemeFormData({ ...schemeFormData, name: e.target.value })}
+                              className="w-full px-2 py-1 border rounded text-sm"
+                              required
+                            />
+                          </div>
+                          {/* 備註 */}
+                          <div>
+                            <label className="block text-xs text-gray-600 mb-1">備註</label>
+                            <input
+                              type="text"
+                              value={schemeFormData.note}
+                              onChange={(e) => setSchemeFormData({ ...schemeFormData, note: e.target.value })}
+                              className="w-full px-2 py-1 border rounded text-sm"
+                            />
+                          </div>
+                          {/* 回饋組成 */}
+                          <div>
+                            <label className="block text-xs text-gray-600 mb-1">回饋組成</label>
+                            <div className="space-y-2">
+                              {rewards.map((reward, rewardIndex) => (
+                                <div key={rewardIndex} className="p-2 border rounded space-y-2">
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                      <label className="text-xs block mb-1">回饋%數</label>
+                                      <input
+                                        type="number"
+                                        step="0.1"
+                                        value={reward.percentage}
+                                        onChange={(e) => {
+                                          const newRewards = [...rewards];
+                                          newRewards[rewardIndex].percentage = parseFloat(e.target.value) || 0;
+                                          setRewards(newRewards);
+                                        }}
+                                        className="w-full px-2 py-1 border rounded text-xs"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="text-xs block mb-1">計算方式</label>
+                                      <select
+                                        value={reward.calculationMethod}
+                                        onChange={(e) => {
+                                          const newRewards = [...rewards];
+                                          newRewards[rewardIndex].calculationMethod = e.target.value;
+                                          setRewards(newRewards);
+                                        }}
+                                        className="w-full px-2 py-1 border rounded text-xs"
+                                      >
+                                        <option value="round">四捨五入</option>
+                                        <option value="floor">無條件捨去</option>
+                                        <option value="ceil">無條件進位</option>
+                                      </select>
+                                    </div>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                      <label className="text-xs block mb-1">額度上限（留空為無上限）</label>
+                                      <input
+                                        type="number"
+                                        step="0.01"
+                                        value={reward.quotaLimit || ''}
+                                        onChange={(e) => {
+                                          const newRewards = [...rewards];
+                                          newRewards[rewardIndex].quotaLimit = e.target.value ? parseFloat(e.target.value) : null;
+                                          setRewards(newRewards);
+                                        }}
+                                        className="w-full px-2 py-1 border rounded text-xs"
+                                        placeholder="無上限"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="text-xs block mb-1">刷新類型</label>
+                                      <select
+                                        value={reward.quotaRefreshType || ''}
+                                        onChange={(e) => {
+                                          const newRewards = [...rewards];
+                                          newRewards[rewardIndex].quotaRefreshType = e.target.value || null;
+                                          if (e.target.value !== 'date') {
+                                            newRewards[rewardIndex].quotaRefreshDate = null;
+                                          }
+                                          setRewards(newRewards);
+                                        }}
+                                        className="w-full px-2 py-1 border rounded text-xs"
+                                      >
+                                        <option value="">不刷新</option>
+                                        <option value="monthly">每月固定日期</option>
+                                        <option value="date">指定日期</option>
+                                        <option value="activity">活動結束日</option>
+                                      </select>
+                                    </div>
+                                  </div>
+                                  {(reward.quotaRefreshType === 'monthly' || reward.quotaRefreshType === 'date') && (
+                                    <div className="grid grid-cols-2 gap-2">
+                                      {reward.quotaRefreshType === 'monthly' && (
+                                        <div>
+                                          <label className="text-xs block mb-1">每月幾號（1-31）</label>
+                                          <input
+                                            type="number"
+                                            min="1"
+                                            max="31"
+                                            value={reward.quotaRefreshValue || ''}
+                                            onChange={(e) => {
+                                              const newRewards = [...rewards];
+                                              newRewards[rewardIndex].quotaRefreshValue = e.target.value ? parseInt(e.target.value) : null;
+                                              setRewards(newRewards);
+                                            }}
+                                            className="w-full px-2 py-1 border rounded text-xs"
+                                          />
+                                        </div>
+                                      )}
+                                      {reward.quotaRefreshType === 'date' && (
+                                        <div>
+                                          <label className="text-xs block mb-1">刷新日期</label>
+                                          <input
+                                            type="date"
+                                            value={reward.quotaRefreshDate || ''}
+                                            onChange={(e) => {
+                                              const newRewards = [...rewards];
+                                              newRewards[rewardIndex].quotaRefreshDate = e.target.value || null;
+                                              setRewards(newRewards);
+                                            }}
+                                            className="w-full px-2 py-1 border rounded text-xs"
+                                          />
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => removeReward(rewardIndex)}
+                                    className="px-2 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600"
+                                  >
+                                    刪除
+                                  </button>
+                                </div>
+                              ))}
+                              <button
+                                type="button"
+                                onClick={addReward}
+                                className="px-2 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600"
+                              >
+                                新增回饋組成
+                              </button>
+                            </div>
+                          </div>
+                          {/* 方案期限 */}
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-xs text-gray-600 mb-1">活動開始日期</label>
+                              <input
+                                type="date"
+                                value={schemeFormData.activityStartDate}
+                                onChange={(e) => setSchemeFormData({ ...schemeFormData, activityStartDate: e.target.value })}
+                                className="w-full px-2 py-1 border rounded text-sm"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-gray-600 mb-1">活動結束日期</label>
+                              <input
+                                type="date"
+                                value={schemeFormData.activityEndDate}
+                                onChange={(e) => setSchemeFormData({ ...schemeFormData, activityEndDate: e.target.value })}
+                                className="w-full px-2 py-1 border rounded text-sm"
+                              />
+                            </div>
+                          </div>
+                          {/* 適用通路 */}
+                          <div>
+                            <label className="block text-xs text-gray-600 mb-1">
+                              適用通路（每行一個通路名稱，可在名稱後加上備註，格式：通路名稱 (備註)）
+                            </label>
+                            <textarea
+                              value={channelApplicationsText}
+                              onChange={(e) => setChannelApplicationsText(e.target.value)}
+                              className="w-full px-2 py-1 border rounded text-xs"
+                              rows={6}
+                              placeholder="例如：&#10;環球影城&#10;7-11 (便利商店)&#10;全聯福利中心"
+                            />
+                          </div>
+                          {/* 排除通路 */}
+                          <div>
+                            <label className="block text-xs text-gray-600 mb-1">排除通路（每行一個通路名稱）</label>
+                            <textarea
+                              value={channelExclusionsText}
+                              onChange={(e) => setChannelExclusionsText(e.target.value)}
+                              className="w-full px-2 py-1 border rounded text-xs"
+                              rows={6}
+                              placeholder="例如：&#10;通路A&#10;通路B"
+                            />
+                          </div>
+                          {/* 需切換 */}
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              id={`requiresSwitch-${scheme.id}`}
+                              checked={schemeFormData.requiresSwitch}
+                              onChange={(e) => setSchemeFormData({ ...schemeFormData, requiresSwitch: e.target.checked })}
+                              className="w-4 h-4"
+                            />
+                            <label htmlFor={`requiresSwitch-${scheme.id}`} className="text-xs text-gray-600">需切換</label>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              type="submit"
+                              className="px-3 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600"
+                            >
+                              更新
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShowSchemeForm(false);
+                                setEditingScheme(null);
+                                setChannelApplicationsText('');
+                                setChannelExclusionsText('');
+                                setRewards([]);
+                              }}
+                              className="px-3 py-1 bg-gray-500 text-white rounded text-xs hover:bg-gray-600"
+                            >
+                              取消
+                            </button>
+                          </div>
+                        </form>
+                      </div>
+                    )}
                   </div>
                   {isReorderingSchemes && (
                     <div className="flex flex-col gap-1">
@@ -1245,15 +1553,15 @@ function PaymentMethodItem({
 
   return (
     <div className="p-3 bg-gray-50 rounded border">
-      <div className="flex items-center justify-between mb-2">
-        <div>
+      <div className="flex items-start justify-between mb-2 gap-2">
+        <div className="flex-1 min-w-0">
           <div className="font-medium">{paymentMethod.name}</div>
-          {paymentMethod.note && <div className="text-sm text-gray-600">{paymentMethod.note}</div>}
-          <div className="text-xs text-gray-500">
+          {paymentMethod.note && <div className="text-sm text-gray-600 break-words mt-1">{paymentMethod.note}</div>}
+          <div className="text-xs text-gray-500 mt-1">
             本身回饋: {paymentMethod.own_reward_percentage}%
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-shrink-0">
           <button
             onClick={onEdit}
             className="px-3 py-1 bg-yellow-500 text-white rounded text-sm hover:bg-yellow-600"
