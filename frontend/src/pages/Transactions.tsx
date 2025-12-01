@@ -202,13 +202,14 @@ export default function Transactions() {
               事由 <span className="text-red-500">*</span>
             </label>
             {reasonString && (
-              <div className="mb-2 p-2 bg-blue-50 rounded text-sm">{reasonString}</div>
+              <div className="mb-2 p-2 bg-blue-50 rounded text-sm whitespace-pre-wrap">{reasonString}</div>
             )}
-            <input
-              type="text"
+            <textarea
               value={formData.reason}
               onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
               required
+              rows={3}
+              placeholder="可輸入多行文字，按 Enter 換行"
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -330,13 +331,13 @@ export default function Transactions() {
                       ? formatTz(utcToZonedTime(new Date(transaction.transaction_date), TIMEZONE), 'yyyy/MM/dd', { timeZone: TIMEZONE })
                       : '-'}
                   </td>
-                  <td className="px-4 py-3 text-sm">{transaction.reason}</td>
+                  <td className="px-4 py-3 text-sm whitespace-pre-wrap">{transaction.reason}</td>
                   <td className="px-4 py-3 text-sm">
                     {transaction.amount ? transaction.amount.toLocaleString() : '-'}
                   </td>
                   <td className="px-4 py-3 text-sm">{transaction.type_name}</td>
                   <td className="px-4 py-3 text-sm">{transaction.scheme_name || '-'}</td>
-                  <td className="px-4 py-3 text-sm">{transaction.note || '-'}</td>
+                  <td className="px-4 py-3 text-sm whitespace-pre-wrap">{transaction.note || '-'}</td>
                   <td className="px-4 py-3 text-sm">
                     <button
                       onClick={() => handleDelete(transaction.id)}
