@@ -1593,6 +1593,7 @@ function PaymentMethodItem({
         })),
       });
       alert('回饋組成已更新');
+      setShowRewards(false); // 保存成功後收合回饋組成區域
       loadRewards();
       onReload();
     } catch (error: unknown) {
