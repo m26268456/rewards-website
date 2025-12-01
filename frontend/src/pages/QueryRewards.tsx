@@ -156,13 +156,20 @@ export default function QueryRewards() {
     }
   }, [selectedChannels]);
 
-  const handleAddCommonChannel = (channelId: string) => {
-    if (!selectedChannels.includes(channelId)) {
-      const channel = commonChannels.find((c) => c.id === channelId);
+  const handleToggleCommonChannel = (channelId: string) => {
+    const channel = commonChannels.find((c) => c.id === channelId);
+    if (!channel) return;
+
+    if (selectedChannels.includes(channelId)) {
+      // 如果已選中，則移除
+      setSelectedChannels(selectedChannels.filter((id) => id !== channelId));
+      const newMap = new Map(selectedChannelNames);
+      newMap.delete(channelId);
+      setSelectedChannelNames(newMap);
+    } else {
+      // 如果未選中，則添加
       setSelectedChannels([...selectedChannels, channelId]);
-      if (channel) {
-        setSelectedChannelNames(new Map(selectedChannelNames.set(channelId, channel.name)));
-      }
+      setSelectedChannelNames(new Map(selectedChannelNames.set(channelId, channel.name)));
     }
   };
 
@@ -350,15 +357,22 @@ export default function QueryRewards() {
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">常用通路</label>
               <div className="flex flex-wrap gap-2">
-                {commonChannels.map((channel) => (
-                  <button
-                    key={channel.id}
-                    onClick={() => handleAddCommonChannel(channel.id)}
-                    className="px-4 py-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg hover:from-blue-600 hover:to-cyan-600 text-sm font-medium shadow-md hover:shadow-lg transition-all duration-200"
-                  >
-                    {channel.name}
-                  </button>
-                ))}
+                {commonChannels.map((channel) => {
+                  const isSelected = selectedChannels.includes(channel.id);
+                  return (
+                    <button
+                      key={channel.id}
+                      onClick={() => handleToggleCommonChannel(channel.id)}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium shadow-md hover:shadow-lg transition-all duration-200 ${
+                        isSelected
+                          ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white hover:from-green-600 hover:to-emerald-600'
+                          : 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:from-blue-600 hover:to-cyan-600'
+                      }`}
+                    >
+                      {isSelected ? '✓ ' : ''}{channel.name}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
