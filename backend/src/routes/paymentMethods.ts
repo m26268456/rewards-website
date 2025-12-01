@@ -340,6 +340,56 @@ router.delete('/:id/rewards/:rewardId', async (req: Request, res: Response) => {
   }
 });
 
+// 批量更新支付方式的回饋組成
+router.put('/:id/rewards', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { rewards } = req.body;
+
+    if (!Array.isArray(rewards)) {
+      return res.status(400).json({ success: false, error: '回饋組成必須是陣列' });
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // 刪除現有的回饋組成
+      await client.query('DELETE FROM payment_rewards WHERE payment_method_id = $1', [id]);
+
+      // 新增回饋組成
+      for (const reward of rewards) {
+        await client.query(
+          `INSERT INTO payment_rewards 
+           (payment_method_id, reward_percentage, calculation_method, quota_limit, 
+            quota_refresh_type, quota_refresh_value, quota_refresh_date, display_order)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [
+            id,
+            reward.percentage,
+            reward.calculationMethod || 'round',
+            reward.quotaLimit || null,
+            reward.quotaRefreshType || null,
+            reward.quotaRefreshValue || null,
+            reward.quotaRefreshDate || null,
+            reward.displayOrder || 0,
+          ]
+        );
+      }
+
+      await client.query('COMMIT');
+      res.json({ success: true, message: '回饋組成已更新' });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, error: (error as Error).message });
+  }
+});
+
 // 更新支付方式回饋組成的順序
 router.put('/:id/rewards/order', async (req: Request, res: Response) => {
   try {
