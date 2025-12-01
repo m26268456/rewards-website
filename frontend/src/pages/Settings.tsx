@@ -126,12 +126,12 @@ function SchemeDetailManager({
 
   return (
     <div className="p-2 bg-white rounded text-sm border">
-      <div className="flex items-start justify-between mb-2 gap-2">
-        <div className="flex-1 min-w-0">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2">
+        <div className="flex-1 min-w-0 w-full sm:w-auto">
           <div className="font-medium">{scheme.name}</div>
           {scheme.note && (
             <div 
-              className="text-xs text-gray-600 break-words mt-1" 
+              className="text-xs text-gray-600 break-words mt-1 overflow-wrap-anywhere" 
               dangerouslySetInnerHTML={{ __html: linkify(scheme.note) }}
             />
           )}
@@ -139,10 +139,10 @@ function SchemeDetailManager({
             {scheme.requires_switch ? '需切換' : '免切換'}
           </div>
         </div>
-        <div className="flex gap-1 flex-shrink-0">
+        <div className="flex gap-1 flex-shrink-0 flex-wrap">
           <button
             onClick={onExpand}
-            className="px-2 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600"
+            className="px-2 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 whitespace-nowrap"
           >
             {isExpanded ? '收起' : '展開'}
           </button>
@@ -262,6 +262,7 @@ function CardItem({
   // 用於追蹤表單和展開區域的 ref
   const schemeFormRef = useRef<HTMLDivElement>(null);
   const expandedSchemeRef = useRef<HTMLDivElement>(null);
+  const schemesListRef = useRef<HTMLDivElement>(null);
 
   // ESC 鍵取消編輯/展開，點擊空白處關閉
   useEffect(() => {
@@ -276,6 +277,9 @@ function CardItem({
         }
         if (expandedSchemeId) {
           setExpandedSchemeId(null);
+        }
+        if (showSchemes) {
+          setShowSchemes(false);
         }
       }
     };
@@ -304,6 +308,20 @@ function CardItem({
         }
         setExpandedSchemeId(null);
       }
+      
+      // 如果點擊在方案列表外部，關閉方案列表
+      if (showSchemes && schemesListRef.current && !schemesListRef.current.contains(target)) {
+        // 檢查是否點擊在按鈕上（不關閉，因為按鈕是用來切換顯示的）
+        const clickedButton = target.closest('button');
+        if (clickedButton && clickedButton.textContent?.includes('管理方案')) {
+          return; // 點擊"管理方案"按鈕不關閉
+        }
+        // 檢查是否點擊在表單內
+        if (schemeFormRef.current?.contains(target) || expandedSchemeRef.current?.contains(target)) {
+          return;
+        }
+        setShowSchemes(false);
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -312,7 +330,7 @@ function CardItem({
       window.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showSchemeForm, editingScheme, expandedSchemeId]);
+  }, [showSchemeForm, editingScheme, expandedSchemeId, showSchemes]);
 
   const loadSchemes = async () => {
     try {
@@ -599,17 +617,17 @@ function CardItem({
 
   return (
     <div className="p-3 bg-gray-50 rounded border">
-      <div className="flex items-start justify-between mb-2 gap-2">
-        <div className="flex-1 min-w-0">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2">
+        <div className="flex-1 min-w-0 w-full sm:w-auto">
           <div className="font-medium">{card.name}</div>
           {card.note && (
             <div 
-              className="text-sm text-gray-600 break-words mt-1" 
+              className="text-sm text-gray-600 break-words mt-1 overflow-wrap-anywhere" 
               dangerouslySetInnerHTML={{ __html: linkify(card.note) }}
             />
           )}
         </div>
-        <div className="flex gap-2 flex-shrink-0">
+        <div className="flex gap-2 flex-shrink-0 flex-wrap">
           <button
             onClick={() => {
               setShowSchemes(!showSchemes);
@@ -617,19 +635,19 @@ function CardItem({
                 loadSchemes();
               }
             }}
-            className="px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
+            className="px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600 whitespace-nowrap"
           >
             {showSchemes ? '隱藏方案' : '管理方案'}
           </button>
           <button
             onClick={onEdit}
-            className="px-3 py-1 bg-yellow-500 text-white rounded text-sm hover:bg-yellow-600"
+            className="px-3 py-1 bg-yellow-500 text-white rounded text-sm hover:bg-yellow-600 whitespace-nowrap"
           >
             編輯
           </button>
           <button
             onClick={onDelete}
-            className="px-3 py-1 bg-red-500 text-white rounded text-sm hover:bg-red-600"
+            className="px-3 py-1 bg-red-500 text-white rounded text-sm hover:bg-red-600 whitespace-nowrap"
           >
             刪除
           </button>
@@ -638,7 +656,7 @@ function CardItem({
 
       {/* 方案列表 */}
       {showSchemes && (
-        <div className="mt-2 pt-2 border-t">
+        <div ref={schemesListRef} className="mt-2 pt-2 border-t">
           <div className="flex justify-between items-center mb-2">
             <span className="text-sm font-medium">方案列表</span>
             <div className="flex gap-2">
@@ -1585,12 +1603,12 @@ function PaymentMethodItem({
 
   return (
     <div className="p-3 bg-gray-50 rounded border">
-      <div className="flex items-start justify-between mb-2 gap-2">
-        <div className="flex-1 min-w-0">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2">
+        <div className="flex-1 min-w-0 w-full sm:w-auto">
           <div className="font-medium">{paymentMethod.name}</div>
           {paymentMethod.note && (
             <div 
-              className="text-sm text-gray-600 break-words mt-1" 
+              className="text-sm text-gray-600 break-words mt-1 overflow-wrap-anywhere" 
               dangerouslySetInnerHTML={{ __html: linkify(paymentMethod.note) }}
             />
           )}
@@ -1598,16 +1616,16 @@ function PaymentMethodItem({
             本身回饋: {paymentMethod.own_reward_percentage}%
           </div>
         </div>
-        <div className="flex gap-2 flex-shrink-0">
+        <div className="flex gap-2 flex-shrink-0 flex-wrap">
           <button
             onClick={onEdit}
-            className="px-3 py-1 bg-yellow-500 text-white rounded text-sm hover:bg-yellow-600"
+            className="px-3 py-1 bg-yellow-500 text-white rounded text-sm hover:bg-yellow-600 whitespace-nowrap"
           >
             編輯
           </button>
           <button
             onClick={onDelete}
-            className="px-3 py-1 bg-red-500 text-white rounded text-sm hover:bg-red-600"
+            className="px-3 py-1 bg-red-500 text-white rounded text-sm hover:bg-red-600 whitespace-nowrap"
           >
             刪除
           </button>
