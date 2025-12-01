@@ -185,6 +185,143 @@ router.put('/:id', async (req: Request, res: Response) => {
   }
 });
 
+// 批量更新方案（包含基本資訊、通路、回饋組成）- 優化版本
+router.put('/:id/batch', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const {
+      name,
+      note,
+      requiresSwitch,
+      activityStartDate,
+      activityEndDate,
+      displayOrder,
+      applications,
+      exclusions,
+      rewards,
+    } = req.body;
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // 1. 更新方案基本資訊
+      const schemeResult = await client.query(
+        `UPDATE card_schemes
+         SET name = $1, note = $2, requires_switch = $3, 
+             activity_start_date = $4, activity_end_date = $5, display_order = $6,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $7
+         RETURNING id`,
+        [
+          name,
+          note || null,
+          requiresSwitch,
+          activityStartDate || null,
+          activityEndDate || null,
+          displayOrder,
+          id,
+        ]
+      );
+
+      if (schemeResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ success: false, error: '方案不存在' });
+      }
+
+      // 2. 批量更新通路設定（使用批量插入）
+      // 刪除現有的適用通路
+      await client.query('DELETE FROM scheme_channel_applications WHERE scheme_id = $1', [id]);
+
+      // 批量插入適用通路
+      if (Array.isArray(applications) && applications.length > 0) {
+        const validApps = applications.filter((app: any) => app.channelId);
+        if (validApps.length > 0) {
+          const values = validApps.map((app: any, idx: number) => 
+            `($1, $${idx * 3 + 2}, $${idx * 3 + 3})`
+          ).join(', ');
+          const params = [id, ...validApps.flatMap((app: any) => [app.channelId, app.note || null])];
+          
+          await client.query(
+            `INSERT INTO scheme_channel_applications (scheme_id, channel_id, note)
+             VALUES ${values}
+             ON CONFLICT (scheme_id, channel_id) DO UPDATE SET note = EXCLUDED.note`,
+            params
+          );
+        }
+      }
+
+      // 刪除現有的排除通路
+      await client.query('DELETE FROM scheme_channel_exclusions WHERE scheme_id = $1', [id]);
+
+      // 批量插入排除通路
+      if (Array.isArray(exclusions) && exclusions.length > 0) {
+        const validExclusions = exclusions.filter((channelId: string) => channelId);
+        if (validExclusions.length > 0) {
+          const values = validExclusions.map((_: string, idx: number) => 
+            `($1, $${idx + 2})`
+          ).join(', ');
+          const params = [id, ...validExclusions];
+          
+          await client.query(
+            `INSERT INTO scheme_channel_exclusions (scheme_id, channel_id)
+             VALUES ${values}
+             ON CONFLICT (scheme_id, channel_id) DO NOTHING`,
+            params
+          );
+        }
+      }
+
+      // 3. 批量更新回饋組成（使用 UNNEST 批量插入）
+      // 刪除現有的回饋組成
+      await client.query('DELETE FROM scheme_rewards WHERE scheme_id = $1', [id]);
+
+      // 批量插入回饋組成
+      if (Array.isArray(rewards) && rewards.length > 0) {
+        const validRewards = rewards.filter((r: any) => r.percentage !== undefined);
+        if (validRewards.length > 0) {
+          // 使用 UNNEST 進行批量插入
+          const percentages = validRewards.map((r: any) => r.percentage);
+          const calculationMethods = validRewards.map((r: any) => r.calculationMethod || 'round');
+          const quotaLimits = validRewards.map((r: any) => r.quotaLimit || null);
+          const quotaRefreshTypes = validRewards.map((r: any) => r.quotaRefreshType || null);
+          const quotaRefreshValues = validRewards.map((r: any) => r.quotaRefreshValue || null);
+          const quotaRefreshDates = validRewards.map((r: any) => r.quotaRefreshDate || null);
+          const displayOrders = validRewards.map((r: any, idx: number) => r.displayOrder !== undefined ? r.displayOrder : idx);
+
+          await client.query(
+            `INSERT INTO scheme_rewards 
+             (scheme_id, reward_percentage, calculation_method, quota_limit, 
+              quota_refresh_type, quota_refresh_value, quota_refresh_date, display_order)
+             SELECT $1, unnest($2::numeric[]), unnest($3::text[]), unnest($4::numeric[]),
+                    unnest($5::text[]), unnest($6::numeric[]), unnest($7::date[]), unnest($8::integer[])`,
+            [
+              id,
+              percentages,
+              calculationMethods,
+              quotaLimits,
+              quotaRefreshTypes,
+              quotaRefreshValues,
+              quotaRefreshDates,
+              displayOrders,
+            ]
+          );
+        }
+      }
+
+      await client.query('COMMIT');
+      res.json({ success: true, message: '方案已更新' });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, error: (error as Error).message });
+  }
+});
+
 // 刪除方案
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
@@ -279,34 +416,37 @@ router.put('/:id/channels', async (req: Request, res: Response) => {
       // 刪除現有的適用通路
       await client.query('DELETE FROM scheme_channel_applications WHERE scheme_id = $1', [id]);
 
-      // 新增適用通路
-      if (Array.isArray(applications)) {
-        for (const app of applications) {
-          if (app.channelId) {
-            await client.query(
-              `INSERT INTO scheme_channel_applications (scheme_id, channel_id, note)
-               VALUES ($1, $2, $3)
-               ON CONFLICT (scheme_id, channel_id) DO UPDATE SET note = $3`,
-              [id, app.channelId, app.note || null]
-            );
-          }
+      // 批量插入適用通路（優化：使用批量插入）
+      if (Array.isArray(applications) && applications.length > 0) {
+        const validApps = applications.filter((app: any) => app.channelId);
+        if (validApps.length > 0) {
+          // 使用 UNNEST 進行批量插入
+          const channelIds = validApps.map((app: any) => app.channelId);
+          const notes = validApps.map((app: any) => app.note || null);
+          
+          await client.query(
+            `INSERT INTO scheme_channel_applications (scheme_id, channel_id, note)
+             SELECT $1, unnest($2::uuid[]), unnest($3::text[])
+             ON CONFLICT (scheme_id, channel_id) DO UPDATE SET note = EXCLUDED.note`,
+            [id, channelIds, notes]
+          );
         }
       }
 
       // 刪除現有的排除通路
       await client.query('DELETE FROM scheme_channel_exclusions WHERE scheme_id = $1', [id]);
 
-      // 新增排除通路
-      if (Array.isArray(exclusions)) {
-        for (const channelId of exclusions) {
-          if (channelId) {
-            await client.query(
-              `INSERT INTO scheme_channel_exclusions (scheme_id, channel_id)
-               VALUES ($1, $2)
-               ON CONFLICT (scheme_id, channel_id) DO NOTHING`,
-              [id, channelId]
-            );
-          }
+      // 批量插入排除通路（優化：使用批量插入）
+      if (Array.isArray(exclusions) && exclusions.length > 0) {
+        const validExclusions = exclusions.filter((channelId: string) => channelId);
+        if (validExclusions.length > 0) {
+          // 使用 UNNEST 進行批量插入
+          await client.query(
+            `INSERT INTO scheme_channel_exclusions (scheme_id, channel_id)
+             SELECT $1, unnest($2::uuid[])
+             ON CONFLICT (scheme_id, channel_id) DO NOTHING`,
+            [id, validExclusions]
+          );
         }
       }
 
@@ -340,24 +480,37 @@ router.put('/:id/rewards', async (req: Request, res: Response) => {
       // 刪除現有的回饋組成
       await client.query('DELETE FROM scheme_rewards WHERE scheme_id = $1', [id]);
 
-      // 新增回饋組成
-      for (const reward of rewards) {
-        await client.query(
-          `INSERT INTO scheme_rewards 
-           (scheme_id, reward_percentage, calculation_method, quota_limit, 
-            quota_refresh_type, quota_refresh_value, quota_refresh_date, display_order)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-          [
-            id,
-            reward.percentage,
-            reward.calculationMethod || 'round',
-            reward.quotaLimit || null,
-            reward.quotaRefreshType || null,
-            reward.quotaRefreshValue || null,
-            reward.quotaRefreshDate || null,
-            reward.displayOrder || 0,
-          ]
-        );
+      // 批量插入回饋組成（優化：使用 UNNEST 批量插入）
+      if (rewards.length > 0) {
+        const validRewards = rewards.filter((r: any) => r.percentage !== undefined);
+        if (validRewards.length > 0) {
+          // 使用 UNNEST 進行批量插入
+          const percentages = validRewards.map((r: any) => r.percentage);
+          const calculationMethods = validRewards.map((r: any) => r.calculationMethod || 'round');
+          const quotaLimits = validRewards.map((r: any) => r.quotaLimit || null);
+          const quotaRefreshTypes = validRewards.map((r: any) => r.quotaRefreshType || null);
+          const quotaRefreshValues = validRewards.map((r: any) => r.quotaRefreshValue || null);
+          const quotaRefreshDates = validRewards.map((r: any) => r.quotaRefreshDate || null);
+          const displayOrders = validRewards.map((r: any, idx: number) => r.displayOrder !== undefined ? r.displayOrder : idx);
+
+          await client.query(
+            `INSERT INTO scheme_rewards 
+             (scheme_id, reward_percentage, calculation_method, quota_limit, 
+              quota_refresh_type, quota_refresh_value, quota_refresh_date, display_order)
+             SELECT $1, unnest($2::numeric[]), unnest($3::text[]), unnest($4::numeric[]),
+                    unnest($5::text[]), unnest($6::numeric[]), unnest($7::date[]), unnest($8::integer[])`,
+            [
+              id,
+              percentages,
+              calculationMethods,
+              quotaLimits,
+              quotaRefreshTypes,
+              quotaRefreshValues,
+              quotaRefreshDates,
+              displayOrders,
+            ]
+          );
+        }
       }
 
       await client.query('COMMIT');
