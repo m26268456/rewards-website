@@ -48,6 +48,44 @@ router.post('/query-channels', async (req: Request, res: Response) => {
 // 取得卡片的所有方案
 const cardSchemeColumnCache: Record<string, boolean> = {};
 
+const addSharedRewardGroupColumn = async (): Promise<boolean> => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(
+      `ALTER TABLE card_schemes 
+       ADD COLUMN IF NOT EXISTS shared_reward_group_id UUID REFERENCES card_schemes(id) ON DELETE SET NULL`
+    );
+    await client.query(
+      `ALTER TABLE card_schemes 
+       ADD CONSTRAINT IF NOT EXISTS check_shared_reward_same_card 
+       CHECK (
+         shared_reward_group_id IS NULL OR 
+         EXISTS (
+           SELECT 1 
+           FROM card_schemes cs_self 
+           JOIN card_schemes cs_ref ON cs_self.shared_reward_group_id = cs_ref.id
+           WHERE cs_self.id = card_schemes.id
+             AND cs_self.card_id = cs_ref.card_id
+         )
+       )`
+    );
+    await client.query(
+      `CREATE INDEX IF NOT EXISTS idx_card_schemes_shared_reward_group_id 
+       ON card_schemes(shared_reward_group_id)`
+    );
+    await client.query('COMMIT');
+    console.log('[card_schemes] 已自動建立 shared_reward_group_id 欄位與約束');
+    return true;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('[card_schemes] 無法自動建立 shared_reward_group_id 欄位:', error);
+    return false;
+  } finally {
+    client.release();
+  }
+};
+
 const ensureCardSchemeColumn = async (columnName: string): Promise<boolean> => {
   if (cardSchemeColumnCache[columnName] !== undefined) {
     return cardSchemeColumnCache[columnName];
@@ -64,7 +102,13 @@ const ensureCardSchemeColumn = async (columnName: string): Promise<boolean> => {
     [columnName]
   );
 
-  const exists = rows[0]?.exists === true;
+  let exists = rows[0]?.exists === true;
+
+  if (!exists && columnName === 'shared_reward_group_id') {
+    console.warn('[card_schemes] 偵測缺少 shared_reward_group_id 欄位，嘗試自動建立...');
+    exists = await addSharedRewardGroupColumn();
+  }
+
   cardSchemeColumnCache[columnName] = exists;
 
   if (!exists) {
@@ -138,13 +182,15 @@ router.post('/', async (req: Request, res: Response) => {
       });
     }
 
+    const hasSharedRewardGroupColumn = await ensureCardSchemeColumn('shared_reward_group_id');
+
     // 開始事務
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
 
-      // 驗證 sharedRewardGroupId（如果提供，必須是同一個卡片中的方案）
-      if (sharedRewardGroupId) {
+      // 驗證 sharedRewardGroupId（如果提供且資料表支援，必須是同一個卡片中的方案）
+      if (hasSharedRewardGroupColumn && sharedRewardGroupId) {
         const groupCheck = await client.query(
           `SELECT card_id FROM card_schemes WHERE id = $1`,
           [sharedRewardGroupId]
@@ -163,23 +209,42 @@ router.post('/', async (req: Request, res: Response) => {
             error: '共同回饋方案必須屬於同一張卡片',
           });
         }
+      } else if (!hasSharedRewardGroupColumn && sharedRewardGroupId) {
+        console.warn(
+          `[新增方案] 資料庫尚未包含 shared_reward_group_id，忽略傳入的 sharedRewardGroupId`
+        );
       }
+
+      const insertColumns = [
+        'card_id',
+        'name',
+        'note',
+        'requires_switch',
+        'activity_start_date',
+        'activity_end_date',
+        'display_order',
+      ];
+      const insertValues: Array<string | boolean | number | null> = [
+        cardId,
+        name,
+        note || null,
+        requiresSwitch || false,
+        activityStartDate || null,
+        activityEndDate || null,
+        displayOrder || 0,
+      ];
+      if (hasSharedRewardGroupColumn) {
+        insertColumns.push('shared_reward_group_id');
+        insertValues.push(sharedRewardGroupId || null);
+      }
+      const placeholders = insertColumns.map((_, idx) => `$${idx + 1}`).join(', ');
 
       // 新增方案
       const schemeResult = await client.query(
-        `INSERT INTO card_schemes (card_id, name, note, requires_switch, activity_start_date, activity_end_date, display_order, shared_reward_group_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        `INSERT INTO card_schemes (${insertColumns.join(', ')})
+         VALUES (${placeholders})
          RETURNING id`,
-        [
-          cardId,
-          name,
-          note || null,
-          requiresSwitch || false,
-          activityStartDate || null,
-          activityEndDate || null,
-          displayOrder || 0,
-          sharedRewardGroupId || null,
-        ]
+        insertValues
       );
 
       const schemeId = schemeResult.rows[0].id;
@@ -212,8 +277,10 @@ router.put('/:id', async (req: Request, res: Response) => {
       sharedRewardGroupId,
     } = req.body;
 
-    // 驗證 sharedRewardGroupId（如果提供，必須是同一個卡片中的方案）
-    if (sharedRewardGroupId) {
+    const hasSharedRewardGroupColumn = await ensureCardSchemeColumn('shared_reward_group_id');
+
+    // 驗證 sharedRewardGroupId（如果提供且資料表支援，必須是同一個卡片中的方案）
+    if (hasSharedRewardGroupColumn && sharedRewardGroupId) {
       const schemeCheck = await pool.query(
         `SELECT card_id FROM card_schemes WHERE id = $1`,
         [id]
@@ -237,26 +304,41 @@ router.put('/:id', async (req: Request, res: Response) => {
           });
         }
       }
+    } else if (!hasSharedRewardGroupColumn && sharedRewardGroupId) {
+      console.warn(
+        `[更新方案] 資料庫尚未包含 shared_reward_group_id，忽略傳入的 sharedRewardGroupId`
+      );
     }
 
+    const values: Array<string | number | boolean | null> = [
+      name,
+      note || null,
+      requiresSwitch,
+      activityStartDate || null,
+      activityEndDate || null,
+      displayOrder,
+    ];
+    const setClauses = [
+      'name = $1',
+      'note = $2',
+      'requires_switch = $3',
+      'activity_start_date = $4',
+      'activity_end_date = $5',
+      'display_order = $6',
+    ];
+    if (hasSharedRewardGroupColumn) {
+      setClauses.push(`shared_reward_group_id = $${values.length + 1}`);
+      values.push(sharedRewardGroupId || null);
+    }
+    setClauses.push('updated_at = CURRENT_TIMESTAMP');
+
+    values.push(id);
     const result = await pool.query(
       `UPDATE card_schemes
-       SET name = $1, note = $2, requires_switch = $3, 
-           activity_start_date = $4, activity_end_date = $5, display_order = $6,
-           shared_reward_group_id = $7,
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id = $8
+       SET ${setClauses.join(', ')}
+       WHERE id = $${values.length}
        RETURNING id`,
-      [
-        name,
-        note || null,
-        requiresSwitch,
-        activityStartDate || null,
-        activityEndDate || null,
-        displayOrder,
-        sharedRewardGroupId || null,
-        id,
-      ]
+      values
     );
 
     if (result.rows.length === 0) {
@@ -285,12 +367,14 @@ router.put('/:id/batch', async (req: Request, res: Response) => {
       exclusions,
     } = req.body;
 
+    const hasSharedRewardGroupColumn = await ensureCardSchemeColumn('shared_reward_group_id');
+
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
 
-      // 驗證 sharedRewardGroupId（如果提供，必須是同一個卡片中的方案）
-      if (sharedRewardGroupId) {
+      // 驗證 sharedRewardGroupId（如果提供且資料表支援，必須是同一個卡片中的方案）
+      if (hasSharedRewardGroupColumn && sharedRewardGroupId) {
         const schemeCheck = await client.query(
           `SELECT card_id FROM card_schemes WHERE id = $1`,
           [id]
@@ -316,27 +400,42 @@ router.put('/:id/batch', async (req: Request, res: Response) => {
             });
           }
         }
+      } else if (!hasSharedRewardGroupColumn && sharedRewardGroupId) {
+        console.warn(
+          `[批量更新方案] 資料庫尚未包含 shared_reward_group_id，忽略傳入的 sharedRewardGroupId`
+        );
       }
 
       // 1. 更新方案基本資訊
+      const updateValues: Array<string | number | boolean | null> = [
+        name,
+        note || null,
+        requiresSwitch,
+        activityStartDate || null,
+        activityEndDate || null,
+        displayOrder,
+      ];
+      const updateClauses = [
+        'name = $1',
+        'note = $2',
+        'requires_switch = $3',
+        'activity_start_date = $4::date',
+        'activity_end_date = $5::date',
+        'display_order = $6',
+      ];
+      if (hasSharedRewardGroupColumn) {
+        updateClauses.push(`shared_reward_group_id = $${updateValues.length + 1}`);
+        updateValues.push(sharedRewardGroupId || null);
+      }
+      updateClauses.push('updated_at = CURRENT_TIMESTAMP');
+      updateValues.push(id);
+
       const schemeResult = await client.query(
         `UPDATE card_schemes
-         SET name = $1, note = $2, requires_switch = $3, 
-             activity_start_date = $4::date, activity_end_date = $5::date, display_order = $6,
-             shared_reward_group_id = $7,
-             updated_at = CURRENT_TIMESTAMP
-         WHERE id = $8
+         SET ${updateClauses.join(', ')}
+         WHERE id = $${updateValues.length}
          RETURNING id`,
-        [
-          name,
-          note || null,
-          requiresSwitch,
-          activityStartDate || null,
-          activityEndDate || null,
-          displayOrder,
-          sharedRewardGroupId || null,
-          id,
-        ]
+        updateValues
       );
 
       if (schemeResult.rows.length === 0) {
@@ -484,9 +583,21 @@ router.get('/:id/details', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
+    const hasSharedRewardGroupColumn = await ensureCardSchemeColumn('shared_reward_group_id');
+    const selectColumns = [
+      'id',
+      'name',
+      'note',
+      'requires_switch',
+      'activity_start_date',
+      'activity_end_date',
+      'display_order',
+      hasSharedRewardGroupColumn ? 'shared_reward_group_id' : 'NULL::uuid as shared_reward_group_id',
+    ].join(', ');
+
     // 取得方案基本資訊
     const schemeResult = await pool.query(
-      `SELECT id, name, note, requires_switch, activity_start_date, activity_end_date, display_order, shared_reward_group_id
+      `SELECT ${selectColumns}
        FROM card_schemes
        WHERE id = $1`,
       [id]
@@ -499,7 +610,8 @@ router.get('/:id/details', async (req: Request, res: Response) => {
     const scheme = schemeResult.rows[0];
 
     // 取得回饋組成（如果設定了 shared_reward_group_id，則從該方案取得；否則從自己取得）
-    const targetSchemeId = scheme.shared_reward_group_id || id;
+    const targetSchemeId =
+      hasSharedRewardGroupColumn && scheme.shared_reward_group_id ? scheme.shared_reward_group_id : id;
     const rewardsResult = await pool.query(
       `SELECT id, reward_percentage, calculation_method, quota_limit, 
               quota_refresh_type, quota_refresh_value, quota_refresh_date, display_order
@@ -757,8 +869,13 @@ router.put('/:id/rewards/:rewardId', async (req: Request, res: Response) => {
     const { rewardPercentage, calculationMethod, quotaLimit, quotaRefreshType, quotaRefreshValue, quotaRefreshDate } = req.body;
 
     // 檢查方案是否存在，並取得實際的方案ID（如果設定了 shared_reward_group_id，則更新該方案的回饋組成）
+    const hasSharedRewardGroupColumn = await ensureCardSchemeColumn('shared_reward_group_id');
+    const selectColumns = [
+      'id',
+      hasSharedRewardGroupColumn ? 'shared_reward_group_id' : 'NULL::uuid as shared_reward_group_id',
+    ].join(', ');
     const schemeResult = await pool.query(
-      `SELECT id, shared_reward_group_id FROM card_schemes WHERE id = $1`,
+      `SELECT ${selectColumns} FROM card_schemes WHERE id = $1`,
       [id]
     );
 
@@ -767,7 +884,8 @@ router.put('/:id/rewards/:rewardId', async (req: Request, res: Response) => {
     }
 
     const scheme = schemeResult.rows[0];
-    const targetSchemeId = scheme.shared_reward_group_id || id;
+    const targetSchemeId =
+      hasSharedRewardGroupColumn && scheme.shared_reward_group_id ? scheme.shared_reward_group_id : id;
 
     // 更新回饋組成
     const result = await pool.query(

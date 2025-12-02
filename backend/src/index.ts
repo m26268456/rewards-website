@@ -22,6 +22,7 @@ import importDataRouter from './routes/importData';
 dotenv.config();
 
 const app = express();
+app.set('trust proxy', 1); // ensure rate limiter can read X-Forwarded-For behind proxy
 
 // 中間件
 app.use(cors());
