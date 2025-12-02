@@ -150,6 +150,11 @@ export default function QueryRewards() {
         .post('/schemes/query-channels', requestBody)
         .then((res) => {
           setQueryResults(res.data.data);
+        })
+        .catch((error) => {
+          console.error('查詢通路回饋錯誤:', error);
+          alert('查詢失敗: ' + (error.response?.data?.error || error.message || '未知錯誤'));
+          setQueryResults([]);
         });
     } else {
       setQueryResults([]);
@@ -230,7 +235,13 @@ export default function QueryRewards() {
     setLastAction('scheme');
     setSelectedCardInfo(null);
     setSelectedPaymentInfo(pm);
-    const schemes: any[] = [];
+    interface PaymentScheme {
+      id: string;
+      name: string;
+      rewards: Array<{ percentage: number; method: string }>;
+      applications: Array<{ channelId: string; channelName: string; note?: string }>;
+    }
+    const schemes: PaymentScheme[] = [];
     
     // 支付方式本身的回饋
     if (pm.ownRewardPercentage > 0) {
@@ -557,7 +568,7 @@ export default function QueryRewards() {
                             </div>
                             <div className="text-sm mb-2">
                             <span className="font-medium">回饋組成：</span>
-                            {scheme.rewards.map((r: any, idx: number) => (
+                            {scheme.rewards.map((r, idx: number) => (
                               <span key={idx}>
                                 {r.percentage}%
                                 {idx < scheme.rewards.length - 1 && '+'}
@@ -565,7 +576,7 @@ export default function QueryRewards() {
                             ))}
                             {scheme.rewards.length > 1 && (
                               <span className="ml-2 text-blue-600 font-semibold">
-                                = {scheme.rewards.reduce((sum: number, r: any) => sum + r.percentage, 0)}%
+                                = {scheme.rewards.reduce((sum, r) => sum + r.percentage, 0)}%
                               </span>
                             )}
                           </div>
@@ -591,7 +602,7 @@ export default function QueryRewards() {
                             <div className="text-sm mb-2">
                               <span className="font-medium text-green-600">適用通路：</span>
                               <div className="ml-4 mt-1 space-y-1">
-                                {scheme.applications.map((app: any, idx: number) => (
+                                {scheme.applications.map((app, idx: number) => (
                                   <div key={idx} className="text-xs">
                                     {app.channelName}{app.note && ` (${app.note})`}
                                   </div>
@@ -612,7 +623,7 @@ export default function QueryRewards() {
                             <div className="text-sm mb-2">
                               <span className="font-medium text-green-600">適用通路：</span>
                               <div className="ml-4 mt-1 space-y-1">
-                                {scheme.applications.map((app: any, idx: number) => (
+                                {scheme.applications.map((app, idx: number) => (
                                   <div key={idx} className="text-xs">
                                     {app.channelName}{app.note && ` (${app.note})`}
                                   </div>
@@ -630,7 +641,7 @@ export default function QueryRewards() {
                           </div>
                           <div className="text-sm mb-2">
                             <span className="font-medium">回饋組成：</span>
-                            {scheme.rewards.map((r: any, idx: number) => (
+                            {scheme.rewards.map((r, idx: number) => (
                               <span key={idx}>
                                 {r.percentage}%
                                 {idx < scheme.rewards.length - 1 && '+'}
@@ -638,7 +649,7 @@ export default function QueryRewards() {
                             ))}
                             {scheme.rewards.length > 1 && (
                               <span className="ml-2 text-blue-600 font-semibold">
-                                = {scheme.rewards.reduce((sum: number, r: any) => sum + r.percentage, 0)}%
+                                = {scheme.rewards.reduce((sum, r) => sum + r.percentage, 0)}%
                               </span>
                             )}
                           </div>
@@ -664,7 +675,7 @@ export default function QueryRewards() {
                             <div className="text-sm mb-2">
                               <span className="font-medium text-green-600">適用通路：</span>
                               <div className="ml-4 mt-1 space-y-1">
-                                {scheme.applications.map((app: any, idx: number) => (
+                                {scheme.applications.map((app, idx: number) => (
                                   <div key={idx} className="text-xs">
                                     {app.channelName}{app.note && ` (${app.note})`}
                                   </div>

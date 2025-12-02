@@ -19,8 +19,25 @@ export default function CalculateRewards() {
     { percentage: 2.7, calculationMethod: 'round' as const },
     { percentage: 0, calculationMethod: 'floor' as const },
   ]);
-  const [calculationResult, setCalculationResult] = useState<any>(null);
-  const [quotaInfo, setQuotaInfo] = useState<any>(null);
+  interface CalculationResult {
+    totalReward: number;
+    breakdown: Array<{
+      percentage: number;
+      calculatedReward: number;
+      calculationMethod: string;
+    }>;
+    quotaInfo?: Array<{
+      percentage: number;
+      quotaLimit: number | null;
+      remainingQuota: number | null;
+      usedQuota: number;
+      newRemainingQuota: number | null;
+      referenceAmount: number | null;
+    }>;
+  }
+  
+  const [calculationResult, setCalculationResult] = useState<CalculationResult | null>(null);
+  const [quotaInfo, setQuotaInfo] = useState<CalculationResult['quotaInfo']>(null);
 
   useEffect(() => {
     loadSchemes();
@@ -39,76 +56,95 @@ export default function CalculateRewards() {
   };
 
   useEffect(() => {
-    if (selectedScheme && amount) {
-      calculateWithScheme();
-    } else if (amount) {
-      calculateWithoutScheme();
-    } else {
-      setCalculationResult(null);
-      setQuotaInfo(null);
-    }
-  }, [selectedScheme, amount, rewards]);
+    let cancelled = false;
+    
+    const performCalculation = async () => {
+      if (selectedScheme && amount) {
+        if (!amount || parseFloat(amount) <= 0) {
+          if (!cancelled) {
+            setCalculationResult(null);
+            setQuotaInfo(null);
+          }
+          return;
+        }
 
-  const calculateWithoutScheme = async () => {
-    if (!amount || parseFloat(amount) <= 0) {
-      setCalculationResult(null);
-      return;
-    }
+        try {
+          const scheme = schemes.find((s) => s.id === selectedScheme);
+          if (!scheme) {
+            if (!cancelled) {
+              setCalculationResult(null);
+              setQuotaInfo(null);
+            }
+            return;
+          }
 
-    try {
-      const res = await api.post('/calculation/calculate', {
-        amount: parseFloat(amount),
-        rewards,
-      });
-      setCalculationResult(res.data.data);
-      setQuotaInfo(null);
-    } catch (error) {
-      console.error('計算錯誤:', error);
-    }
-  };
+          let schemeId: string | undefined;
+          let paymentMethodId: string | undefined;
 
-  const calculateWithScheme = async () => {
-    if (!amount || parseFloat(amount) <= 0) {
-      setCalculationResult(null);
-      setQuotaInfo(null);
-      return;
-    }
+          if (scheme.type === 'scheme') {
+            schemeId = scheme.id;
+          } else if (scheme.type === 'payment_scheme' && scheme.schemeId && scheme.paymentId) {
+            schemeId = scheme.schemeId;
+            paymentMethodId = scheme.paymentId;
+          } else if (scheme.type === 'payment') {
+            paymentMethodId = scheme.id;
+          }
 
-    try {
-      const scheme = schemes.find((s) => s.id === selectedScheme);
-      if (!scheme) {
-        setCalculationResult(null);
-        setQuotaInfo(null);
-        return;
+          const res = await api.post('/calculation/calculate-with-scheme', {
+            amount: parseFloat(amount),
+            schemeId: schemeId || null,
+            paymentMethodId: paymentMethodId || null,
+          });
+
+          if (!cancelled) {
+            setCalculationResult(res.data.data);
+            setQuotaInfo(res.data.data.quotaInfo || null);
+          }
+        } catch (error: unknown) {
+          if (!cancelled) {
+            console.error('計算錯誤:', error);
+            const err = error as { response?: { data?: { error?: string } } };
+            alert(err.response?.data?.error || '計算失敗');
+          }
+        }
+      } else if (amount) {
+        if (!amount || parseFloat(amount) <= 0) {
+          if (!cancelled) {
+            setCalculationResult(null);
+          }
+          return;
+        }
+
+        try {
+          const res = await api.post('/calculation/calculate', {
+            amount: parseFloat(amount),
+            rewards,
+          });
+          if (!cancelled) {
+            setCalculationResult(res.data.data);
+            setQuotaInfo(null);
+          }
+        } catch (error) {
+          if (!cancelled) {
+            console.error('計算錯誤:', error);
+          }
+        }
+      } else {
+        if (!cancelled) {
+          setCalculationResult(null);
+          setQuotaInfo(null);
+        }
       }
+    };
 
-      let schemeId: string | undefined;
-      let paymentMethodId: string | undefined;
+    performCalculation();
 
-      if (scheme.type === 'scheme') {
-        schemeId = scheme.id;
-      } else if (scheme.type === 'payment_scheme' && scheme.schemeId && scheme.paymentId) {
-        schemeId = scheme.schemeId;
-        paymentMethodId = scheme.paymentId;
-      } else if (scheme.type === 'payment') {
-        paymentMethodId = scheme.id;
-      }
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedScheme, amount, rewards, schemes]);
 
-      const res = await api.post('/calculation/calculate-with-scheme', {
-        amount: parseFloat(amount),
-        schemeId: schemeId || null,
-        paymentMethodId: paymentMethodId || null,
-      });
-
-      setCalculationResult(res.data.data);
-      setQuotaInfo(res.data.data.quotaInfo || null);
-    } catch (error: any) {
-      console.error('計算錯誤:', error);
-      alert(error.response?.data?.error || '計算失敗');
-    }
-  };
-
-  const updateReward = (index: number, field: string, value: any) => {
+  const updateReward = (index: number, field: string, value: string | number) => {
     const newRewards = [...rewards];
     newRewards[index] = { ...newRewards[index], [field]: value };
     setRewards(newRewards);
@@ -230,7 +266,7 @@ export default function CalculateRewards() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {calculationResult.breakdown.map((item: any, index: number) => (
+                    {calculationResult.breakdown.map((item, index: number) => (
                       <tr key={index}>
                         <td className="px-4 py-3 text-sm">{item.percentage}%</td>
                         <td className="px-4 py-3 text-sm">

@@ -12,7 +12,11 @@ router.get('/', async (req: Request, res: Response) => {
       `SELECT 
          cs.id as scheme_id,
          NULL::uuid as payment_method_id,
+         c.id as card_id,
+         NULL::uuid as payment_method_id_for_group,
          c.name || '-' || cs.name as name,
+         c.name as card_name,
+         cs.name as scheme_name,
          sr.id as reward_id,
          sr.reward_percentage,
          sr.calculation_method,
@@ -27,50 +31,26 @@ router.get('/', async (req: Request, res: Response) => {
          qt.current_amount,
          qt.next_refresh_at
        FROM card_schemes cs
-       JOIN cards c ON cs.card_id = c.id
-       JOIN scheme_rewards sr ON cs.id = sr.scheme_id
+       INNER JOIN cards c ON cs.card_id = c.id
+       INNER JOIN scheme_rewards sr ON cs.id = sr.scheme_id
        LEFT JOIN quota_trackings qt ON cs.id = qt.scheme_id 
          AND sr.id = qt.reward_id 
          AND qt.payment_method_id IS NULL
+       WHERE cs.card_id IS NOT NULL
        ORDER BY c.display_order, cs.display_order, sr.display_order`
     );
 
-    // 取得支付方式綁定卡片方案的額度
-    const paymentSchemeQuotasResult = await pool.query(
-      `SELECT 
-         cs.id as scheme_id,
-         pm.id as payment_method_id,
-         c.name || '-' || cs.name || '-' || pm.name as name,
-         sr.id as reward_id,
-         sr.reward_percentage,
-         sr.calculation_method,
-         sr.quota_limit,
-         sr.quota_refresh_type,
-         sr.quota_refresh_value,
-         sr.quota_refresh_date,
-         cs.activity_end_date,
-         sr.display_order,
-         qt.used_quota,
-         qt.remaining_quota,
-         qt.current_amount,
-         qt.next_refresh_at
-       FROM payment_scheme_links psl
-       JOIN card_schemes cs ON psl.scheme_id = cs.id
-       JOIN cards c ON cs.card_id = c.id
-       JOIN payment_methods pm ON psl.payment_method_id = pm.id
-       JOIN scheme_rewards sr ON cs.id = sr.scheme_id
-       LEFT JOIN quota_trackings qt ON cs.id = qt.scheme_id 
-         AND pm.id = qt.payment_method_id
-         AND sr.id = qt.reward_id
-       ORDER BY pm.display_order, cs.display_order, sr.display_order`
-    );
+    // 移除支付方式綁定卡片方案的額度查詢（因為使用信用卡方案額度）
 
     // 取得純支付方式的額度（只從 payment_rewards 表取得回饋組成）
     const paymentQuotasResult = await pool.query(
       `SELECT 
          NULL::uuid as scheme_id,
          pm.id as payment_method_id,
+         NULL::uuid as card_id,
+         pm.id as payment_method_id_for_group,
          pm.name,
+         pm.name as payment_method_name,
          pr.id as reward_id,
          pr.reward_percentage,
          pr.calculation_method,
@@ -92,10 +72,9 @@ router.get('/', async (req: Request, res: Response) => {
        ORDER BY pm.display_order, pr.display_order`
     );
 
-    // 組合所有結果並檢查是否需要刷新
+    // 組合所有結果並檢查是否需要刷新（移除支付方式綁定卡片方案）
     const allQuotas = [
       ...schemeQuotasResult.rows,
-      ...paymentSchemeQuotasResult.rows,
       ...paymentQuotasResult.rows,
     ];
 
@@ -171,7 +150,11 @@ router.get('/', async (req: Request, res: Response) => {
       `SELECT 
          cs.id as scheme_id,
          NULL::uuid as payment_method_id,
+         c.id as card_id,
+         NULL::uuid as payment_method_id_for_group,
          c.name || '-' || cs.name as name,
+         c.name as card_name,
+         cs.name as scheme_name,
          sr.id as reward_id,
          sr.reward_percentage,
          sr.calculation_method,
@@ -185,47 +168,25 @@ router.get('/', async (req: Request, res: Response) => {
          qt.current_amount,
          qt.next_refresh_at
        FROM card_schemes cs
-       JOIN cards c ON cs.card_id = c.id
-       JOIN scheme_rewards sr ON cs.id = sr.scheme_id
+       INNER JOIN cards c ON cs.card_id = c.id
+       INNER JOIN scheme_rewards sr ON cs.id = sr.scheme_id
        LEFT JOIN quota_trackings qt ON cs.id = qt.scheme_id 
          AND sr.id = qt.reward_id 
          AND qt.payment_method_id IS NULL
+       WHERE cs.card_id IS NOT NULL
        ORDER BY c.display_order, cs.display_order, sr.display_order`
     );
 
-    const updatedPaymentSchemeQuotas = await pool.query(
-      `SELECT 
-         cs.id as scheme_id,
-         pm.id as payment_method_id,
-         c.name || '-' || cs.name || '-' || pm.name as name,
-         sr.id as reward_id,
-         sr.reward_percentage,
-         sr.calculation_method,
-         sr.quota_limit,
-         sr.quota_refresh_type,
-         sr.quota_refresh_value,
-         sr.quota_refresh_date,
-         cs.activity_end_date,
-         qt.used_quota,
-         qt.remaining_quota,
-         qt.current_amount,
-         qt.next_refresh_at
-       FROM payment_scheme_links psl
-       JOIN card_schemes cs ON psl.scheme_id = cs.id
-       JOIN cards c ON cs.card_id = c.id
-       JOIN payment_methods pm ON psl.payment_method_id = pm.id
-       JOIN scheme_rewards sr ON cs.id = sr.scheme_id
-       LEFT JOIN quota_trackings qt ON cs.id = qt.scheme_id 
-         AND pm.id = qt.payment_method_id
-         AND sr.id = qt.reward_id
-       ORDER BY pm.display_order, cs.display_order, sr.display_order`
-    );
+    // 移除支付方式綁定卡片方案的額度查詢（因為使用信用卡方案額度）
 
     const updatedPaymentQuotas = await pool.query(
       `SELECT 
          NULL::uuid as scheme_id,
          pm.id as payment_method_id,
+         NULL::uuid as card_id,
+         pm.id as payment_method_id_for_group,
          pm.name,
+         pm.name as payment_method_name,
          pr.id as reward_id,
          pr.reward_percentage,
          pr.calculation_method,
@@ -249,6 +210,11 @@ router.get('/', async (req: Request, res: Response) => {
     // 組織資料格式 - 按方案和回饋組成正確分組
     const quotaMap = new Map<string, {
       name: string;
+      cardId: string | null;
+      paymentMethodId: string | null;
+      cardName: string | null;
+      paymentMethodName: string | null;
+      schemeName: string | null;
       rewards: Array<{
         percentage: number;
         rewardId: string;
@@ -259,10 +225,13 @@ router.get('/', async (req: Request, res: Response) => {
         remainingQuota: number | null;
         referenceAmount: number | null;
         refreshTime: string;
+        quotaRefreshType: string | null;
+        quotaRefreshValue: number | null;
+        quotaRefreshDate: string | null;
       }>;
     }>();
 
-    [...updatedSchemeQuotas.rows, ...updatedPaymentSchemeQuotas.rows, ...updatedPaymentQuotas.rows].forEach((row) => {
+    [...updatedSchemeQuotas.rows, ...updatedPaymentQuotas.rows].forEach((row) => {
       const key = `${row.scheme_id || 'null'}_${row.payment_method_id || 'null'}`;
       const percentage = parseFloat(row.reward_percentage);
       const usedQuota = row.used_quota ? parseFloat(row.used_quota) : 0;
@@ -282,8 +251,18 @@ router.get('/', async (req: Request, res: Response) => {
       // 如果 quotaLimit 為 null，remainingQuota 保持為 null（無上限）
 
       if (!quotaMap.has(key)) {
+        // 確保卡片方案必須有 card_id（不應該為 null）
+        const cardId = row.card_id || null;
+        if (row.scheme_id && !cardId) {
+          console.warn('警告：卡片方案缺少 card_id', { scheme_id: row.scheme_id, row });
+        }
         quotaMap.set(key, {
           name: row.name,
+          cardId: cardId,
+          paymentMethodId: row.payment_method_id_for_group || null,
+          cardName: row.card_name || null,
+          paymentMethodName: row.payment_method_name || null,
+          schemeName: row.scheme_name || null,
           rewards: [],
         });
       }
@@ -315,12 +294,20 @@ router.get('/', async (req: Request, res: Response) => {
         remainingQuota,
         referenceAmount,
         refreshTime,
+        quotaRefreshType: row.quota_refresh_type || null,
+        quotaRefreshValue: row.quota_refresh_value || null,
+        quotaRefreshDate: row.quota_refresh_date ? row.quota_refresh_date.toISOString().split('T')[0] : null,
       });
     });
 
     // 處理純支付方式的額度（從 payment_rewards 表取得回饋組成）
     const paymentQuotaMap = new Map<string, {
       name: string;
+      cardId: string | null;
+      paymentMethodId: string | null;
+      cardName: string | null;
+      paymentMethodName: string | null;
+      schemeName: string | null;
       rewards: Array<{
         percentage: number;
         rewardId: string;
@@ -331,6 +318,9 @@ router.get('/', async (req: Request, res: Response) => {
         remainingQuota: number | null;
         referenceAmount: number | null;
         refreshTime: string;
+        quotaRefreshType: string | null;
+        quotaRefreshValue: number | null;
+        quotaRefreshDate: string | null;
       }>;
     }>();
 
@@ -352,6 +342,11 @@ router.get('/', async (req: Request, res: Response) => {
       if (!paymentQuotaMap.has(key)) {
         paymentQuotaMap.set(key, {
           name: row.name,
+          cardId: null,
+          paymentMethodId: row.payment_method_id,
+          cardName: null,
+          paymentMethodName: row.payment_method_name || row.name,
+          schemeName: null,
           rewards: [],
         });
       }
@@ -379,56 +374,100 @@ router.get('/', async (req: Request, res: Response) => {
         remainingQuota,
         referenceAmount,
         refreshTime,
+        quotaRefreshType: row.quota_refresh_type || null,
+        quotaRefreshValue: row.quota_refresh_value || null,
+        quotaRefreshDate: row.quota_refresh_date ? row.quota_refresh_date.toISOString().split('T')[0] : null,
       });
     });
 
     // 轉換為前端需要的格式
-    const result = Array.from(quotaMap.entries()).map(([key, quota]) => {
-      // 按百分比排序
-      quota.rewards.sort((a, b) => a.percentage - b.percentage);
-      
-      // 解析key獲取schemeId和paymentMethodId
+    const result: Array<{
+      schemeId: string | null;
+      paymentMethodId: string | null;
+      name: string;
+      cardId: string | null;
+      paymentMethodIdForGroup: string | null;
+      cardName: string | null;
+      paymentMethodName: string | null;
+      schemeName: string | null;
+      rewardComposition: string;
+      calculationMethods: string[];
+      quotaLimits: Array<number | null>;
+      currentAmounts: number[];
+      usedQuotas: number[];
+      remainingQuotas: Array<number | null>;
+      referenceAmounts: Array<number | null>;
+      refreshTimes: string[];
+      rewardIds: string[];
+      quotaRefreshTypes: Array<string | null>;
+      quotaRefreshValues: Array<number | null>;
+      quotaRefreshDates: Array<string | null>;
+    }> = [];
+    
+    // 處理卡片方案的額度（只處理有 schemeId 且沒有 paymentMethodId 的）
+    quotaMap.forEach((quota, key) => {
       const [schemeId, paymentMethodId] = key.split('_');
-      
-      // 回饋組成應該用 / 連接，例如 0.3%/2.7%/3%
-      return {
-        schemeId: schemeId === 'null' ? null : schemeId,
-        paymentMethodId: paymentMethodId === 'null' ? null : paymentMethodId,
-        name: quota.name,
-        rewardComposition: quota.rewards.map(r => `${r.percentage}%`).join('/'),
-        calculationMethods: quota.rewards.map(r => r.calculationMethod),
-        quotaLimits: quota.rewards.map(r => r.quotaLimit),
-        currentAmounts: quota.rewards.map(r => r.currentAmount),
-        usedQuotas: quota.rewards.map(r => r.usedQuota),
-        remainingQuotas: quota.rewards.map(r => r.remainingQuota),
-        referenceAmounts: quota.rewards.map(r => r.referenceAmount),
-        refreshTimes: quota.rewards.map(r => r.refreshTime),
-        rewardIds: quota.rewards.map(r => r.rewardId),
-      };
+      // 只處理卡片方案（有 schemeId 且沒有 paymentMethodId）
+      if (schemeId !== 'null' && paymentMethodId === 'null' && quota.rewards.length > 0) {
+        quota.rewards.sort((a, b) => a.percentage - b.percentage);
+        result.push({
+          schemeId: schemeId,
+          paymentMethodId: null,
+          name: quota.name,
+          cardId: quota.cardId,
+          paymentMethodIdForGroup: null,
+          cardName: quota.cardName,
+          paymentMethodName: null,
+          schemeName: quota.schemeName,
+          rewardComposition: quota.rewards.map(r => `${r.percentage}%`).join('/'),
+          calculationMethods: quota.rewards.map(r => r.calculationMethod),
+          quotaLimits: quota.rewards.map(r => r.quotaLimit),
+          currentAmounts: quota.rewards.map(r => r.currentAmount),
+          usedQuotas: quota.rewards.map(r => r.usedQuota),
+          remainingQuotas: quota.rewards.map(r => r.remainingQuota),
+          referenceAmounts: quota.rewards.map(r => r.referenceAmount),
+          refreshTimes: quota.rewards.map(r => r.refreshTime),
+          rewardIds: quota.rewards.map(r => r.rewardId),
+          quotaRefreshTypes: quota.rewards.map(r => r.quotaRefreshType),
+          quotaRefreshValues: quota.rewards.map(r => r.quotaRefreshValue),
+          quotaRefreshDates: quota.rewards.map(r => r.quotaRefreshDate),
+        });
+      }
     });
 
-    // 添加支付方式的額度
+    // 添加支付方式的額度（只從 paymentQuotaMap 取得，避免重複）
     paymentQuotaMap.forEach((quota, key) => {
-      quota.rewards.sort((a, b) => a.percentage - b.percentage);
-      const [, paymentMethodId] = key.split('_');
-      result.push({
-        schemeId: null,
-        paymentMethodId: paymentMethodId,
-        name: quota.name,
-        rewardComposition: quota.rewards.map(r => `${r.percentage}%`).join('/'),
-        calculationMethods: quota.rewards.map(r => r.calculationMethod),
-        quotaLimits: quota.rewards.map(r => r.quotaLimit),
-        currentAmounts: quota.rewards.map(r => r.currentAmount),
-        usedQuotas: quota.rewards.map(r => r.usedQuota),
-        remainingQuotas: quota.rewards.map(r => r.remainingQuota),
-        referenceAmounts: quota.rewards.map(r => r.referenceAmount),
-        refreshTimes: quota.rewards.map(r => r.refreshTime),
-        rewardIds: quota.rewards.map(r => r.rewardId),
-      });
+      if (quota.rewards.length > 0) {
+        quota.rewards.sort((a, b) => a.percentage - b.percentage);
+        const [, paymentMethodId] = key.split('_');
+        result.push({
+          schemeId: null,
+          paymentMethodId: paymentMethodId,
+          name: quota.name,
+          cardId: quota.cardId,
+          paymentMethodIdForGroup: quota.paymentMethodId,
+          cardName: quota.cardName,
+          paymentMethodName: quota.paymentMethodName,
+          schemeName: quota.schemeName,
+          rewardComposition: quota.rewards.map(r => `${r.percentage}%`).join('/'),
+          calculationMethods: quota.rewards.map(r => r.calculationMethod),
+          quotaLimits: quota.rewards.map(r => r.quotaLimit),
+          currentAmounts: quota.rewards.map(r => r.currentAmount),
+          usedQuotas: quota.rewards.map(r => r.usedQuota),
+          remainingQuotas: quota.rewards.map(r => r.remainingQuota),
+          referenceAmounts: quota.rewards.map(r => r.referenceAmount),
+          refreshTimes: quota.rewards.map(r => r.refreshTime),
+          rewardIds: quota.rewards.map(r => r.rewardId),
+          quotaRefreshTypes: quota.rewards.map(r => r.quotaRefreshType),
+          quotaRefreshValues: quota.rewards.map(r => r.quotaRefreshValue),
+          quotaRefreshDates: quota.rewards.map(r => r.quotaRefreshDate),
+        });
+      }
     });
 
     res.json({ success: true, data: result });
   } catch (error) {
+    console.error('取得額度錯誤:', error);
     res.status(500).json({ success: false, error: (error as Error).message });
   }
 });

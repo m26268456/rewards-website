@@ -4,6 +4,9 @@ import axios from 'axios';
 const getBaseURL = () => {
   // 在瀏覽器中運行時
   if (typeof window !== 'undefined') {
+    // 檢查是否在 Capacitor 環境中（手機應用程式）
+    const isCapacitor = (window as any).Capacitor?.isNativePlatform();
+    
     // 如果設定了 VITE_API_URL，使用它（生產環境）
     const envUrl = import.meta.env.VITE_API_URL;
     if (envUrl) {
@@ -14,6 +17,13 @@ const getBaseURL = () => {
       // 否則添加 /api
       return `${envUrl}/api`;
     }
+    
+    // 在 Capacitor 環境中，必須使用完整 URL
+    if (isCapacitor) {
+      // 使用生產環境的後端 URL
+      return 'https://backend-production-abe5.up.railway.app/api';
+    }
+    
     // 開發環境使用相對路徑（會通過 Vite 代理）
     return '/api';
   }

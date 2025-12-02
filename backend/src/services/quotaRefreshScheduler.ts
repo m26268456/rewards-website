@@ -6,8 +6,6 @@ import { shouldRefreshQuota, calculateNextRefreshTime } from '../utils/quotaRefr
  * 執行額度刷新檢查
  */
 async function checkAndRefreshQuotas() {
-  console.log(`[${new Date().toISOString()}] 開始檢查額度刷新...`);
-  
   try {
     // 先測試資料庫連接
     try {
@@ -186,9 +184,7 @@ async function checkAndRefreshQuotas() {
     }
 
     if (refreshedCount > 0) {
-      console.log(`[${new Date().toISOString()}] 已刷新 ${refreshedCount} 個額度`);
-    } else {
-      console.log(`[${new Date().toISOString()}] 無需刷新的額度`);
+      console.log(`[${new Date().toISOString()}] ✅ 已刷新 ${refreshedCount} 個額度`);
     }
   } catch (error: any) {
     // 如果是資料庫連接錯誤，給出更清楚的提示

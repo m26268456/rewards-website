@@ -1,5 +1,6 @@
 import { pool } from '../config/database';
 import { SchemeInfo, RewardComposition } from '../utils/types';
+import { parseChannelName, matchesChannelName } from '../utils/channelUtils';
 
 /**
  * 取得所有卡片及其方案（用於方案總覽）
@@ -28,216 +29,170 @@ export async function getAllCardsWithSchemes(): Promise<
   }>
 > {
   try {
-    // 取得所有卡片
-    const cardsResult = await pool.query(
-      'SELECT id, name, note, display_order FROM cards ORDER BY display_order, created_at'
-    );
+    // 優化：使用 JOIN 一次性獲取所有資料，避免 N+1 查詢
+    const result = await pool.query(`
+      SELECT 
+        c.id as card_id,
+        c.name as card_name,
+        c.note as card_note,
+        c.display_order as card_display_order,
+        cs.id as scheme_id,
+        cs.name as scheme_name,
+        cs.note as scheme_note,
+        cs.requires_switch,
+        cs.activity_start_date,
+        cs.activity_end_date,
+        cs.display_order as scheme_display_order,
+        sr.reward_percentage,
+        sr.calculation_method,
+        sr.quota_limit,
+        sr.quota_refresh_type,
+        sr.quota_refresh_value,
+        sr.quota_refresh_date,
+        sr.display_order as reward_display_order,
+        excl_ch.id as exclusion_channel_id,
+        excl_ch.name as exclusion_channel_name,
+        app_ch.id as application_channel_id,
+        app_ch.name as application_channel_name,
+        sca.note as application_note
+      FROM cards c
+      LEFT JOIN card_schemes cs ON c.id = cs.card_id
+      LEFT JOIN scheme_rewards sr ON cs.id = sr.scheme_id
+      LEFT JOIN scheme_channel_exclusions sce ON cs.id = sce.scheme_id
+      LEFT JOIN channels excl_ch ON sce.channel_id = excl_ch.id
+      LEFT JOIN scheme_channel_applications sca ON cs.id = sca.scheme_id
+      LEFT JOIN channels app_ch ON sca.channel_id = app_ch.id
+      ORDER BY c.display_order, c.created_at, cs.display_order, cs.created_at, sr.display_order
+    `);
 
-    const cards = cardsResult.rows;
+    // 組織資料結構
+    const cardsMap = new Map<string, {
+      id: string;
+      name: string;
+      note?: string;
+      displayOrder: number;
+      schemes: Map<string, {
+        id: string;
+        name: string;
+        note?: string;
+        requiresSwitch: boolean;
+        activityStartDate?: string;
+        activityEndDate?: string;
+        rewards: RewardComposition[];
+        exclusions: Set<string>;
+        applications: Map<string, {
+          channelId: string;
+          channelName: string;
+          note?: string;
+        }>;
+      }>;
+    }>();
 
-    // 為每個卡片取得方案
-    const cardsWithSchemes = await Promise.all(
-      cards.map(async (card) => {
-        const schemesResult = await pool.query(
-          `SELECT id, name, note, requires_switch, activity_start_date, activity_end_date, display_order
-           FROM card_schemes
-           WHERE card_id = $1
-           ORDER BY display_order, created_at`,
-          [card.id]
-        );
+    for (const row of result.rows) {
+      // 處理卡片
+      if (!cardsMap.has(row.card_id)) {
+        cardsMap.set(row.card_id, {
+          id: row.card_id,
+          name: row.card_name,
+          note: row.card_note || undefined,
+          displayOrder: row.card_display_order || 0,
+          schemes: new Map(),
+        });
+      }
+      const card = cardsMap.get(row.card_id)!;
 
-        const schemes = await Promise.all(
-          schemesResult.rows.map(async (scheme) => {
-            // 取得回饋組成
-            const rewardsResult = await pool.query(
-              `SELECT reward_percentage, calculation_method, quota_limit, 
-                      quota_refresh_type, quota_refresh_value, quota_refresh_date, display_order
-               FROM scheme_rewards
-               WHERE scheme_id = $1
-               ORDER BY display_order`,
-              [scheme.id]
-            );
+      // 處理方案
+      if (row.scheme_id && !card.schemes.has(row.scheme_id)) {
+        card.schemes.set(row.scheme_id, {
+          id: row.scheme_id,
+          name: row.scheme_name,
+          note: row.scheme_note || undefined,
+          requiresSwitch: row.requires_switch || false,
+          activityStartDate: row.activity_start_date
+            ? (row.activity_start_date instanceof Date
+                ? row.activity_start_date.toISOString().split('T')[0]
+                : String(row.activity_start_date).split('T')[0])
+            : undefined,
+          activityEndDate: row.activity_end_date
+            ? (row.activity_end_date instanceof Date
+                ? row.activity_end_date.toISOString().split('T')[0]
+                : String(row.activity_end_date).split('T')[0])
+            : undefined,
+          rewards: [],
+          exclusions: new Set(),
+          applications: new Map(),
+        });
+      }
+      const scheme = row.scheme_id ? card.schemes.get(row.scheme_id) : null;
 
-            const rewards: RewardComposition[] = rewardsResult.rows.map((r) => ({
-              percentage: r.reward_percentage ? parseFloat(r.reward_percentage) : 0,
-              calculationMethod: r.calculation_method || 'round',
-              quotaLimit: r.quota_limit ? parseFloat(r.quota_limit) : null,
-              quotaRefreshType: r.quota_refresh_type || null,
-              quotaRefreshValue: r.quota_refresh_value || null,
-              quotaRefreshDate: r.quota_refresh_date
-                ? r.quota_refresh_date.toISOString().split('T')[0]
+      if (scheme) {
+        // 處理回饋組成
+        if (row.reward_percentage !== null && row.reward_percentage !== undefined) {
+          const rewardExists = scheme.rewards.some(r => 
+            r.percentage === parseFloat(row.reward_percentage) &&
+            r.calculationMethod === (row.calculation_method || 'round')
+          );
+          if (!rewardExists) {
+            scheme.rewards.push({
+              percentage: parseFloat(row.reward_percentage) || 0,
+              calculationMethod: row.calculation_method || 'round',
+              quotaLimit: row.quota_limit ? parseFloat(row.quota_limit) : null,
+              quotaRefreshType: row.quota_refresh_type || null,
+              quotaRefreshValue: row.quota_refresh_value || null,
+              quotaRefreshDate: row.quota_refresh_date
+                ? (row.quota_refresh_date instanceof Date
+                    ? row.quota_refresh_date.toISOString().split('T')[0]
+                    : String(row.quota_refresh_date).split('T')[0])
                 : null,
-            }));
+            });
+          }
+        }
 
-            // 取得排除通路
-            const exclusionsResult = await pool.query(
-              `SELECT c.id, c.name
-               FROM scheme_channel_exclusions sce
-               JOIN channels c ON sce.channel_id = c.id
-               WHERE sce.scheme_id = $1`,
-              [scheme.id]
-            );
+        // 處理排除通路
+        if (row.exclusion_channel_id) {
+          scheme.exclusions.add(row.exclusion_channel_name);
+        }
 
-            const exclusions = exclusionsResult.rows.map((r) => r.name);
+        // 處理適用通路
+        if (row.application_channel_id) {
+          if (!scheme.applications.has(row.application_channel_id)) {
+            scheme.applications.set(row.application_channel_id, {
+              channelId: row.application_channel_id,
+              channelName: row.application_channel_name,
+              note: row.application_note || undefined,
+            });
+          }
+        }
+      }
+    }
 
-            // 取得適用通路
-            const applicationsResult = await pool.query(
-              `SELECT c.id, c.name, sca.note
-               FROM scheme_channel_applications sca
-               JOIN channels c ON sca.channel_id = c.id
-               WHERE sca.scheme_id = $1`,
-              [scheme.id]
-            );
-
-            const applications = applicationsResult.rows.map((r) => ({
-              channelId: r.id,
-              channelName: r.name,
-              note: r.note || undefined,
-            }));
-
-            return {
-              id: scheme.id,
-              name: scheme.name,
-              note: scheme.note || undefined,
-              requiresSwitch: scheme.requires_switch || false,
-              activityStartDate: scheme.activity_start_date
-                ? (scheme.activity_start_date instanceof Date
-                    ? scheme.activity_start_date.toISOString().split('T')[0]
-                    : String(scheme.activity_start_date).split('T')[0])
-                : undefined,
-              activityEndDate: scheme.activity_end_date
-                ? (scheme.activity_end_date instanceof Date
-                    ? scheme.activity_end_date.toISOString().split('T')[0]
-                    : String(scheme.activity_end_date).split('T')[0])
-                : undefined,
-              rewards,
-              exclusions,
-              applications,
-            };
-          })
-        );
-
-        return {
-          id: card.id,
-          name: card.name,
-          note: card.note || undefined,
-          displayOrder: card.display_order || 0,
-          schemes,
-        };
-      })
-    );
-
-    return cardsWithSchemes;
+    // 轉換為最終格式
+    return Array.from(cardsMap.values()).map(card => ({
+      id: card.id,
+      name: card.name,
+      note: card.note,
+      displayOrder: card.displayOrder,
+      schemes: Array.from(card.schemes.values()).map(scheme => ({
+        id: scheme.id,
+        name: scheme.name,
+        note: scheme.note,
+        requiresSwitch: scheme.requiresSwitch,
+        activityStartDate: scheme.activityStartDate,
+        activityEndDate: scheme.activityEndDate,
+        rewards: scheme.rewards.sort((a, b) => {
+          // 按原始順序排序（如果有 display_order）
+          return 0;
+        }),
+        exclusions: Array.from(scheme.exclusions),
+        applications: Array.from(scheme.applications.values()),
+      })),
+    }));
   } catch (error) {
     console.error('getAllCardsWithSchemes 錯誤:', error);
     throw error;
   }
 }
 
-/**
- * 解析通路名稱，提取原名稱和別稱
- * 支持格式：原名稱[別稱1,別稱2] 或 原名稱(別稱)
- */
-function parseChannelName(channelName: string): {
-  baseName: string;
-  aliases: string[];
-  fullName: string;
-} {
-  const fullName = channelName.trim();
-  
-  // 嘗試匹配 [別稱1,別稱2] 格式
-  const bracketMatch = fullName.match(/^(.+?)\[(.+?)\]$/);
-  if (bracketMatch) {
-    const baseName = bracketMatch[1].trim();
-    const aliasesStr = bracketMatch[2].trim();
-    const aliases = aliasesStr.split(',').map(a => a.trim()).filter(a => a.length > 0);
-    return { baseName, aliases, fullName };
-  }
-  
-  // 嘗試匹配 (別稱) 格式（但這可能與備註混淆，優先使用括號格式）
-  const parenMatch = fullName.match(/^(.+?)\s*\((.+?)\)$/);
-  if (parenMatch) {
-    const baseName = parenMatch[1].trim();
-    const aliasesStr = parenMatch[2].trim();
-    const aliases = aliasesStr.split(',').map(a => a.trim()).filter(a => a.length > 0);
-    return { baseName, aliases, fullName };
-  }
-  
-  // 沒有別稱
-  return { baseName: fullName, aliases: [], fullName };
-}
-
-/**
- * 檢查關鍵字是否匹配通路名稱（支持別稱）
- */
-function matchesChannelName(keyword: string, channelName: string): { matched: boolean; isExact: boolean; isAlias: boolean } {
-  const normalizedKeyword = keyword.trim().toLowerCase();
-  const { baseName, aliases, fullName } = parseChannelName(channelName);
-  
-  // 精確匹配（不區分大小寫）
-  if (baseName.toLowerCase() === normalizedKeyword) {
-    return { matched: true, isExact: true, isAlias: false };
-  }
-  
-  // 別稱精確匹配
-  for (const alias of aliases) {
-    if (alias.toLowerCase() === normalizedKeyword) {
-      return { matched: true, isExact: true, isAlias: true };
-    }
-  }
-  
-  // 檢查是否為完整單詞匹配（避免部分匹配）
-  // 例如："net" 不應該匹配 "Netflix"，但 "net" 應該匹配 "NET"
-  const baseNameLower = baseName.toLowerCase();
-  const fullNameLower = fullName.toLowerCase();
-  
-  // 轉義特殊字符
-  const escapedKeyword = normalizedKeyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  
-  // 檢查關鍵字是否為完整單詞（使用單詞邊界）
-  const wordBoundaryRegex = new RegExp(`\\b${escapedKeyword}\\b`, 'i');
-  
-  // 檢查是否匹配完整單詞（在原名稱中）
-  if (wordBoundaryRegex.test(baseNameLower)) {
-    return { matched: true, isExact: false, isAlias: false };
-  }
-  
-  // 檢查別稱中的完整單詞匹配
-  for (const alias of aliases) {
-    const aliasLower = alias.toLowerCase();
-    if (aliasLower === normalizedKeyword) {
-      // 別稱精確匹配已在上面處理
-      continue;
-    }
-    if (wordBoundaryRegex.test(aliasLower)) {
-      return { matched: true, isExact: false, isAlias: true };
-    }
-  }
-  
-  // 如果關鍵字長度足夠（至少3個字符），允許部分匹配作為最後手段
-  // 但需要確保不是部分匹配導致的混亂
-  if (normalizedKeyword.length >= 3) {
-    // 檢查關鍵字是否在名稱開頭（作為單詞開頭）
-    const keywordAtStart = new RegExp(`^${escapedKeyword}\\b`, 'i');
-    // 檢查關鍵字是否在名稱結尾（作為單詞結尾）
-    const keywordAtEnd = new RegExp(`\\b${escapedKeyword}$`, 'i');
-    
-    // 如果關鍵字在原名稱中作為單詞開頭或結尾，允許匹配
-    if (keywordAtStart.test(baseNameLower) || keywordAtEnd.test(baseNameLower)) {
-      return { matched: true, isExact: false, isAlias: false };
-    }
-    
-    // 檢查別稱中的部分匹配（作為單詞開頭或結尾）
-    for (const alias of aliases) {
-      const aliasLower = alias.toLowerCase();
-      if (keywordAtStart.test(aliasLower) || keywordAtEnd.test(aliasLower)) {
-        return { matched: true, isExact: false, isAlias: true };
-      }
-    }
-  }
-  
-  return { matched: false, isExact: false, isAlias: false };
-}
 
 /**
  * 根據關鍵字查詢通路回饋（支持關鍵字匹配和別稱）
@@ -300,38 +255,38 @@ export async function queryChannelRewardsByKeywords(
         };
       }
 
-      // 為每個匹配的通路分別查詢回饋
-      // 優先返回精確匹配的通路，如果有多個精確匹配，只返回第一個
-      // 這樣可以避免部分匹配導致的混亂（例如 "net" 不會同時匹配 "NET" 和 "Netflix"）
-      
-      // 找出最佳匹配（分數最小的，即最精確的）
-      const bestMatches = matches.filter(m => m.matchScore === matches[0].matchScore);
-      
-      // 只使用最佳匹配的通路（如果有多個精確匹配，只取第一個）
-      const bestMatch = bestMatches[0];
-      
-      if (bestMatch) {
-        const channelRewards = await queryChannelRewards([bestMatch.id]);
+      // 返回所有匹配的通路（支持部分匹配時返回多個結果）
+      // 例如："NET" 可以匹配 "NET" 和 "NETFLIX"，分別返回兩個結果
+      const channelRewardsList = [];
+      for (const match of matches) {
+        const channelRewards = await queryChannelRewards([match.id]);
         if (channelRewards.length > 0) {
-          const { baseName } = parseChannelName(bestMatch.name);
-          return {
-            channelId: bestMatch.id,
-            channelName: baseName, // 只顯示原名稱，不顯示別稱
-            results: channelRewards[0].results, // 結果已經在 queryChannelRewards 中排序（排除的在前）
-          };
+          const { baseName } = parseChannelName(match.name);
+          channelRewardsList.push({
+            channelId: match.id,
+            channelName: baseName,
+            results: channelRewards[0].results,
+          });
         }
+      }
+      
+      // 如果找到匹配的通路，返回所有結果
+      if (channelRewardsList.length > 0) {
+        return channelRewardsList;
       }
 
       // 沒有找到結果
-      return {
+      return [{
         channelId: '',
         channelName: keyword,
         results: [],
-      };
+      }];
     })
   );
 
-  return results.filter((r) => r !== null);
+  // 將結果展平（因為每個關鍵字可能返回多個匹配）
+  const flattened = results.flat().filter((r) => r !== null);
+  return flattened;
 }
 
 /**

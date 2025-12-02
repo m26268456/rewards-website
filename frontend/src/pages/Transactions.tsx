@@ -50,13 +50,23 @@ export default function Transactions() {
   }, []);
 
   const loadTransactions = async () => {
-    const res = await api.get('/transactions');
-    setTransactions(res.data.data);
+    try {
+      const res = await api.get('/transactions');
+      setTransactions(res.data.data);
+    } catch (error) {
+      console.error('載入交易記錄錯誤:', error);
+      alert('載入交易記錄失敗');
+    }
   };
 
   const loadTransactionTypes = async () => {
-    const res = await api.get('/settings/transaction-types');
-    setTransactionTypes(res.data.data);
+    try {
+      const res = await api.get('/settings/transaction-types');
+      setTransactionTypes(res.data.data);
+    } catch (error) {
+      console.error('載入交易類型錯誤:', error);
+      alert('載入交易類型失敗');
+    }
   };
 
   const loadSchemes = async () => {
@@ -79,9 +89,13 @@ export default function Transactions() {
   };
 
   const loadReasonString = async () => {
-    const res = await api.get('/settings/reason-strings');
-    if (res.data.data.length > 0) {
-      setReasonString(res.data.data[0].content);
+    try {
+      const res = await api.get('/settings/reason-strings');
+      if (res.data.data.length > 0) {
+        setReasonString(res.data.data[0].content);
+      }
+    } catch (error) {
+      console.error('載入原因字串錯誤:', error);
     }
   };
 
@@ -204,12 +218,12 @@ export default function Transactions() {
             {reasonString && (
               <div className="mb-2 p-2 bg-blue-50 rounded text-sm whitespace-pre-wrap">{reasonString}</div>
             )}
-            <textarea
+            <input
+              type="text"
               value={formData.reason}
               onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
               required
-              rows={3}
-              placeholder="可輸入多行文字，按 Enter 換行"
+              placeholder="輸入事由"
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -245,11 +259,12 @@ export default function Transactions() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">備註</label>
-            <textarea
+            <input
+              type="text"
               value={formData.note}
               onChange={(e) => setFormData({ ...formData, note: e.target.value })}
-              rows={3}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="請輸入備註"
             />
           </div>
 

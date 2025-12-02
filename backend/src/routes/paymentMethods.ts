@@ -209,17 +209,20 @@ router.put('/:id/channels', async (req: Request, res: Response) => {
       // 刪除現有的適用通路
       await client.query('DELETE FROM payment_channel_applications WHERE payment_method_id = $1', [id]);
 
-      // 新增適用通路
-      if (Array.isArray(applications)) {
-        for (const app of applications) {
-          if (app.channelId) {
-            await client.query(
-              `INSERT INTO payment_channel_applications (payment_method_id, channel_id, note)
-               VALUES ($1, $2, $3)
-               ON CONFLICT (payment_method_id, channel_id) DO UPDATE SET note = $3`,
-              [id, app.channelId, app.note || null]
-            );
-          }
+      // 批量插入適用通路（優化：使用 UNNEST 批量插入）
+      if (Array.isArray(applications) && applications.length > 0) {
+        const validApps = applications.filter((app: any) => app.channelId);
+        if (validApps.length > 0) {
+          // 使用 UNNEST 進行批量插入
+          const channelIds = validApps.map((app: any) => app.channelId);
+          const notes = validApps.map((app: any) => app.note || null);
+          
+          await client.query(
+            `INSERT INTO payment_channel_applications (payment_method_id, channel_id, note)
+             SELECT $1, unnest($2::uuid[]), unnest($3::text[])
+             ON CONFLICT (payment_method_id, channel_id) DO UPDATE SET note = EXCLUDED.note`,
+            [id, channelIds, notes]
+          );
         }
       }
 
