@@ -46,21 +46,74 @@ router.post('/query-channels', async (req: Request, res: Response) => {
 });
 
 // 取得卡片的所有方案
+const cardSchemeColumnCache: Record<string, boolean> = {};
+
+const ensureCardSchemeColumn = async (columnName: string): Promise<boolean> => {
+  if (cardSchemeColumnCache[columnName] !== undefined) {
+    return cardSchemeColumnCache[columnName];
+  }
+
+  const { rows } = await pool.query(
+    `SELECT EXISTS (
+       SELECT 1
+       FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND table_name = 'card_schemes'
+         AND column_name = $1
+     ) as "exists"`,
+    [columnName]
+  );
+
+  const exists = rows[0]?.exists === true;
+  cardSchemeColumnCache[columnName] = exists;
+
+  if (!exists) {
+    console.warn(`[card_schemes] 欄位不存在：${columnName}，將使用預設值`);
+  }
+
+  return exists;
+};
+
 router.get('/card/:cardId', async (req: Request, res: Response) => {
   try {
     const { cardId } = req.params;
 
+    const [hasSharedRewardGroupColumn, hasCreatedAtColumn] = await Promise.all([
+      ensureCardSchemeColumn('shared_reward_group_id'),
+      ensureCardSchemeColumn('created_at'),
+    ]);
+
+    const selectColumns = [
+      'id',
+      'name',
+      'note',
+      'requires_switch',
+      'activity_start_date',
+      'activity_end_date',
+      'display_order',
+      hasSharedRewardGroupColumn ? 'shared_reward_group_id' : 'NULL::uuid as shared_reward_group_id',
+    ].join(', ');
+
+    const orderClause = `ORDER BY display_order${hasCreatedAtColumn ? ', created_at' : ''}`;
+
     const result = await pool.query(
-      `SELECT id, name, note, requires_switch, activity_start_date, activity_end_date, display_order, shared_reward_group_id
+      `SELECT ${selectColumns}
        FROM card_schemes
        WHERE card_id = $1
-       ORDER BY display_order, created_at`,
+       ${orderClause}`,
       [cardId]
     );
 
     res.json({ success: true, data: result.rows });
   } catch (error) {
-    res.status(500).json({ success: false, error: (error as Error).message });
+    const err = error as Error;
+    console.error('[取得卡片方案] 錯誤:', {
+      error: err,
+      message: err.message,
+      stack: err.stack,
+      cardId: req.params.cardId,
+    });
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
