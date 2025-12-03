@@ -724,6 +724,27 @@ function CardItem({
                     className="w-full px-2 py-1 border rounded text-sm"
                   />
                 </div>
+                {/* 共同回饋綁定 */}
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">共同回饋綁定</label>
+                  <select
+                    value={schemeFormData.sharedRewardGroupId}
+                    onChange={(e) =>
+                      setSchemeFormData({ ...schemeFormData, sharedRewardGroupId: e.target.value })
+                    }
+                    className="w-full px-2 py-1 border rounded text-sm"
+                  >
+                    <option value="">不綁定（使用本方案回饋）</option>
+                    {schemes.map((schemeOption) => (
+                      <option key={schemeOption.id} value={schemeOption.id}>
+                        {schemeOption.name}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[11px] text-gray-500 mt-1">
+                    可選擇同卡片內既有方案作為共同回饋來源，新增方案將沿用其回饋設定。
+                  </p>
+                </div>
                 {/* 方案期限 */}
                 <div className="grid grid-cols-2 gap-2">
                   <div>
@@ -865,6 +886,29 @@ function CardItem({
                               onChange={(e) => setSchemeFormData({ ...schemeFormData, note: e.target.value })}
                               className="w-full px-2 py-1 border rounded text-sm"
                             />
+                          </div>
+                          {/* 共同回饋綁定 */}
+                          <div>
+                            <label className="block text-xs text-gray-600 mb-1">共同回饋綁定</label>
+                            <select
+                              value={schemeFormData.sharedRewardGroupId}
+                              onChange={(e) =>
+                                setSchemeFormData({ ...schemeFormData, sharedRewardGroupId: e.target.value })
+                              }
+                              className="w-full px-2 py-1 border rounded text-sm"
+                            >
+                              <option value="">不綁定（使用本方案回饋）</option>
+                              {schemes
+                                .filter((schemeOption) => schemeOption.id !== editingScheme.id)
+                                .map((schemeOption) => (
+                                  <option key={schemeOption.id} value={schemeOption.id}>
+                                    {schemeOption.name}
+                                  </option>
+                                ))}
+                            </select>
+                            <p className="text-[11px] text-gray-500 mt-1">
+                              選擇同卡片的其他方案作為共同回饋來源，儲存後即會沿用該方案的回饋組成。
+                            </p>
                           </div>
                           {/* 方案期限 */}
                           <div className="grid grid-cols-2 gap-2">
@@ -4142,6 +4186,29 @@ function QuotaSettings() {
     quotaRefreshValue: '',
     quotaRefreshDate: '',
   });
+  const refreshTypeOptions = [
+    { value: '', label: '無' },
+    { value: 'monthly', label: '每月' },
+    { value: 'date', label: '指定日期' },
+  ];
+
+  const handleRefreshTypeChange = (isNew: boolean, value: string) => {
+    if (isNew) {
+      setRewardAddForm((prev) => ({
+        ...prev,
+        quotaRefreshType: value,
+        quotaRefreshValue: value === 'monthly' ? prev.quotaRefreshValue : '',
+        quotaRefreshDate: value === 'date' ? prev.quotaRefreshDate : '',
+      }));
+    } else {
+      setRewardEditForm((prev) => ({
+        ...prev,
+        quotaRefreshType: value,
+        quotaRefreshValue: value === 'monthly' ? prev.quotaRefreshValue : '',
+        quotaRefreshDate: value === 'date' ? prev.quotaRefreshDate : '',
+      }));
+    }
+  };
 
   const handleEditReward = (quotaIndex: number, rewardIndex: number, groupKey: string) => {
     const quota = quotas[quotaIndex];
@@ -4434,6 +4501,9 @@ function QuotaSettings() {
                   const referenceAmount = isNewRow ? null : (quota.referenceAmounts?.[originalIndex] ?? null);
                   const isEditing = !isNewRow && editingQuota?.quotaIndex === quotaIndex && editingQuota?.rewardIndex === originalIndex && editingQuota?.groupKey === groupKey;
                   const isEditingReward = !isNewRow && editingReward?.quotaIndex === quotaIndex && editingReward?.rewardIndex === originalIndex && editingReward?.groupKey === groupKey;
+                  const currentRefreshType = isNewRow
+                    ? (rewardAddForm.quotaRefreshType || '')
+                    : (rewardEditForm.quotaRefreshType || '');
                   
                   return (
                     <tr key={`${quotaIndex}-${originalIndex}`} className={`${rowBgClass} ${borderColor} border-l-4 hover:bg-blue-100 transition-colors`}>
@@ -4535,41 +4605,31 @@ function QuotaSettings() {
                           <div className="space-y-2">
                             <div>
                               <label className="text-xs font-medium block mb-1">刷新類型</label>
-                              <select
-                                value={isNewRow ? (rewardAddForm.quotaRefreshType || '') : (rewardEditForm.quotaRefreshType || '')}
-                                onChange={(e) => {
-                                  const newType = e.target.value || null;
-                                  if (isNewRow) {
-                                    setRewardAddForm({
-                                      ...rewardAddForm,
-                                      quotaRefreshType: newType || '',
-                                      quotaRefreshValue: newType === 'date' ? null : rewardAddForm.quotaRefreshValue,
-                                      quotaRefreshDate: newType !== 'date' ? null : rewardAddForm.quotaRefreshDate,
-                                    });
-                                  } else {
-                                    setRewardEditForm({
-                                      ...rewardEditForm,
-                                      quotaRefreshType: newType || '',
-                                      quotaRefreshValue: newType === 'date' ? null : rewardEditForm.quotaRefreshValue,
-                                      quotaRefreshDate: newType !== 'date' ? null : rewardEditForm.quotaRefreshDate,
-                                    });
-                                  }
-                                }}
-                                className="w-full px-2 py-1 border rounded text-xs"
-                              >
-                                <option value="">無</option>
-                                <option value="monthly">每月</option>
-                                <option value="date">指定日期</option>
-                              </select>
+                              <div className="flex flex-wrap gap-4 text-xs text-gray-700">
+                                {refreshTypeOptions.map((option) => (
+                                  <label key={option.value || 'none'} className="inline-flex items-center gap-1">
+                                    <input
+                                      type="radio"
+                                      name={`refresh-type-${quotaIndex}-${isNewRow ? 'new' : originalIndex}`}
+                                      value={option.value}
+                                      checked={currentRefreshType === option.value}
+                                      onChange={() => handleRefreshTypeChange(isNewRow, option.value)}
+                                    />
+                                    {option.label}
+                                  </label>
+                                ))}
+                              </div>
                             </div>
-                            {(isNewRow ? rewardAddForm.quotaRefreshType : rewardEditForm.quotaRefreshType) === 'monthly' && (
+                            {currentRefreshType === 'monthly' && (
                               <div>
                                 <label className="text-xs font-medium block mb-1">每月幾號</label>
                                 <input
                                   type="number"
                                   min="1"
                                   max="31"
-                                  value={isNewRow ? (rewardAddForm.quotaRefreshValue || '') : (rewardEditForm.quotaRefreshValue || '')}
+                                  value={
+                                    isNewRow ? (rewardAddForm.quotaRefreshValue || '') : (rewardEditForm.quotaRefreshValue || '')
+                                  }
                                   onChange={(e) => {
                                     if (isNewRow) {
                                       setRewardAddForm({ ...rewardAddForm, quotaRefreshValue: e.target.value });
@@ -4581,12 +4641,14 @@ function QuotaSettings() {
                                 />
                               </div>
                             )}
-                            {(isNewRow ? rewardAddForm.quotaRefreshType : rewardEditForm.quotaRefreshType) === 'date' && (
+                            {currentRefreshType === 'date' && (
                               <div>
                                 <label className="text-xs font-medium block mb-1">刷新日期</label>
                                 <input
                                   type="date"
-                                  value={isNewRow ? (rewardAddForm.quotaRefreshDate || '') : (rewardEditForm.quotaRefreshDate || '')}
+                                  value={
+                                    isNewRow ? (rewardAddForm.quotaRefreshDate || '') : (rewardEditForm.quotaRefreshDate || '')
+                                  }
                                   onChange={(e) => {
                                     if (isNewRow) {
                                       setRewardAddForm({ ...rewardAddForm, quotaRefreshDate: e.target.value });
@@ -4607,35 +4669,37 @@ function QuotaSettings() {
                       </td>
                       <td className="px-4 py-3 text-sm">
                         {(isEditing || isEditingReward || isNewRow) ? (
-                          <div className="flex gap-1">
-                            <button
-                              onClick={() => {
-                                if (isEditing) {
-                                  handleSave();
-                                } else if (isEditingReward) {
-                                  handleSaveReward();
-                                } else if (isNewRow) {
-                                  handleSaveNewReward();
-                                }
-                              }}
-                              className="px-2 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 transition-colors"
-                            >
-                              儲存
-                            </button>
-                            <button
-                              onClick={() => {
-                                setEditingQuota(null);
-                                setEditingReward(null);
-                                setAddingReward(null);
-                              }}
-                              className="px-2 py-1 bg-gray-500 text-white rounded text-xs hover:bg-gray-600 transition-colors"
-                            >
-                              取消
-                            </button>
-                            {isEditingReward && !isAdding && (
+                          <div className="flex flex-col gap-2">
+                            <div className="flex gap-1">
+                              <button
+                                onClick={() => {
+                                  if (isEditing) {
+                                    handleSave();
+                                  } else if (isEditingReward) {
+                                    handleSaveReward();
+                                  } else if (isNewRow) {
+                                    handleSaveNewReward();
+                                  }
+                                }}
+                                className="px-2 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 transition-colors"
+                              >
+                                儲存
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setEditingQuota(null);
+                                  setEditingReward(null);
+                                  setAddingReward(null);
+                                }}
+                                className="px-2 py-1 bg-gray-500 text-white rounded text-xs hover:bg-gray-600 transition-colors"
+                              >
+                                取消
+                              </button>
+                            </div>
+                            {isEditingReward && !isNewRow && (
                               <button
                                 onClick={() => handleAddReward(quotaIndex, groupKey)}
-                                className="px-2 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600 transition-colors"
+                                className="px-2 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600 transition-colors self-start"
                               >
                                 新增回饋組成
                               </button>
