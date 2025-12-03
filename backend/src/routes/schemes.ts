@@ -349,6 +349,66 @@ router.put('/:id', async (req: Request, res: Response) => {
   }
 });
 
+// 單獨更新共同回饋綁定
+router.put('/:id/shared-reward', async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { sharedRewardGroupId } = req.body as { sharedRewardGroupId?: string | null };
+
+  try {
+    const hasSharedRewardGroupColumn = await ensureCardSchemeColumn('shared_reward_group_id');
+    if (!hasSharedRewardGroupColumn) {
+      return res.status(400).json({
+        success: false,
+        error: '目前尚未支援共同回饋綁定，請先執行資料庫更新',
+      });
+    }
+
+    const schemeResult = await pool.query(
+      `SELECT id, card_id FROM card_schemes WHERE id = $1`,
+      [id]
+    );
+    if (schemeResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: '方案不存在' });
+    }
+
+    const cardId = schemeResult.rows[0].card_id;
+    let targetGroupId: string | null = sharedRewardGroupId || null;
+
+    if (targetGroupId) {
+      if (targetGroupId === id) {
+        targetGroupId = null;
+      } else {
+        const targetSchemeResult = await pool.query(
+          `SELECT id FROM card_schemes WHERE id = $1 AND card_id = $2`,
+          [targetGroupId, cardId]
+        );
+        if (targetSchemeResult.rows.length === 0) {
+          return res.status(400).json({
+            success: false,
+            error: '共同回饋僅能綁定同一卡片的其他方案',
+          });
+        }
+      }
+    }
+
+    await pool.query(
+      `UPDATE card_schemes
+       SET shared_reward_group_id = $1,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2`,
+      [targetGroupId, id]
+    );
+
+    res.json({
+      success: true,
+      data: { id, sharedRewardGroupId: targetGroupId },
+    });
+  } catch (error) {
+    console.error('[更新共同回饋綁定] 錯誤:', error);
+    res.status(500).json({ success: false, error: (error as Error).message });
+  }
+});
+
 // 批量更新方案（包含基本資訊、通路、回饋組成）- 優化版本
 router.put('/:id/batch', async (req: Request, res: Response) => {
   try {
