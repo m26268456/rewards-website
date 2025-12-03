@@ -126,6 +126,7 @@ router.post('/', async (req: Request, res: Response) => {
             error: '共同回饋方案必須屬於同一張卡片',
           });
         }
+      }
       const schemeResult = await client.query(
         `INSERT INTO card_schemes (
            card_id,
