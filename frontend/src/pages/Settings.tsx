@@ -304,18 +304,24 @@ function CardItem({
   const schemesListRef = useRef<HTMLDivElement>(null);
   const channelCacheRef = useRef<Map<string, string>>(new Map());
 
+  const resetSchemeForm = () => {
+    setShowSchemeForm(false);
+    setEditingScheme(null);
+    setChannelApplicationsText('');
+    setChannelExclusionsText('');
+  };
+
   // ESC 鍵取消編輯/展開，點擊空白處關閉
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         if (showSchemeForm || editingScheme) {
-          setShowSchemeForm(false);
-          setEditingScheme(null);
-        setChannelApplicationsText('');
-        setChannelExclusionsText('');
-      }
+          resetSchemeForm();
+          return;
+        }
         if (expandedSchemeId) {
           setExpandedSchemeId(null);
+          return;
         }
         if (showSchemes) {
           setShowSchemes(false);
@@ -332,10 +338,8 @@ function CardItem({
         if (target.closest('button')) {
           return;
         }
-        setShowSchemeForm(false);
-        setEditingScheme(null);
-        setChannelApplicationsText('');
-        setChannelExclusionsText('');
+        resetSchemeForm();
+        return;
       }
       
       // 如果點擊在展開的方案外部，關閉展開
@@ -345,6 +349,7 @@ function CardItem({
           return;
         }
         setExpandedSchemeId(null);
+        return;
       }
       
       // 如果點擊在方案列表外部，關閉方案列表
@@ -373,7 +378,18 @@ function CardItem({
   const loadSchemes = async () => {
     try {
       const res = await api.get(`/schemes/card/${card.id}`);
-      setSchemes(res.data.data);
+      const data = res.data.data;
+      const nameMap = new Map<string, string>();
+      data.forEach((scheme: Scheme & { shared_reward_group_id?: string }) => {
+        nameMap.set(scheme.id, scheme.name);
+      });
+      const enriched = data.map((scheme: Scheme & { shared_reward_group_id?: string; shared_reward_group_name?: string }) => ({
+        ...scheme,
+        shared_reward_group_name: scheme.shared_reward_group_id
+          ? nameMap.get(scheme.shared_reward_group_id) || '（來源已移除）'
+          : undefined,
+      }));
+      setSchemes(enriched);
     } catch (error) {
       console.error('載入方案錯誤:', error);
     }
