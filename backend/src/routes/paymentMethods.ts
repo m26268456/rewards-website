@@ -33,9 +33,7 @@ router.get('/', async (req: Request, res: Response) => {
 // 取得所有支付方式（用於方案總覽）
 router.get('/overview', async (req: Request, res: Response) => {
   try {
-    console.log('📥 收到支付方式總覽請求');
     const data = await getAllPaymentMethods();
-    console.log('✅ 支付方式總覽數據獲取成功，數量:', data.length);
     res.json({ success: true, data });
   } catch (error) {
     console.error('❌ 取得支付方式總覽錯誤:', error);

@@ -7,7 +7,6 @@ const router = Router();
 // 取得所有通路
 router.get('/', async (req: Request, res: Response) => {
   try {
-    console.log('📥 收到通路查詢請求, commonOnly:', req.query.commonOnly);
     const { commonOnly } = req.query;
 
     let query = 'SELECT id, name, is_common, display_order FROM channels';
@@ -20,7 +19,6 @@ router.get('/', async (req: Request, res: Response) => {
     query += ' ORDER BY display_order, created_at';
 
     const result = await pool.query(query, params);
-    console.log('✅ 通路數據獲取成功，數量:', result.rows.length);
     res.json({ success: true, data: result.rows });
   } catch (error) {
     console.error('❌ 取得通路錯誤:', error);

@@ -7,9 +7,7 @@ const router = Router();
 // 取得所有卡片及其方案（方案總覽）
 router.get('/overview', async (req: Request, res: Response) => {
   try {
-    console.log('📥 收到方案總覽請求');
     const data = await getAllCardsWithSchemes();
-    console.log('✅ 方案總覽數據獲取成功，卡片數量:', data.length);
     res.json({ success: true, data });
   } catch (error) {
     console.error('❌ 取得方案總覽錯誤:', error);

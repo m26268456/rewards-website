@@ -20,7 +20,7 @@ if (!databaseUrl) {
 } else {
   // Railway 環境：直接使用提供的 DATABASE_URL，不需要修改
   if (isRailway) {
-    console.log('✅ 使用 Railway 提供的 DATABASE_URL');
+    // 保持使用 Railway 提供的設定，無需額外輸出
   }
   // 如果設定了 DATABASE_URL，但主機名是 postgres 且不在 Docker 環境，嘗試替換為 localhost
   else if (databaseUrl.includes('@postgres:') && !isDocker) {
@@ -45,11 +45,6 @@ export const pool = new Pool({
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000,
   statement_timeout: 30000,
-});
-
-// 測試資料庫連線
-pool.on('connect', () => {
-  console.log('✅ 資料庫連線成功');
 });
 
 pool.on('error', (err) => {

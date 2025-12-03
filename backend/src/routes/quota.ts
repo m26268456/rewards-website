@@ -4,9 +4,82 @@ import { shouldRefreshQuota, calculateNextRefreshTime, formatRefreshTime } from 
 
 const router = Router();
 
+let sharedRewardGroupColumnCache: boolean | null = null;
+
+const addSharedRewardGroupColumn = async (): Promise<boolean> => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(
+      `ALTER TABLE card_schemes 
+       ADD COLUMN IF NOT EXISTS shared_reward_group_id UUID REFERENCES card_schemes(id) ON DELETE SET NULL`
+    );
+    await client.query(
+      `ALTER TABLE card_schemes 
+       ADD CONSTRAINT IF NOT EXISTS check_shared_reward_same_card 
+       CHECK (
+         shared_reward_group_id IS NULL OR 
+         EXISTS (
+           SELECT 1 
+           FROM card_schemes cs_self 
+           JOIN card_schemes cs_ref ON cs_self.shared_reward_group_id = cs_ref.id
+           WHERE cs_self.id = card_schemes.id
+             AND cs_self.card_id = cs_ref.card_id
+         )
+       )`
+    );
+    await client.query(
+      `CREATE INDEX IF NOT EXISTS idx_card_schemes_shared_reward_group_id 
+       ON card_schemes(shared_reward_group_id)`
+    );
+    await client.query('COMMIT');
+    console.log('[card_schemes] 已自動建立 shared_reward_group_id 欄位與約束');
+    return true;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('[card_schemes] 無法自動建立 shared_reward_group_id 欄位:', error);
+    return false;
+  } finally {
+    client.release();
+  }
+};
+
+const ensureSharedRewardGroupColumn = async (): Promise<boolean> => {
+  if (sharedRewardGroupColumnCache !== null) {
+    return sharedRewardGroupColumnCache;
+  }
+
+  const { rows } = await pool.query(
+    `SELECT EXISTS (
+       SELECT 1
+       FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND table_name = 'card_schemes'
+         AND column_name = 'shared_reward_group_id'
+     ) as "exists"`
+  );
+
+  let exists = rows[0]?.exists === true;
+  if (!exists) {
+    console.warn('[card_schemes] 偵測缺少 shared_reward_group_id 欄位，嘗試自動建立...');
+    exists = await addSharedRewardGroupColumn();
+  }
+
+  sharedRewardGroupColumnCache = exists;
+  if (!exists) {
+    console.warn('[card_schemes] 無法建立 shared_reward_group_id 欄位，將使用預設值');
+  }
+  return exists;
+};
+
 // 取得所有額度資訊
 router.get('/', async (req: Request, res: Response) => {
   try {
+    const hasSharedRewardGroupColumn = await ensureSharedRewardGroupColumn();
+    const sharedColumnSelect = hasSharedRewardGroupColumn
+      ? 'cs.shared_reward_group_id'
+      : 'NULL::uuid as shared_reward_group_id';
+
     // 取得所有卡片方案的額度
     const schemeQuotasResult = await pool.query(
       `SELECT 
@@ -17,7 +90,7 @@ router.get('/', async (req: Request, res: Response) => {
          c.name || '-' || cs.name as name,
          c.name as card_name,
          cs.name as scheme_name,
-         cs.shared_reward_group_id,
+         ${sharedColumnSelect},
          sr.id as reward_id,
          sr.reward_percentage,
          sr.calculation_method,
@@ -156,7 +229,7 @@ router.get('/', async (req: Request, res: Response) => {
          c.name || '-' || cs.name as name,
          c.name as card_name,
          cs.name as scheme_name,
-         cs.shared_reward_group_id,
+         ${sharedColumnSelect},
          sr.id as reward_id,
          sr.reward_percentage,
          sr.calculation_method,
@@ -473,8 +546,11 @@ router.get('/', async (req: Request, res: Response) => {
     });
 
     const existingSchemeIds = new Set(result.filter(r => r.schemeId).map(r => r.schemeId as string));
+    const sharedColumnSelectForList = hasSharedRewardGroupColumn
+      ? 'cs.shared_reward_group_id'
+      : 'NULL::uuid as shared_reward_group_id';
     const allSchemes = await pool.query(
-      `SELECT cs.id, cs.name, cs.shared_reward_group_id, c.id as card_id, c.name as card_name
+      `SELECT cs.id, cs.name, ${sharedColumnSelectForList}, c.id as card_id, c.name as card_name
        FROM card_schemes cs
        INNER JOIN cards c ON cs.card_id = c.id
        WHERE cs.card_id IS NOT NULL
