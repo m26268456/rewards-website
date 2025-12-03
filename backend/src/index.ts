@@ -6,6 +6,7 @@ import { env } from './config/env';
 import { errorHandler } from './middleware/errorHandler';
 import { apiLimiter } from './middleware/rateLimiter';
 import { startQuotaRefreshScheduler } from './services/quotaRefreshScheduler';
+import { ensureSharedRewardMappingInfrastructure } from './services/sharedRewardMapping';
 
 // 路由
 import cardsRouter from './routes/cards';
@@ -75,28 +76,39 @@ app.use('/api/import', importDataRouter);
 // 錯誤處理
 app.use(errorHandler);
 
-// 啟動伺服器
-// Railway 和其他雲端平台需要監聽 0.0.0.0 而不是 localhost
-const server = app.listen(env.PORT, env.HOST, () => {
-  console.log(`🚀 後端服務運行於 http://${env.HOST}:${env.PORT}`);
-  
-  // 啟動額度刷新定時任務
-  startQuotaRefreshScheduler();
-});
-
-// 處理端口佔用錯誤
-server.on('error', (error: NodeJS.ErrnoException) => {
-  if (error.code === 'EADDRINUSE') {
-    console.error(`❌ 端口 ${env.PORT} 已被佔用，請關閉佔用該端口的進程或更改 PORT 環境變數`);
-    console.error(`💡 提示：可以使用以下命令查看佔用端口的進程：`);
-    console.error(`   netstat -ano | findstr :${env.PORT}`);
-    console.error(`   然後使用 taskkill /F /PID <進程ID> 關閉進程`);
-    process.exit(1);
-  } else {
-    console.error('❌ 伺服器啟動錯誤:', error);
+const startServer = async () => {
+  try {
+    await ensureSharedRewardMappingInfrastructure();
+  } catch (error) {
+    console.error('❌ 初始化共同回饋資料結構失敗:', error);
     process.exit(1);
   }
-});
+
+  // 啟動伺服器
+  // Railway 和其他雲端平台需要監聽 0.0.0.0 而不是 localhost
+  const server = app.listen(env.PORT, env.HOST, () => {
+    console.log(`🚀 後端服務運行於 http://${env.HOST}:${env.PORT}`);
+    
+    // 啟動額度刷新定時任務
+    startQuotaRefreshScheduler();
+  });
+
+  // 處理端口佔用錯誤
+  server.on('error', (error: NodeJS.ErrnoException) => {
+    if (error.code === 'EADDRINUSE') {
+      console.error(`❌ 端口 ${env.PORT} 已被佔用，請關閉佔用該端口的進程或更改 PORT 環境變數`);
+      console.error(`💡 提示：可以使用以下命令查看佔用端口的進程：`);
+      console.error(`   netstat -ano | findstr :${env.PORT}`);
+      console.error(`   然後使用 taskkill /F /PID <進程ID> 關閉進程`);
+      process.exit(1);
+    } else {
+      console.error('❌ 伺服器啟動錯誤:', error);
+      process.exit(1);
+    }
+  });
+};
+
+startServer();
 
 // 優雅關閉
 process.on('SIGTERM', async () => {

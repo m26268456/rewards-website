@@ -4,6 +4,41 @@ import { parseChannelName, matchesChannelName } from '../utils/channelUtils';
 
 const router = Router();
 
+type ChannelRow = {
+  id: string;
+  name: string;
+  is_common: boolean;
+  display_order: number;
+};
+
+const buildChannelMatches = (keyword: string, channels: ChannelRow[]) => {
+  const matches: Array<{ channel: ChannelRow; matchScore: number }> = [];
+  for (const channel of channels) {
+    const match = matchesChannelName(keyword, channel.name);
+    if (match.matched) {
+      let score = 3;
+      if (match.isExact) {
+        score = match.isAlias ? 1 : 0;
+      } else if (match.isAlias) {
+        score = 2;
+      }
+      matches.push({
+        channel,
+        matchScore: score,
+      });
+    }
+  }
+
+  matches.sort((a, b) => {
+    if (a.matchScore !== b.matchScore) {
+      return a.matchScore - b.matchScore;
+    }
+    return a.channel.display_order - b.channel.display_order;
+  });
+
+  return matches.map(({ channel }) => channel);
+};
+
 // 取得所有通路
 router.get('/', async (req: Request, res: Response) => {
   try {
@@ -38,45 +73,106 @@ router.get('/search', async (req: Request, res: Response) => {
 
     // 獲取所有通路並使用改進的匹配邏輯
     const allChannelsResult = await pool.query(
-      "SELECT id, name, is_common, display_order FROM channels ORDER BY name"
+      'SELECT id, name, is_common, display_order FROM channels ORDER BY name'
     );
-    
-    const matches: Array<{
-      id: string;
-      name: string;
-      is_common: boolean;
-      display_order: number;
-      matchScore: number;
-    }> = [];
-    
-    for (const channel of allChannelsResult.rows) {
-      const match = matchesChannelName(name as string, channel.name);
-      if (match.matched) {
-        let score = 3;
-        if (match.isExact) {
-          score = match.isAlias ? 1 : 0;
-        } else if (match.isAlias) {
-          score = 2;
-        }
-        matches.push({
-          id: channel.id,
-          name: channel.name,
-          is_common: channel.is_common,
-          display_order: channel.display_order,
-          matchScore: score,
-        });
-      }
-    }
-    
-    // 按匹配分數排序
-    matches.sort((a, b) => a.matchScore - b.matchScore);
-    
-    // 只返回匹配的通路，不包含 matchScore
-    const result = matches.map(({ matchScore, ...rest }) => rest);
+
+    const matches = buildChannelMatches(name as string, allChannelsResult.rows as ChannelRow[]);
+    const result = matches.map(({ id, name, is_common, display_order }) => ({
+      id,
+      name,
+      is_common,
+      display_order,
+    }));
 
     res.json({ success: true, data: result });
   } catch (error) {
     res.status(500).json({ success: false, error: (error as Error).message });
+  }
+});
+
+// 批次解析或建立通路
+router.post('/batch-resolve', async (req: Request, res: Response) => {
+  const { items, createIfMissing = true } = req.body as {
+    items?: Array<{ name?: string }>;
+    createIfMissing?: boolean;
+  };
+
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ success: false, error: 'items 必須為非空陣列' });
+  }
+
+  const normalizedItems = items
+    .map((item) => ({
+      name: (typeof item?.name === 'string' ? item.name : '').trim(),
+    }))
+    .filter((item) => item.name.length > 0);
+
+  if (normalizedItems.length === 0) {
+    return res.json({ success: true, data: [] });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const allChannelsResult = await client.query(
+      'SELECT id, name, is_common, display_order FROM channels ORDER BY name'
+    );
+    const channels = allChannelsResult.rows as ChannelRow[];
+    const cache = new Map<string, ChannelRow>();
+    const responses: Array<{ inputName: string; channelId: string | null; channelName: string | null }> = [];
+
+    for (const item of normalizedItems) {
+      const inputName = item.name;
+      const cacheKey = inputName.toLowerCase();
+
+      if (cache.has(cacheKey)) {
+        const cachedChannel = cache.get(cacheKey)!;
+        responses.push({
+          inputName,
+          channelId: cachedChannel.id,
+          channelName: cachedChannel.name,
+        });
+        continue;
+      }
+
+      const matches = buildChannelMatches(inputName, channels);
+      let resolvedChannel: ChannelRow | null = matches.length > 0 ? matches[0] : null;
+
+      if (!resolvedChannel && createIfMissing) {
+        const insertResult = await client.query(
+          `INSERT INTO channels (name, is_common, display_order)
+           VALUES ($1, false, 0)
+           RETURNING id, name, is_common, display_order`,
+          [inputName]
+        );
+        resolvedChannel = insertResult.rows[0] as ChannelRow;
+        channels.push(resolvedChannel);
+      }
+
+      if (resolvedChannel) {
+        cache.set(cacheKey, resolvedChannel);
+        responses.push({
+          inputName,
+          channelId: resolvedChannel.id,
+          channelName: resolvedChannel.name,
+        });
+      } else {
+        responses.push({
+          inputName,
+          channelId: null,
+          channelName: null,
+        });
+      }
+    }
+
+    await client.query('COMMIT');
+    res.json({ success: true, data: responses });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('批次解析通路錯誤:', error);
+    res.status(500).json({ success: false, error: (error as Error).message });
+  } finally {
+    client.release();
   }
 });
 

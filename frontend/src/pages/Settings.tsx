@@ -455,6 +455,41 @@ function CardItem({
   };
 
   // 輔助函數：將通路名稱文字轉換為通路ID陣列
+  const ensureChannelsCached = async (names: string[], createIfMissing = true) => {
+    const cache = channelCacheRef.current;
+    const seen = new Set<string>();
+    const pending: string[] = [];
+
+    for (const rawName of names) {
+      const name = rawName.trim();
+      if (!name) continue;
+      const key = name.toLowerCase();
+      if (cache.has(key) || seen.has(key)) continue;
+      seen.add(key);
+      pending.push(name);
+    }
+
+    if (pending.length === 0) {
+      return;
+    }
+
+    try {
+      const response = await api.post('/channels/batch-resolve', {
+        createIfMissing,
+        items: pending.map((name) => ({ name })),
+      });
+      const resolved = response.data?.data || [];
+      resolved.forEach((item: { inputName: string; channelId?: string | null }) => {
+        if (item?.inputName && item.channelId) {
+          cache.set(item.inputName.toLowerCase(), item.channelId);
+        }
+      });
+    } catch (error) {
+      console.error('批次解析通路時發生錯誤:', error);
+      throw error;
+    }
+  };
+
   const convertChannelNamesToIds = async (channelText: string): Promise<string[]> => {
     const channelNames = channelText.split('\n')
       .map(line => line.trim())
@@ -462,39 +497,19 @@ function CardItem({
     
     const channelIds: string[] = [];
     const cache = channelCacheRef.current;
-    for (const channelName of channelNames) {
-      // 移除備註（如果有）
-      const nameOnly = channelName.split('(')[0].trim();
-      if (!nameOnly) continue;
-      const cacheKey = nameOnly.toLowerCase();
-      if (cache.has(cacheKey)) {
-        channelIds.push(cache.get(cacheKey)!);
-        continue;
-      }
-      
-      // 搜尋通路
-      try {
-        const searchRes = await api.get(`/channels/search?name=${encodeURIComponent(nameOnly)}`);
-        const matchingChannels = searchRes.data.data;
-        
-        if (matchingChannels.length > 0) {
-          // 使用第一個匹配的通路
-          const id = matchingChannels[0].id;
-          cache.set(cacheKey, id);
-          channelIds.push(id);
-        } else {
-          // 如果找不到，創建新通路
-          const createRes = await api.post('/channels', {
-            name: nameOnly,
-            isCommon: false,
-            displayOrder: 0,
-          });
-          const newId = createRes.data.data.id;
-          cache.set(cacheKey, newId);
-          channelIds.push(newId);
-        }
-      } catch (error) {
-        console.error(`處理通路 "${nameOnly}" 時發生錯誤:`, error);
+    const normalizedNames = channelNames
+      .map((channelName) => channelName.split('(')[0].trim())
+      .filter((name) => name.length > 0);
+
+    await ensureChannelsCached(normalizedNames, true);
+
+    for (const name of normalizedNames) {
+      const cacheKey = name.toLowerCase();
+      const id = cache.get(cacheKey);
+      if (id) {
+        channelIds.push(id);
+      } else {
+        console.warn('找不到通路 ID:', name);
       }
     }
     return channelIds;
@@ -506,49 +521,32 @@ function CardItem({
       .map(line => line.trim())
       .filter(line => line.length > 0);
     
-    const applications: Array<{ channelId: string; note: string }> = [];
-    const cache = channelCacheRef.current;
-    for (const line of lines) {
-      // 解析通路名稱和備註（格式：通路名稱 (備註) 或 通路名稱）
+    const entries = lines.map((line) => {
       let channelName = line;
       let note = '';
-      
+
       const noteMatch = line.match(/^(.+?)\s*\((.+?)\)$/);
       if (noteMatch) {
         channelName = noteMatch[1].trim();
         note = noteMatch[2].trim();
       }
-      
-      if (!channelName) continue;
-      const cacheKey = channelName.toLowerCase();
-      
-      // 搜尋或創建通路
-      try {
-        let channelId: string;
-        if (cache.has(cacheKey)) {
-          channelId = cache.get(cacheKey)!;
-        } else {
-          const searchRes = await api.get(`/channels/search?name=${encodeURIComponent(channelName)}`);
-          const matchingChannels = searchRes.data.data;
-          
-          if (matchingChannels.length > 0) {
-            channelId = matchingChannels[0].id;
-          } else {
-            const createRes = await api.post('/channels', {
-              name: channelName,
-              isCommon: false,
-              displayOrder: 0,
-            });
-            channelId = createRes.data.data.id;
-          }
-          cache.set(cacheKey, channelId);
-        }
-        
-        applications.push({ channelId, note });
-      } catch (error) {
-        console.error(`處理適用通路 "${channelName}" 時發生錯誤:`, error);
+      return { channelName, note };
+    }).filter((entry) => entry.channelName.length > 0);
+
+    await ensureChannelsCached(entries.map((entry) => entry.channelName), true);
+
+    const applications: Array<{ channelId: string; note: string }> = [];
+    const cache = channelCacheRef.current;
+    for (const entry of entries) {
+      const cacheKey = entry.channelName.toLowerCase();
+      const channelId = cache.get(cacheKey);
+      if (channelId) {
+        applications.push({ channelId, note: entry.note });
+      } else {
+        console.warn('找不到通路 ID:', entry.channelName);
       }
     }
+
     return applications;
   };
 
