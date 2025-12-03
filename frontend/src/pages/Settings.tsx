@@ -3896,6 +3896,7 @@ function QuotaSettings() {
     cardName?: string | null;
     paymentMethodName?: string | null;
     schemeName?: string | null;
+    sharedRewardGroupId?: string | null;
   }>>([]);
   const [editingQuota, setEditingQuota] = useState<{
     quotaIndex: number;
@@ -4145,7 +4146,11 @@ function QuotaSettings() {
   const handleEditReward = (quotaIndex: number, rewardIndex: number, groupKey: string) => {
     const quota = quotas[quotaIndex];
     if (!quota) return;
-    
+    const rewardId = quota.rewardIds?.[rewardIndex];
+    if (!rewardId) {
+      handleAddReward(quotaIndex, groupKey);
+      return;
+    }
     const rewardPercentage = quota.rewardComposition?.split('/')[rewardIndex]?.replace('%', '') || '';
     const calculationMethod = quota.calculationMethods?.[rewardIndex] || 'round';
     const quotaLimit = quota.quotaLimits?.[rewardIndex] ?? null;
@@ -4169,11 +4174,6 @@ function QuotaSettings() {
     const quota = quotas[editingReward.quotaIndex];
     if (!quota) return;
     const rewardId = quota.rewardIds[editingReward.rewardIndex];
-
-    if (!rewardId) {
-      alert('無法編輯：缺少必要資訊');
-      return;
-    }
 
     try {
       // 如果是卡片方案，使用 /schemes/:id/rewards/:rewardId
@@ -4271,6 +4271,47 @@ function QuotaSettings() {
   const cardQuotas = quotas.filter(q => q.schemeId && !q.paymentMethodId);
   const paymentQuotas = quotas.filter(q => !q.schemeId && q.paymentMethodId);
 
+  const schemeNameMap = new Map<string, string>();
+  quotas.forEach(q => {
+    if (q.schemeId) {
+      schemeNameMap.set(q.schemeId, q.schemeName || q.name);
+    }
+  });
+
+  const bindingGroups = new Map<string, Set<string>>();
+  cardQuotas.forEach((quota) => {
+    const rootId = quota.sharedRewardGroupId || quota.schemeId || null;
+    if (rootId) {
+      if (!bindingGroups.has(rootId)) {
+        bindingGroups.set(rootId, new Set());
+      }
+      if (quota.schemeId) {
+        bindingGroups.get(rootId)!.add(quota.schemeId);
+      }
+    }
+  });
+
+  const bindingPalette = [
+    { rowBg: 'bg-green-50', border: 'border-green-200', badgeBg: 'bg-green-200', badgeText: 'text-green-900' },
+    { rowBg: 'bg-yellow-50', border: 'border-yellow-200', badgeBg: 'bg-yellow-200', badgeText: 'text-yellow-900' },
+    { rowBg: 'bg-purple-50', border: 'border-purple-200', badgeBg: 'bg-purple-200', badgeText: 'text-purple-900' },
+    { rowBg: 'bg-pink-50', border: 'border-pink-200', badgeBg: 'bg-pink-200', badgeText: 'text-pink-900' },
+    { rowBg: 'bg-teal-50', border: 'border-teal-200', badgeBg: 'bg-teal-200', badgeText: 'text-teal-900' },
+  ];
+
+  const bindingColorMap = new Map<
+    string,
+    { rowBg: string; border: string; badgeBg: string; badgeText: string }
+  >();
+  let paletteIndex = 0;
+  bindingGroups.forEach((members, rootId) => {
+    if (members.size > 1) {
+      const palette = bindingPalette[paletteIndex % bindingPalette.length];
+      bindingColorMap.set(rootId, palette);
+      paletteIndex += 1;
+    }
+  });
+
   // 按卡片分組（直接列出所有卡片，不使用"未知卡片"）
   const cardGroups = new Map<string, typeof quotas>();
   cardQuotas.forEach(quota => {
@@ -4366,9 +4407,12 @@ function QuotaSettings() {
                 }
                 
                 const rewardCount = validRewardIndices.length;
-                // 使用更明顯的顏色區別不同方案
-                const bgColor = quotaIndex % 2 === 0 ? 'bg-white' : 'bg-blue-50';
-                const borderColor = quotaIndex % 2 === 0 ? 'border-gray-200' : 'border-blue-200';
+                const bindingRootId = quota.sharedRewardGroupId || quota.schemeId || null;
+                const bindingColors = bindingRootId ? bindingColorMap.get(bindingRootId) : undefined;
+                const defaultBg = quotaIndex % 2 === 0 ? 'bg-white' : 'bg-blue-50';
+                const defaultBorder = quotaIndex % 2 === 0 ? 'border-gray-200' : 'border-blue-200';
+                const rowBgClass = bindingColors ? bindingColors.rowBg : defaultBg;
+                const borderColor = bindingColors ? bindingColors.border : defaultBorder;
                 
                 const isAdding = addingReward?.quotaIndex === quotaIndex && addingReward?.groupKey === groupKey;
                 const rows = isAdding ? [...validRewardIndices, -1] : validRewardIndices;
@@ -4392,13 +4436,25 @@ function QuotaSettings() {
                   const isEditingReward = !isNewRow && editingReward?.quotaIndex === quotaIndex && editingReward?.rewardIndex === originalIndex && editingReward?.groupKey === groupKey;
                   
                   return (
-                    <tr key={`${quotaIndex}-${originalIndex}`} className={`${bgColor} ${borderColor} border-l-4 hover:bg-blue-100 transition-colors`}>
+                    <tr key={`${quotaIndex}-${originalIndex}`} className={`${rowBgClass} ${borderColor} border-l-4 hover:bg-blue-100 transition-colors`}>
                       {isFirstRow && (
                         <td
-                          className={`px-4 py-3 text-sm font-medium sticky left-0 ${bgColor} z-10 border-r border-gray-200`}
+                          className={`px-4 py-3 text-sm font-medium sticky left-0 ${rowBgClass} z-10 border-r border-gray-200`}
                           rowSpan={isAdding ? rewardCount + 1 : rewardCount}
                         >
                           <div className="font-semibold text-gray-900">{quota.schemeName || quota.name}</div>
+                          {bindingColors && bindingRootId && (
+                            <div className={`mt-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium ${bindingColors.badgeBg} ${bindingColors.badgeText}`}>
+                              共同回饋綁定
+                              {quota.sharedRewardGroupId ? (
+                                <span>
+                                  （來源：{schemeNameMap.get(quota.sharedRewardGroupId) || '共享方案'}）
+                                </span>
+                              ) : (
+                                <span>（主方案）</span>
+                              )}
+                            </div>
+                          )}
                         </td>
                       )}
                       <td className="px-4 py-3 text-sm">
@@ -4419,7 +4475,7 @@ function QuotaSettings() {
                           />
                         ) : (
                           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-                            {rewardPercentage || '-'}%
+                            {rewardPercentage ? `${rewardPercentage}%` : '尚未設定'}
                           </span>
                         )}
                       </td>
@@ -4576,6 +4632,14 @@ function QuotaSettings() {
                             >
                               取消
                             </button>
+                            {isEditingReward && !isAdding && (
+                              <button
+                                onClick={() => handleAddReward(quotaIndex, groupKey)}
+                                className="px-2 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600 transition-colors"
+                              >
+                                新增回饋組成
+                              </button>
+                            )}
                           </div>
                         ) : (
                           <div className="flex gap-1">
@@ -4591,14 +4655,6 @@ function QuotaSettings() {
                             >
                               編輯回饋
                             </button>
-                            {isFirstRow && !isAdding && (
-                              <button
-                                onClick={() => handleAddReward(quotaIndex, groupKey)}
-                                className="px-2 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600 transition-colors"
-                              >
-                                新增回饋組成
-                              </button>
-                            )}
                           </div>
                         )}
                       </td>
