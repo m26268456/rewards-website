@@ -269,6 +269,7 @@ function CardItem({
   const schemeFormRef = useRef<HTMLDivElement>(null);
   const expandedSchemeRef = useRef<HTMLDivElement>(null);
   const schemesListRef = useRef<HTMLDivElement>(null);
+  const channelCacheRef = useRef<Map<string, string>>(new Map());
 
   // ESC 鍵取消編輯/展開，點擊空白處關閉
   useEffect(() => {
@@ -427,10 +428,16 @@ function CardItem({
       .filter(line => line.length > 0);
     
     const channelIds: string[] = [];
+    const cache = channelCacheRef.current;
     for (const channelName of channelNames) {
       // 移除備註（如果有）
       const nameOnly = channelName.split('(')[0].trim();
       if (!nameOnly) continue;
+      const cacheKey = nameOnly.toLowerCase();
+      if (cache.has(cacheKey)) {
+        channelIds.push(cache.get(cacheKey)!);
+        continue;
+      }
       
       // 搜尋通路
       try {
@@ -439,7 +446,9 @@ function CardItem({
         
         if (matchingChannels.length > 0) {
           // 使用第一個匹配的通路
-          channelIds.push(matchingChannels[0].id);
+          const id = matchingChannels[0].id;
+          cache.set(cacheKey, id);
+          channelIds.push(id);
         } else {
           // 如果找不到，創建新通路
           const createRes = await api.post('/channels', {
@@ -447,7 +456,9 @@ function CardItem({
             isCommon: false,
             displayOrder: 0,
           });
-          channelIds.push(createRes.data.data.id);
+          const newId = createRes.data.data.id;
+          cache.set(cacheKey, newId);
+          channelIds.push(newId);
         }
       } catch (error) {
         console.error(`處理通路 "${nameOnly}" 時發生錯誤:`, error);
@@ -463,6 +474,7 @@ function CardItem({
       .filter(line => line.length > 0);
     
     const applications: Array<{ channelId: string; note: string }> = [];
+    const cache = channelCacheRef.current;
     for (const line of lines) {
       // 解析通路名稱和備註（格式：通路名稱 (備註) 或 通路名稱）
       let channelName = line;
@@ -475,22 +487,28 @@ function CardItem({
       }
       
       if (!channelName) continue;
+      const cacheKey = channelName.toLowerCase();
       
       // 搜尋或創建通路
       try {
-        const searchRes = await api.get(`/channels/search?name=${encodeURIComponent(channelName)}`);
-        const matchingChannels = searchRes.data.data;
-        
         let channelId: string;
-        if (matchingChannels.length > 0) {
-          channelId = matchingChannels[0].id;
+        if (cache.has(cacheKey)) {
+          channelId = cache.get(cacheKey)!;
         } else {
-          const createRes = await api.post('/channels', {
-            name: channelName,
-            isCommon: false,
-            displayOrder: 0,
-          });
-          channelId = createRes.data.data.id;
+          const searchRes = await api.get(`/channels/search?name=${encodeURIComponent(channelName)}`);
+          const matchingChannels = searchRes.data.data;
+          
+          if (matchingChannels.length > 0) {
+            channelId = matchingChannels[0].id;
+          } else {
+            const createRes = await api.post('/channels', {
+              name: channelName,
+              isCommon: false,
+              displayOrder: 0,
+            });
+            channelId = createRes.data.data.id;
+          }
+          cache.set(cacheKey, channelId);
         }
         
         applications.push({ channelId, note });
@@ -532,7 +550,7 @@ function CardItem({
         setEditingScheme(null);
       } else {
         // 新增方案
-        await api.post('/schemes', {
+        const createRes = await api.post('/schemes', {
           cardId: card.id,
           name: schemeFormData.name,
           note: schemeFormData.note || null,
@@ -542,18 +560,28 @@ function CardItem({
           displayOrder: schemeFormData.displayOrder,
           sharedRewardGroupId: schemeFormData.sharedRewardGroupId || null,
         });
-        // 新增後也需要設定通路
-        const res = await api.get(`/schemes/card/${card.id}`);
-        const newScheme = res.data.data.find((s: Scheme) => s.name === schemeFormData.name);
-        if (newScheme) {
-          await api.put(`/schemes/${newScheme.id}/channels`, {
+
+        let newSchemeId: string | undefined = createRes.data?.data?.id;
+
+        // 若 API 無回傳 ID，退回舊機制查詢一次
+        if (!newSchemeId) {
+          const res = await api.get(`/schemes/card/${card.id}`);
+          const newScheme = res.data.data.find((s: Scheme) => s.name === schemeFormData.name);
+          newSchemeId = newScheme?.id;
+        }
+
+        if (newSchemeId) {
+          await api.put(`/schemes/${newSchemeId}/channels`, {
             applications: applications.map(app => ({
               channelId: app.channelId,
               note: app.note || null,
             })),
-            exclusions: exclusions,
+            exclusions,
           });
+        } else {
+          console.warn('新增方案後無法取得方案 ID，略過通路設定');
         }
+
         alert('方案已新增');
       }
       setShowSchemeForm(false);
@@ -4087,13 +4115,25 @@ function QuotaSettings() {
     return () => clearInterval(interval);
   }, []);
 
-  // 編輯回饋組成的狀態
+  // 編輯 / 新增回饋組成的狀態
   const [editingReward, setEditingReward] = useState<{
     quotaIndex: number;
     rewardIndex: number;
     groupKey: string;
   } | null>(null);
+  const [addingReward, setAddingReward] = useState<{
+    quotaIndex: number;
+    groupKey: string;
+  } | null>(null);
   const [rewardEditForm, setRewardEditForm] = useState({
+    rewardPercentage: '',
+    calculationMethod: 'round',
+    quotaLimit: '',
+    quotaRefreshType: '',
+    quotaRefreshValue: '',
+    quotaRefreshDate: '',
+  });
+  const [rewardAddForm, setRewardAddForm] = useState({
     rewardPercentage: '',
     calculationMethod: 'round',
     quotaLimit: '',
