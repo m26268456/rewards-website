@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../utils/api';
+import { isApp } from '../utils/isApp';
 
 interface QuotaInfo {
   schemeId: string | null;
@@ -114,17 +115,18 @@ export default function QuotaQuery() {
     const usedStr = used.toLocaleString();
     const remainingStr = remaining === null ? '無上限' : remaining.toLocaleString();
     const limitStr = limit === null ? '無上限' : limit.toLocaleString();
+    const textSize = isApp() ? 'text-[8px]' : 'text-xs';
     return (
       <div className="space-y-1">
-        <div className="text-xs text-gray-600">
+        <div className={`${textSize} text-gray-600 whitespace-nowrap`}>
           <span className="font-medium">已用：</span>
           <span className={used > 0 ? 'text-orange-600' : 'text-gray-500'}>{usedStr}</span>
         </div>
-        <div className="text-xs text-gray-600">
+        <div className={`${textSize} text-gray-600 whitespace-nowrap`}>
           <span className="font-medium">剩餘：</span>
           <span className={remaining !== null && remaining < (limit || 0) * 0.2 ? 'text-red-600 font-semibold' : 'text-green-600'}>{remainingStr}</span>
         </div>
-        <div className="text-xs text-gray-500">
+        <div className={`${textSize} text-gray-500 whitespace-nowrap`}>
           <span className="font-medium">上限：</span>
           {limitStr}
         </div>
@@ -139,13 +141,14 @@ export default function QuotaQuery() {
   ) => {
     const currentStr = current.toLocaleString();
     const referenceStr = reference === null ? '無上限' : Math.round(reference).toLocaleString();
+    const textSize = isApp() ? 'text-[8px]' : 'text-xs';
     return (
       <div className="space-y-1">
-        <div className="text-xs text-gray-600">
+        <div className={`${textSize} text-gray-600 whitespace-nowrap`}>
           <span className="font-medium">消費：</span>
           <span className={current > 0 ? 'text-blue-600' : 'text-gray-500'}>{currentStr}</span>
         </div>
-        <div className="text-xs text-gray-600">
+        <div className={`${textSize} text-gray-600 whitespace-nowrap`}>
           <span className="font-medium">參考：</span>
           <span className="text-purple-600">{referenceStr}</span>
         </div>
@@ -161,31 +164,31 @@ export default function QuotaQuery() {
         {title && <h3 className="text-xl font-semibold mb-4 text-gray-800">{title}</h3>}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto" style={{ maxHeight: 'calc(100vh - 250px)' }}>
-            <table className="min-w-full divide-y divide-gray-200">
+            <table className={`min-w-full divide-y divide-gray-200 ${isApp() ? 'text-xs' : ''}`}>
               <thead className="bg-gradient-to-r from-gray-50 to-gray-100 sticky top-0 z-20 shadow-sm">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider sticky left-0 bg-gradient-to-r from-gray-50 to-gray-100 z-30 border-r border-gray-200">
+                  <th className={`px-4 py-3 text-left font-semibold text-gray-700 uppercase tracking-wider sticky left-0 bg-gradient-to-r from-gray-50 to-gray-100 z-30 border-r border-gray-200 ${isApp() ? 'text-[10px] whitespace-nowrap' : 'text-xs'}`}>
                     名稱
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  <th className={`px-4 py-3 text-left font-semibold text-gray-700 uppercase tracking-wider ${isApp() ? 'text-[10px] whitespace-nowrap' : 'text-xs'}`}>
                     回饋組成
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  <th className={`px-4 py-3 text-left font-semibold text-gray-700 uppercase tracking-wider ${isApp() ? 'text-[10px] whitespace-nowrap' : 'text-xs'}`}>
                     計算方式
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider min-w-[140px]">
+                  <th className={`px-4 py-3 text-left font-semibold text-gray-700 uppercase tracking-wider min-w-[140px] ${isApp() ? 'text-[10px] whitespace-nowrap' : 'text-xs'}`}>
                     額度狀態
-                    <div className="text-[10px] font-normal text-gray-500 mt-1">
+                    <div className={`font-normal text-gray-500 mt-1 ${isApp() ? 'text-[8px]' : 'text-[10px]'}`}>
                       已用/剩餘/上限
                     </div>
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider min-w-[120px]">
+                  <th className={`px-4 py-3 text-left font-semibold text-gray-700 uppercase tracking-wider min-w-[120px] ${isApp() ? 'text-[10px] whitespace-nowrap' : 'text-xs'}`}>
                     消費資訊
-                    <div className="text-[10px] font-normal text-gray-500 mt-1">
+                    <div className={`font-normal text-gray-500 mt-1 ${isApp() ? 'text-[8px]' : 'text-[10px]'}`}>
                       消費/參考餘額
                     </div>
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  <th className={`px-4 py-3 text-left font-semibold text-gray-700 uppercase tracking-wider ${isApp() ? 'text-[10px] whitespace-nowrap' : 'text-xs'}`}>
                     刷新時間
                   </th>
                 </tr>
@@ -234,28 +237,28 @@ export default function QuotaQuery() {
                       <tr key={`${quotaIndex}-${originalIndex}`} className={`${bgColor} ${borderColor} border-l-4 hover:bg-blue-100 transition-colors`}>
                         {isFirstRow && (
                           <td
-                            className={`px-4 py-3 text-sm font-medium sticky left-0 ${bgColor} z-10 border-r border-gray-200`}
+                            className={`px-4 py-3 font-medium sticky left-0 ${bgColor} z-10 border-r border-gray-200 ${isApp() ? 'text-[10px] whitespace-nowrap' : 'text-sm'}`}
                             rowSpan={rewardCount}
                           >
                             <div className="font-semibold text-gray-900">{quota.name}</div>
                           </td>
                         )}
-                        <td className="px-4 py-3 text-sm">
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                        <td className={`px-4 py-3 ${isApp() ? 'text-[10px] whitespace-nowrap' : 'text-sm'}`}>
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full font-medium bg-orange-100 text-orange-800 ${isApp() ? 'text-[8px]' : 'text-xs'}`}>
                             {rewardPercentage || '-'}%
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-600">
+                        <td className={`px-4 py-3 text-gray-600 ${isApp() ? 'text-[10px] whitespace-nowrap' : 'text-sm'}`}>
                           {calculationMethodText}
                         </td>
-                        <td className="px-4 py-3 text-sm">
+                        <td className={`px-4 py-3 ${isApp() ? 'text-[10px] whitespace-nowrap' : 'text-sm'}`}>
                           {formatQuotaInfo(usedQuota, remainingQuota, quotaLimit)}
                         </td>
-                        <td className="px-4 py-3 text-sm">
+                        <td className={`px-4 py-3 ${isApp() ? 'text-[10px] whitespace-nowrap' : 'text-sm'}`}>
                           {formatConsumptionInfo(currentAmount, referenceAmount)}
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-600">
-                          <div className="text-xs">
+                        <td className={`px-4 py-3 text-gray-600 ${isApp() ? 'text-[10px] whitespace-nowrap' : 'text-sm'}`}>
+                          <div className={isApp() ? 'text-[8px]' : 'text-xs'}>
                             {quota.refreshTimes?.[originalIndex] || '-'}
                           </div>
                         </td>

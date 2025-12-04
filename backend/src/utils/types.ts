@@ -4,6 +4,8 @@ export type CalculationMethod = 'round' | 'floor' | 'ceil';
 
 export type QuotaRefreshType = 'monthly' | 'date' | 'activity';
 
+export type QuotaCalculationMode = 'per_transaction' | 'total_bill';
+
 export interface RewardComposition {
   percentage: number;
   calculationMethod: CalculationMethod;
@@ -11,6 +13,7 @@ export interface RewardComposition {
   quotaRefreshType: QuotaRefreshType | null;
   quotaRefreshValue: number | null;
   quotaRefreshDate: string | null;
+  quotaCalculationMode?: QuotaCalculationMode;
 }
 
 export interface SchemeInfo {

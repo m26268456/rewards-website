@@ -48,6 +48,11 @@ export function calculateNextRefreshTime(
   switch (refreshType) {
     case 'monthly':
       if (refreshValue === null) return null;
+      // 限制在 1-28 之間，避免月份天數不一的問題
+      if (refreshValue < 1 || refreshValue > 28) {
+        console.warn(`刷新日期 ${refreshValue} 超出範圍 (1-28)，已限制為 28`);
+        refreshValue = 28;
+      }
       // 每月固定日期刷新（UTC+8 時區）
       // 取得 UTC+8 時區的當前月份開始時間
       const nowTaipei = utcToZonedTime(now, TIMEZONE);

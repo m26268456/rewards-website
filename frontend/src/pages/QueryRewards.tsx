@@ -566,6 +566,12 @@ export default function QueryRewards() {
                               {scheme.name}
                               {scheme.requiresSwitch && <span className="ml-2 text-orange-600">⚠️ 需切換</span>}
                             </div>
+                            {scheme.note && (
+                              <div className="text-sm mb-2 text-gray-600">
+                                <span className="font-medium">備註：</span>
+                                <span dangerouslySetInnerHTML={{ __html: linkify(scheme.note) }} />
+                              </div>
+                            )}
                             <div className="text-sm mb-2">
                             <span className="font-medium">回饋組成：</span>
                             {scheme.rewards.map((r, idx: number) => (
@@ -580,6 +586,60 @@ export default function QueryRewards() {
                               </span>
                             )}
                           </div>
+                          {scheme.rewards && scheme.rewards.length > 0 && (
+                            <div className="text-sm mb-2">
+                              <span className="font-medium">回饋計算方式：</span>
+                              {scheme.rewards.map((r, idx: number) => {
+                                const methodText = 
+                                  r.calculationMethod === 'round' ? '四捨五入' :
+                                  r.calculationMethod === 'floor' ? '無條件捨去' :
+                                  r.calculationMethod === 'ceil' ? '無條件進位' : '四捨五入';
+                                return (
+                                  <span key={idx}>
+                                    {r.percentage}% ({methodText})
+                                    {idx < scheme.rewards.length - 1 && '、'}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          )}
+                          {scheme.rewards && scheme.rewards.length > 0 && (
+                            <div className="text-sm mb-2">
+                              <span className="font-medium">回饋刷新時間：</span>
+                              {scheme.rewards.map((r, idx: number) => {
+                                let refreshText = '';
+                                if (r.quotaRefreshType === 'monthly' && r.quotaRefreshValue) {
+                                  refreshText = `每月${r.quotaRefreshValue}號`;
+                                } else if (r.quotaRefreshType === 'date' && r.quotaRefreshDate) {
+                                  refreshText = new Date(r.quotaRefreshDate).toLocaleDateString('zh-TW');
+                                } else if (r.quotaRefreshType === 'activity' && scheme.activityEndDate) {
+                                  refreshText = new Date(scheme.activityEndDate).toLocaleDateString('zh-TW');
+                                } else {
+                                  refreshText = '無';
+                                }
+                                return (
+                                  <span key={idx}>
+                                    {r.percentage}% ({refreshText})
+                                    {idx < scheme.rewards.length - 1 && '、'}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          )}
+                          {scheme.rewards && scheme.rewards.length > 0 && (
+                            <div className="text-sm mb-2">
+                              <span className="font-medium">額度：</span>
+                              {scheme.rewards.map((r, idx: number) => {
+                                const quotaText = r.quotaLimit !== null ? r.quotaLimit.toLocaleString() : '無上限';
+                                return (
+                                  <span key={idx}>
+                                    {r.percentage}% ({quotaText})
+                                    {idx < scheme.rewards.length - 1 && '、'}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          )}
                           {(scheme.activityStartDate || scheme.activityEndDate) && (
                             <div className="text-sm mb-2">
                               <span className="font-medium">方案期限：</span>

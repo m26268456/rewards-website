@@ -138,7 +138,7 @@ router.post('/', async (req: Request, res: Response) => {
         const rewardsResult = await client.query(
           `SELECT sr.id, sr.reward_percentage, sr.calculation_method, 
                   sr.quota_limit, sr.quota_refresh_type, sr.quota_refresh_value, 
-                  sr.quota_refresh_date, cs.activity_end_date
+                  sr.quota_refresh_date, sr.quota_calculation_mode, cs.activity_end_date
            FROM scheme_rewards sr
            JOIN card_schemes cs ON sr.scheme_id = cs.id
            WHERE sr.scheme_id = $1
@@ -160,8 +160,8 @@ router.post('/', async (req: Request, res: Response) => {
         // 更新每個回饋組成的額度追蹤
         for (let i = 0; i < rewards.length; i++) {
           const reward = rewards[i];
-          const calculatedReward = calculation.breakdown[i].calculatedReward;
-
+          const quotaCalculationMode = reward.quota_calculation_mode || 'per_transaction';
+          
           // 查找或創建額度追蹤記錄
           const quotaResult = await client.query(
             `SELECT id, used_quota, remaining_quota, current_amount
@@ -173,26 +173,69 @@ router.post('/', async (req: Request, res: Response) => {
 
           if (quotaResult.rows.length > 0) {
             const quota = quotaResult.rows[0];
-            const newUsedQuota = parseFloat(quota.used_quota) + calculatedReward;
-            const newRemainingQuota = quota.remaining_quota
-              ? parseFloat(quota.remaining_quota) - calculatedReward
+            const currentAmount = parseFloat(quota.current_amount) + parseFloat(amount);
+            
+            let calculatedReward: number;
+            let newUsedQuota: number;
+            let newRemainingQuota: number | null;
+            
+            if (quotaCalculationMode === 'total_bill') {
+              // 帳單總額模式：使用累積的消費金額計算回饋
+              const totalCalculation = calculateTotalReward(
+                currentAmount,
+                rewards.map((r) => ({
+                  percentage: parseFloat(r.reward_percentage),
+                  calculationMethod: r.calculation_method,
+                }))
+              );
+              calculatedReward = totalCalculation.breakdown[i].calculatedReward;
+              // 已使用額度 = 總回饋金額
+              newUsedQuota = calculatedReward;
+            } else {
+              // 單筆回饋模式：每筆消費後計算回饋
+              calculatedReward = calculation.breakdown[i].calculatedReward;
+              newUsedQuota = parseFloat(quota.used_quota) + calculatedReward;
+            }
+            
+            newRemainingQuota = quota.remaining_quota
+              ? (reward.quota_limit ? parseFloat(reward.quota_limit) : null) - newUsedQuota
               : null;
-            const newCurrentAmount = parseFloat(quota.current_amount) + parseFloat(amount);
 
             await client.query(
               `UPDATE quota_trackings
                SET used_quota = $1, remaining_quota = $2, current_amount = $3,
                    updated_at = CURRENT_TIMESTAMP
                WHERE id = $4`,
-              [newUsedQuota, newRemainingQuota, newCurrentAmount, quota.id]
+              [newUsedQuota, newRemainingQuota, currentAmount, quota.id]
             );
           } else {
             // 創建新的額度追蹤記錄
             const quotaLimit = reward.quota_limit
               ? parseFloat(reward.quota_limit)
               : null;
+            
+            let calculatedReward: number;
+            let initialUsedQuota: number;
+            
+            if (quotaCalculationMode === 'total_bill') {
+              // 帳單總額模式：使用累積的消費金額計算回饋
+              const totalCalculation = calculateTotalReward(
+                parseFloat(amount),
+                rewards.map((r) => ({
+                  percentage: parseFloat(r.reward_percentage),
+                  calculationMethod: r.calculation_method,
+                }))
+              );
+              calculatedReward = totalCalculation.breakdown[i].calculatedReward;
+              initialUsedQuota = calculatedReward;
+            } else {
+              // 單筆回饋模式：每筆消費後計算回饋
+              calculatedReward = calculation.breakdown[i].calculatedReward;
+              initialUsedQuota = calculatedReward;
+            }
+            
             const initialRemainingQuota = quotaLimit
-              ? quotaLimit - calculatedReward
+              ? quotaLimit - initialUsedQuota
               : null;
 
             await client.query(
@@ -203,7 +246,7 @@ router.post('/', async (req: Request, res: Response) => {
                 validSchemeId,
                 validPaymentMethodId,
                 reward.id,
-                calculatedReward,
+                initialUsedQuota,
                 initialRemainingQuota,
                 parseFloat(amount),
               ]

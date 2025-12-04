@@ -545,7 +545,8 @@ router.get('/:id/details', async (req: Request, res: Response) => {
     const targetSchemeId = scheme.shared_reward_group_id || id;
     const rewardsResult = await pool.query(
       `SELECT id, reward_percentage, calculation_method, quota_limit, 
-              quota_refresh_type, quota_refresh_value, quota_refresh_date, display_order
+              quota_refresh_type, quota_refresh_value, quota_refresh_date, 
+              quota_calculation_mode, display_order
        FROM scheme_rewards
        WHERE scheme_id = $1
        ORDER BY display_order`,
@@ -700,7 +701,7 @@ router.put('/:id/channels', async (req: Request, res: Response) => {
 router.post('/:id/rewards', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { rewardPercentage, calculationMethod, quotaLimit, quotaRefreshType, quotaRefreshValue, quotaRefreshDate, displayOrder } = req.body;
+    const { rewardPercentage, calculationMethod, quotaLimit, quotaRefreshType, quotaRefreshValue, quotaRefreshDate, quotaCalculationMode, displayOrder } = req.body;
 
     if (!rewardPercentage || parseFloat(rewardPercentage) <= 0) {
       return res.status(400).json({ success: false, error: '回饋百分比必填且必須大於 0' });
@@ -709,8 +710,8 @@ router.post('/:id/rewards', async (req: Request, res: Response) => {
     const result = await pool.query(
       `INSERT INTO scheme_rewards 
        (scheme_id, reward_percentage, calculation_method, quota_limit, 
-        quota_refresh_type, quota_refresh_value, quota_refresh_date, display_order)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        quota_refresh_type, quota_refresh_value, quota_refresh_date, quota_calculation_mode, display_order)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING id`,
       [
         id,
@@ -720,6 +721,7 @@ router.post('/:id/rewards', async (req: Request, res: Response) => {
         quotaRefreshType || null,
         quotaRefreshValue || null,
         quotaRefreshDate || null,
+        quotaCalculationMode || 'per_transaction',
         displayOrder || 0,
       ]
     );
@@ -766,14 +768,15 @@ router.put('/:id/rewards', async (req: Request, res: Response) => {
           const quotaRefreshTypes = validRewards.map((r: any) => (r.quotaRefreshType ? String(r.quotaRefreshType) : null));
           const quotaRefreshValues = validRewards.map((r: any) => (r.quotaRefreshValue !== null && r.quotaRefreshValue !== undefined) ? parseInt(String(r.quotaRefreshValue)) : null);
           const quotaRefreshDates = validRewards.map((r: any) => (r.quotaRefreshDate ? String(r.quotaRefreshDate) : null));
+          const quotaCalculationModes = validRewards.map((r: any) => (r.quotaCalculationMode ? String(r.quotaCalculationMode) : 'per_transaction'));
           const displayOrders = validRewards.map((r: any, idx: number) => (r.displayOrder !== undefined && r.displayOrder !== null) ? parseInt(String(r.displayOrder)) : idx);
 
           await client.query(
             `INSERT INTO scheme_rewards 
              (scheme_id, reward_percentage, calculation_method, quota_limit, 
-              quota_refresh_type, quota_refresh_value, quota_refresh_date, display_order)
+              quota_refresh_type, quota_refresh_value, quota_refresh_date, quota_calculation_mode, display_order)
              SELECT $1::uuid, unnest($2::numeric[]), unnest($3::text[]), unnest($4::numeric[]),
-                    unnest($5::text[]), unnest($6::integer[]), unnest($7::date[]), unnest($8::integer[])`,
+                    unnest($5::text[]), unnest($6::integer[]), unnest($7::date[]), unnest($8::text[]), unnest($9::integer[])`,
             [
               targetSchemeId,
               percentages,
@@ -782,6 +785,7 @@ router.put('/:id/rewards', async (req: Request, res: Response) => {
               quotaRefreshTypes,
               quotaRefreshValues,
               quotaRefreshDates,
+              quotaCalculationModes,
               displayOrders,
             ]
           );
@@ -805,7 +809,7 @@ router.put('/:id/rewards', async (req: Request, res: Response) => {
 router.put('/:id/rewards/:rewardId', async (req: Request, res: Response) => {
   try {
     const { id, rewardId } = req.params;
-    const { rewardPercentage, calculationMethod, quotaLimit, quotaRefreshType, quotaRefreshValue, quotaRefreshDate } = req.body;
+    const { rewardPercentage, calculationMethod, quotaLimit, quotaRefreshType, quotaRefreshValue, quotaRefreshDate, quotaCalculationMode } = req.body;
 
     const schemeResult = await pool.query(
       `SELECT id FROM card_schemes WHERE id = $1`,
@@ -823,8 +827,8 @@ router.put('/:id/rewards/:rewardId', async (req: Request, res: Response) => {
       `UPDATE scheme_rewards
        SET reward_percentage = $1, calculation_method = $2, quota_limit = $3,
            quota_refresh_type = $4, quota_refresh_value = $5, quota_refresh_date = $6,
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id = $7 AND scheme_id = $8
+           quota_calculation_mode = $7, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $8 AND scheme_id = $9
        RETURNING id`,
       [
         rewardPercentage,
@@ -833,6 +837,7 @@ router.put('/:id/rewards/:rewardId', async (req: Request, res: Response) => {
         quotaRefreshType || null,
         quotaRefreshValue || null,
         quotaRefreshDate || null,
+        quotaCalculationMode || 'per_transaction',
         rewardId,
         targetSchemeId,
       ]

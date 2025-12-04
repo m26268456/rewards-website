@@ -45,6 +45,9 @@ CREATE TABLE scheme_rewards (
     -- monthly: 每月固定日期, date: 指定日期, activity: 活動結束日
     quota_refresh_value INTEGER, -- 每月幾號或日期（根據 refresh_type 解釋）
     quota_refresh_date DATE, -- 指定日期刷新（當 refresh_type = 'date' 時使用）
+    quota_calculation_mode VARCHAR(20) DEFAULT 'per_transaction' CHECK (quota_calculation_mode IN ('per_transaction', 'total_bill')),
+    -- per_transaction: 單筆回饋（每筆消費後計算回饋並扣除額度）
+    -- total_bill: 帳單總額（累積消費金額後計算回饋並扣除額度）
     display_order INTEGER NOT NULL DEFAULT 0, -- 顯示順序
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -87,6 +90,9 @@ CREATE TABLE payment_rewards (
     -- monthly: 每月固定日期, date: 指定日期, activity: 活動結束日
     quota_refresh_value INTEGER, -- 每月幾號或日期（根據 refresh_type 解釋）
     quota_refresh_date DATE, -- 指定日期刷新（當 refresh_type = 'date' 時使用）
+    quota_calculation_mode VARCHAR(20) DEFAULT 'per_transaction' CHECK (quota_calculation_mode IN ('per_transaction', 'total_bill')),
+    -- per_transaction: 單筆回饋（每筆消費後計算回饋並扣除額度）
+    -- total_bill: 帳單總額（累積消費金額後計算回饋並扣除額度）
     display_order INTEGER NOT NULL DEFAULT 0, -- 顯示順序
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
