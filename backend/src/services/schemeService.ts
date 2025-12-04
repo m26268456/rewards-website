@@ -49,6 +49,7 @@ export async function getAllCardsWithSchemes(): Promise<
         sr.quota_refresh_type,
         sr.quota_refresh_value,
         sr.quota_refresh_date,
+        sr.quota_calculation_basis,
         sr.display_order as reward_display_order,
         excl_ch.id as exclusion_channel_id,
         excl_ch.name as exclusion_channel_name,
@@ -144,6 +145,7 @@ export async function getAllCardsWithSchemes(): Promise<
                     ? row.quota_refresh_date.toISOString().split('T')[0]
                     : String(row.quota_refresh_date).split('T')[0])
                 : null,
+              quotaCalculationBasis: row.quota_calculation_basis || 'transaction',
             });
           }
         }
@@ -374,6 +376,7 @@ export async function queryChannelRewards(
       );
 
       // 4. 找出支付方式綁定的卡片方案（適用此通路）
+      // 修正：移除 payment_rewards 的計算，只保留信用卡方案的回饋
       const paymentSchemeLinksResult = await pool.query(
         `SELECT cs.id, cs.name, cs.requires_switch, cs.activity_end_date, c.name as card_name, 
                 pm.name as payment_name, pm.id as payment_id, pca.note,
@@ -384,15 +387,7 @@ export async function queryChannelRewards(
                   ) ORDER BY display_order
                 )
                 FROM scheme_rewards sr
-                WHERE sr.scheme_id = cs.id) as scheme_rewards,
-                (SELECT json_agg(
-                  json_build_object(
-                    'percentage', reward_percentage,
-                    'method', calculation_method
-                  ) ORDER BY display_order
-                )
-                FROM payment_rewards pr
-                WHERE pr.payment_method_id = pm.id) as payment_rewards
+                WHERE sr.scheme_id = cs.id) as scheme_rewards
          FROM payment_scheme_links psl
          JOIN card_schemes cs ON psl.scheme_id = cs.id
          JOIN cards c ON cs.card_id = c.id
@@ -447,24 +442,17 @@ export async function queryChannelRewards(
 
       const paymentSchemeResults = paymentSchemeLinksResult.rows.map((row) => {
         const schemeRewards = row.scheme_rewards || [];
-        const paymentRewards = row.payment_rewards || [];
+        // 修正：不再加總 Payment Rewards
         
         const schemeTotal = schemeRewards.reduce(
           (sum: number, r: any) => sum + parseFloat(r.percentage),
           0
         );
-        const paymentTotal = paymentRewards.reduce(
-          (sum: number, r: any) => sum + parseFloat(r.percentage),
-          0
-        );
         
-        const totalPercentage = schemeTotal + paymentTotal;
+        const totalPercentage = schemeTotal;
         
         const schemeBreakdown = schemeRewards.map((r: any) => `${r.percentage}%`).join('+');
-        const paymentBreakdown = paymentRewards.map((r: any) => `${r.percentage}%`).join('+');
-        const breakdown = [schemeBreakdown, paymentBreakdown]
-          .filter(b => b.length > 0)
-          .join('+') || '0%';
+        const breakdown = schemeBreakdown || '0%';
 
         return {
           isExcluded: false,
@@ -508,4 +496,3 @@ export async function queryChannelRewards(
 
   return results.filter((r) => r !== null) as any[];
 }
-
