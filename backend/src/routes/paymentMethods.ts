@@ -55,7 +55,7 @@ router.post('/', async (req: Request, res: Response) => {
       `INSERT INTO payment_methods (name, note, own_reward_percentage, display_order)
        VALUES ($1, $2, $3, $4)
        RETURNING id, name, note, own_reward_percentage, display_order`,
-      [name, note || null, 0, displayOrder || 0] // 不再使用本身回饋，統一使用回饋組成
+      [name, note || null, 0, displayOrder || 0]
     );
 
     res.json({ success: true, data: result.rows[0] });
@@ -76,7 +76,7 @@ router.put('/:id', async (req: Request, res: Response) => {
            updated_at = CURRENT_TIMESTAMP
        WHERE id = $4
        RETURNING id, name, note, own_reward_percentage, display_order`,
-      [name, note || null, displayOrder, id] // 不再使用本身回饋，統一使用回饋組成
+      [name, note || null, displayOrder, id]
     );
 
     if (result.rows.length === 0) {
@@ -160,11 +160,13 @@ router.get('/:id/channels', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
+    // [修正項目 9] 加入 ORDER BY pca.created_at
     const result = await pool.query(
       `SELECT c.id, c.name, pca.note
        FROM payment_channel_applications pca
        JOIN channels c ON pca.channel_id = c.id
-       WHERE pca.payment_method_id = $1`,
+       WHERE pca.payment_method_id = $1
+       ORDER BY pca.created_at`,
       [id]
     );
 
@@ -204,22 +206,19 @@ router.put('/:id/channels', async (req: Request, res: Response) => {
     try {
       await client.query('BEGIN');
 
-      // 刪除現有的適用通路
       await client.query('DELETE FROM payment_channel_applications WHERE payment_method_id = $1', [id]);
 
-      // 批量插入適用通路（優化：使用 UNNEST 批量插入）
       if (Array.isArray(applications) && applications.length > 0) {
         const validApps = applications.filter((app: any) => app.channelId);
-        if (validApps.length > 0) {
-          // 使用 UNNEST 進行批量插入
-          const channelIds = validApps.map((app: any) => app.channelId);
-          const notes = validApps.map((app: any) => app.note || null);
-          
+        // 使用迴圈依序插入，確保 created_at 順序
+        for (let i = 0; i < validApps.length; i++) {
+          const app = validApps[i];
+          const params = [id, app.channelId, app.note || null];
           await client.query(
             `INSERT INTO payment_channel_applications (payment_method_id, channel_id, note)
-             SELECT $1, unnest($2::uuid[]), unnest($3::text[])
+             VALUES ($1::uuid, $2::uuid, $3::text)
              ON CONFLICT (payment_method_id, channel_id) DO UPDATE SET note = EXCLUDED.note`,
-            [id, channelIds, notes]
+            params
           );
         }
       }
@@ -359,14 +358,11 @@ router.put('/:id/rewards', async (req: Request, res: Response) => {
     try {
       await client.query('BEGIN');
 
-      // 刪除現有的回饋組成
       await client.query('DELETE FROM payment_rewards WHERE payment_method_id = $1', [id]);
 
-      // 批量插入回饋組成（優化：使用 UNNEST 批量插入）
       if (rewards.length > 0) {
         const validRewards = rewards.filter((r: any) => r.percentage !== undefined && r.percentage !== null);
         if (validRewards.length > 0) {
-          // 使用 UNNEST 進行批量插入
           const percentages = validRewards.map((r: any) => parseFloat(r.percentage) || 0);
           const calculationMethods = validRewards.map((r: any) => r.calculationMethod || 'round');
           const quotaLimits = validRewards.map((r: any) => {
