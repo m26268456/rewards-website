@@ -1,10 +1,11 @@
-// 通用型別定義
+// main/backend/src/utils/types.ts
 
 export type CalculationMethod = 'round' | 'floor' | 'ceil';
 
 export type QuotaRefreshType = 'monthly' | 'date' | 'activity';
 
-export type QuotaCalculationMode = 'per_transaction' | 'total_bill';
+// 新增計算基準型別：單筆計算 (transaction) vs 帳單總額 (statement)
+export type QuotaCalculationBasis = 'transaction' | 'statement';
 
 export interface RewardComposition {
   percentage: number;
@@ -13,7 +14,8 @@ export interface RewardComposition {
   quotaRefreshType: QuotaRefreshType | null;
   quotaRefreshValue: number | null;
   quotaRefreshDate: string | null;
-  quotaCalculationMode?: QuotaCalculationMode;
+  // 新增欄位
+  quotaCalculationBasis?: QuotaCalculationBasis;
 }
 
 export interface SchemeInfo {
@@ -91,6 +93,3 @@ export interface QuotaInfo {
   referenceAmounts: Array<number | null>;
   refreshTimes: string[];
 }
-
-
-

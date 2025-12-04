@@ -1,11 +1,7 @@
-import { CalculationMethod } from './types';
+import { CalculationMethod, QuotaCalculationBasis } from './types';
 
 /**
- * 計算回饋金額
- * @param amount 消費金額
- * @param percentage 回饋百分比（例如 0.3 表示 0.3%）
- * @param method 計算方式
- * @returns 計算後的回饋金額
+ * 計算單次回饋金額 (基礎邏輯)
  */
 export function calculateReward(
   amount: number,
@@ -27,7 +23,7 @@ export function calculateReward(
 }
 
 /**
- * 計算多個回饋組成的總回饋
+ * 計算總回饋 (包含多個回饋組成)
  */
 export function calculateTotalReward(
   amount: number,
@@ -35,38 +31,46 @@ export function calculateTotalReward(
     percentage: number;
     calculationMethod: CalculationMethod;
   }>
-): {
-  breakdown: Array<{
-    percentage: number;
-    calculationMethod: CalculationMethod;
-    originalReward: number;
-    calculatedReward: number;
-  }>;
-  totalReward: number;
-} {
-  const breakdown = rewards.map((reward) => {
-    const originalReward = (amount * reward.percentage) / 100;
-    const calculatedReward = calculateReward(
-      amount,
-      reward.percentage,
-      reward.calculationMethod
-    );
+) {
+  let totalReward = 0;
+  const breakdown = rewards.map((r) => {
+    const originalReward = (amount * r.percentage) / 100;
+    const calculatedReward = calculateReward(amount, r.percentage, r.calculationMethod);
+    totalReward += calculatedReward;
 
     return {
-      percentage: reward.percentage,
-      calculationMethod: reward.calculationMethod,
+      percentage: r.percentage,
+      calculationMethod: r.calculationMethod,
       originalReward,
       calculatedReward,
     };
   });
 
-  const totalReward = breakdown.reduce(
-    (sum, item) => sum + item.calculatedReward,
-    0
-  );
-
-  return { breakdown, totalReward };
+  return {
+    amount,
+    totalReward,
+    breakdown,
+  };
 }
 
-
-
+/**
+ * 計算「邊際回饋」 (用於帳單總額模式)
+ * 邏輯：本次回饋 = (累積+本次)的計算結果 - (累積)的計算結果
+ */
+export function calculateMarginalReward(
+  currentAccumulatedAmount: number,
+  newAmount: number,
+  percentage: number,
+  method: CalculationMethod
+): number {
+  const totalAmount = currentAccumulatedAmount + newAmount;
+  
+  // 計算加總後的理論回饋
+  const totalReward = calculateReward(totalAmount, percentage, method);
+  
+  // 計算原本的回饋
+  const previousReward = calculateReward(currentAccumulatedAmount, percentage, method);
+  
+  // 差額即為本次新增金額所貢獻的回饋
+  return totalReward - previousReward;
+}

@@ -25,7 +25,6 @@ router.get('/', async (req: Request, res: Response) => {
          sr.quota_refresh_type,
          sr.quota_refresh_value,
          sr.quota_refresh_date,
-         sr.quota_calculation_mode,
          cs.activity_end_date,
          sr.display_order,
          qt.used_quota,
@@ -61,7 +60,6 @@ router.get('/', async (req: Request, res: Response) => {
          pr.quota_refresh_type,
          pr.quota_refresh_value,
          pr.quota_refresh_date,
-         pr.quota_calculation_mode,
          NULL::date as activity_end_date,
          pr.display_order,
          COALESCE(qt.used_quota, 0) as used_quota,
@@ -200,7 +198,6 @@ router.get('/', async (req: Request, res: Response) => {
          pr.quota_refresh_type,
          pr.quota_refresh_value,
          pr.quota_refresh_date,
-         pr.quota_calculation_mode,
          NULL::date as activity_end_date,
          COALESCE(qt.used_quota, 0) as used_quota,
          qt.remaining_quota,
@@ -236,7 +233,6 @@ router.get('/', async (req: Request, res: Response) => {
         quotaRefreshType: string | null;
         quotaRefreshValue: number | null;
         quotaRefreshDate: string | null;
-        quotaCalculationMode: string;
       }>;
     }>();
 
@@ -307,7 +303,6 @@ router.get('/', async (req: Request, res: Response) => {
         quotaRefreshType: row.quota_refresh_type || null,
         quotaRefreshValue: row.quota_refresh_value || null,
         quotaRefreshDate: row.quota_refresh_date ? row.quota_refresh_date.toISOString().split('T')[0] : null,
-        quotaCalculationMode: row.quota_calculation_mode || 'per_transaction',
       });
     });
 
@@ -332,7 +327,6 @@ router.get('/', async (req: Request, res: Response) => {
         quotaRefreshType: string | null;
         quotaRefreshValue: number | null;
         quotaRefreshDate: string | null;
-        quotaCalculationMode: string;
       }>;
     }>();
 
@@ -389,7 +383,6 @@ router.get('/', async (req: Request, res: Response) => {
         quotaRefreshType: row.quota_refresh_type || null,
         quotaRefreshValue: row.quota_refresh_value || null,
         quotaRefreshDate: row.quota_refresh_date ? row.quota_refresh_date.toISOString().split('T')[0] : null,
-        quotaCalculationMode: row.quota_calculation_mode || 'per_transaction',
       });
     });
 
@@ -446,7 +439,6 @@ router.get('/', async (req: Request, res: Response) => {
           quotaRefreshTypes: quota.rewards.map(r => r.quotaRefreshType),
           quotaRefreshValues: quota.rewards.map(r => r.quotaRefreshValue),
           quotaRefreshDates: quota.rewards.map(r => r.quotaRefreshDate),
-          quotaCalculationModes: quota.rewards.map(r => r.quotaCalculationMode),
         });
       }
     });
@@ -478,7 +470,6 @@ router.get('/', async (req: Request, res: Response) => {
           quotaRefreshTypes: quota.rewards.map(r => r.quotaRefreshType),
           quotaRefreshValues: quota.rewards.map(r => r.quotaRefreshValue),
           quotaRefreshDates: quota.rewards.map(r => r.quotaRefreshDate),
-          quotaCalculationModes: quota.rewards.map(r => r.quotaCalculationMode),
         });
       }
     });

@@ -356,8 +356,8 @@ function CardItem({
       if (showSchemes && schemesListRef.current && !schemesListRef.current.contains(target)) {
         // 檢查是否點擊在按鈕上（不關閉，因為按鈕是用來切換顯示的）
         const clickedButton = target.closest('button');
-        if (clickedButton && (clickedButton.textContent?.includes('管理方案') || clickedButton.textContent?.includes('隱藏方案'))) {
-          return; // 點擊"管理方案"或"隱藏方案"按鈕不關閉
+        if (clickedButton && clickedButton.textContent?.includes('管理方案')) {
+          return; // 點擊"管理方案"按鈕不關閉
         }
         // 檢查是否點擊在表單內
         if (schemeFormRef.current?.contains(target) || expandedSchemeRef.current?.contains(target)) {
@@ -660,15 +660,11 @@ function CardItem({
         </div>
         <div className="flex gap-2 flex-shrink-0 flex-wrap">
           <button
-            onClick={(e) => {
-              e.stopPropagation(); // 阻止事件冒泡
+            onClick={() => {
               setShowSchemes(!showSchemes);
               if (!showSchemes) {
                 loadSchemes();
               }
-            }}
-            onMouseDown={(e) => {
-              e.stopPropagation(); // 阻止 mousedown 事件冒泡
             }}
             className="px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600 whitespace-nowrap"
           >
@@ -1141,7 +1137,6 @@ function PaymentMethodItem({
     quotaRefreshType: string | null;
     quotaRefreshValue: number | null;
     quotaRefreshDate: string | null;
-    quotaCalculationMode?: string;
     displayOrder: number;
   }>>([]);
 
@@ -1371,7 +1366,7 @@ function PaymentMethodItem({
     try {
       const res = await api.get(`/payment-methods/${paymentMethod.id}/rewards`);
       setRewards(
-        res.data.data.map((r: { id: string; reward_percentage: string | number; calculation_method: string; quota_limit: number | null; quota_refresh_type: string | null; quota_refresh_value: number | null; quota_refresh_date: string | null; quota_calculation_mode?: string; display_order: number }) => ({
+        res.data.data.map((r: { id: string; reward_percentage: string | number; calculation_method: string; quota_limit: number | null; quota_refresh_type: string | null; quota_refresh_value: number | null; quota_refresh_date: string | null; display_order: number }) => ({
           id: r.id,
           percentage: parseFloat(r.reward_percentage) || 0,
           calculationMethod: r.calculation_method || 'round',
@@ -1379,7 +1374,6 @@ function PaymentMethodItem({
           quotaRefreshType: r.quota_refresh_type || null,
           quotaRefreshValue: r.quota_refresh_value || null,
           quotaRefreshDate: r.quota_refresh_date ? r.quota_refresh_date.split('T')[0] : null,
-          quotaCalculationMode: r.quota_calculation_mode || 'per_transaction',
           displayOrder: r.display_order || 0,
         }))
       );
@@ -1399,7 +1393,6 @@ function PaymentMethodItem({
         quotaRefreshType: null,
         quotaRefreshValue: null,
         quotaRefreshDate: null,
-        quotaCalculationMode: 'per_transaction',
         displayOrder: rewards.length,
       },
     ]);
@@ -1423,7 +1416,6 @@ function PaymentMethodItem({
           quotaRefreshType: r.quotaRefreshType,
           quotaRefreshValue: r.quotaRefreshValue,
           quotaRefreshDate: r.quotaRefreshDate || null,
-          quotaCalculationMode: r.quotaCalculationMode || 'per_transaction',
           displayOrder: idx,
         })),
       });
@@ -1675,20 +1667,15 @@ function PaymentMethodItem({
                       </div>
                       {reward.quotaRefreshType === 'monthly' && (
                         <div>
-                          <label className="text-xs font-medium block mb-1">每月幾號 (1-28)</label>
+                          <label className="text-xs font-medium block mb-1">每月幾號</label>
                           <input
                             type="number"
                             min="1"
-                            max="28"
+                            max="31"
                             value={reward.quotaRefreshValue || ''}
                             onChange={(e) => {
                               const newRewards = [...rewards];
-                              const value = e.target.value ? parseInt(e.target.value) : null;
-                              // 限制在 1-28 之間
-                              if (value !== null && (value < 1 || value > 28)) {
-                                return;
-                              }
-                              newRewards[index].quotaRefreshValue = value;
+                              newRewards[index].quotaRefreshValue = e.target.value ? parseInt(e.target.value) : null;
                               setRewards(newRewards);
                             }}
                             className="w-full px-2 py-1 border rounded text-xs"
@@ -3067,6 +3054,23 @@ function CalculateSettings() {
                 </select>
               </div>
             )}
+            {formData.selectedType === 'card' && formData.selectedSchemeId && selectedSchemePaymentMethods.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium mb-1">選擇支付方式（可選）</label>
+                <select
+                  value={formData.selectedPaymentMethodId}
+                  onChange={(e: ChangeEvent<HTMLSelectElement>) => setFormData({ ...formData, selectedPaymentMethodId: e.target.value })}
+                  className="w-full px-3 py-2 border rounded"
+                >
+                  <option value="">不使用支付方式</option>
+                  {selectedSchemePaymentMethods.map((pm) => (
+                    <option key={pm.id} value={pm.id}>
+                      {pm.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div>
               <input
                 type="hidden"
@@ -3796,6 +3800,23 @@ function TransactionSettings() {
                         </select>
                       </div>
                     )}
+                    {formData.selectedType === 'card' && formData.selectedSchemeId && selectedSchemePaymentMethods.length > 0 && (
+                      <div>
+                        <label className="block text-sm font-medium mb-1">選擇支付方式（可選）</label>
+                        <select
+                          value={formData.selectedPaymentMethodId}
+                          onChange={(e: ChangeEvent<HTMLSelectElement>) => setFormData({ ...formData, selectedPaymentMethodId: e.target.value })}
+                          className="w-full px-3 py-2 border rounded"
+                        >
+                          <option value="">不使用支付方式</option>
+                          {selectedSchemePaymentMethods.map((pm) => (
+                            <option key={pm.id} value={pm.id}>
+                              {pm.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                     <div className="flex gap-2">
                       <button
                         onClick={handleAdd}
@@ -3961,7 +3982,6 @@ function QuotaSettings() {
     quotaRefreshTypes?: Array<string | null>;
     quotaRefreshValues?: Array<number | null>;
     quotaRefreshDates?: Array<string | null>;
-    quotaCalculationModes?: Array<string | null>;
     cardId?: string | null;
     paymentMethodIdForGroup?: string | null;
     cardName?: string | null;
@@ -4250,7 +4270,6 @@ function QuotaSettings() {
     quotaRefreshType: '',
     quotaRefreshValue: '',
     quotaRefreshDate: '',
-    quotaCalculationMode: 'per_transaction',
   });
   const [rewardAddForm, setRewardAddForm] = useState({
     rewardPercentage: '',
@@ -4259,7 +4278,6 @@ function QuotaSettings() {
     quotaRefreshType: '',
     quotaRefreshValue: '',
     quotaRefreshDate: '',
-    quotaCalculationMode: 'per_transaction',
   });
   const refreshTypeOptions = [
     { value: '', label: '無' },
@@ -4299,7 +4317,6 @@ function QuotaSettings() {
     const quotaRefreshType = quota.quotaRefreshTypes?.[rewardIndex] || null;
     const quotaRefreshValue = quota.quotaRefreshValues?.[rewardIndex] ?? null;
     const quotaRefreshDate = quota.quotaRefreshDates?.[rewardIndex] || null;
-    const quotaCalculationMode = quota.quotaCalculationModes?.[rewardIndex] || 'per_transaction';
     
     setEditingReward({ quotaIndex, rewardIndex, groupKey });
     setRewardEditForm({
@@ -4309,7 +4326,6 @@ function QuotaSettings() {
       quotaRefreshType: quotaRefreshType || '',
       quotaRefreshValue: quotaRefreshValue !== null ? String(quotaRefreshValue) : '',
       quotaRefreshDate: quotaRefreshDate || '',
-      quotaCalculationMode: quotaCalculationMode || 'per_transaction',
     });
   };
 
@@ -4330,7 +4346,6 @@ function QuotaSettings() {
           quotaRefreshType: rewardEditForm.quotaRefreshType || null,
           quotaRefreshValue: rewardEditForm.quotaRefreshValue ? parseInt(rewardEditForm.quotaRefreshValue) : null,
           quotaRefreshDate: rewardEditForm.quotaRefreshDate || null,
-          quotaCalculationMode: rewardEditForm.quotaCalculationMode || 'per_transaction',
         });
       } else if (quota.paymentMethodId) {
         await api.put(`/payment-methods/${quota.paymentMethodId}/rewards/${rewardId}`, {
@@ -4340,7 +4355,6 @@ function QuotaSettings() {
           quotaRefreshType: rewardEditForm.quotaRefreshType || null,
           quotaRefreshValue: rewardEditForm.quotaRefreshValue ? parseInt(rewardEditForm.quotaRefreshValue) : null,
           quotaRefreshDate: rewardEditForm.quotaRefreshDate || null,
-          quotaCalculationMode: rewardEditForm.quotaCalculationMode || 'per_transaction',
         });
       } else {
         alert('無法編輯：缺少必要資訊');
@@ -4364,7 +4378,6 @@ function QuotaSettings() {
       quotaRefreshType: '',
       quotaRefreshValue: '',
       quotaRefreshDate: '',
-      quotaCalculationMode: 'per_transaction',
     });
   };
 
@@ -4389,7 +4402,6 @@ function QuotaSettings() {
           quotaRefreshType: rewardAddForm.quotaRefreshType || null,
           quotaRefreshValue: rewardAddForm.quotaRefreshValue ? parseInt(rewardAddForm.quotaRefreshValue) : null,
           quotaRefreshDate: rewardAddForm.quotaRefreshDate || null,
-          quotaCalculationMode: rewardAddForm.quotaCalculationMode || 'per_transaction',
           displayOrder: quota.rewardIds?.length || 0,
         });
       } else if (quota.paymentMethodId) {
@@ -4400,7 +4412,6 @@ function QuotaSettings() {
           quotaRefreshType: rewardAddForm.quotaRefreshType || null,
           quotaRefreshValue: rewardAddForm.quotaRefreshValue ? parseInt(rewardAddForm.quotaRefreshValue) : null,
           quotaRefreshDate: rewardAddForm.quotaRefreshDate || null,
-          quotaCalculationMode: rewardAddForm.quotaCalculationMode || 'per_transaction',
           displayOrder: quota.rewardIds?.length || 0,
         });
       } else {
@@ -4740,24 +4751,19 @@ function QuotaSettings() {
                   </div>
                   {currentRefreshType === 'monthly' && (
                     <div>
-                      <label className="text-xs font-medium block mb-1">每月幾號 (1-28)</label>
+                      <label className="text-xs font-medium block mb-1">每月幾號</label>
                       <input
                         type="number"
                         min="1"
-                        max="28"
+                        max="31"
                         value={
                           isNewRow ? rewardAddForm.quotaRefreshValue || '' : rewardEditForm.quotaRefreshValue || ''
                         }
                         onChange={(e) => {
-                          const value = e.target.value ? parseInt(e.target.value) : null;
-                          // 限制在 1-28 之間
-                          if (value !== null && (value < 1 || value > 28)) {
-                            return;
-                          }
                           if (isNewRow) {
-                            setRewardAddForm({ ...rewardAddForm, quotaRefreshValue: value !== null ? String(value) : '' });
+                            setRewardAddForm({ ...rewardAddForm, quotaRefreshValue: e.target.value });
                           } else {
-                            setRewardEditForm({ ...rewardEditForm, quotaRefreshValue: value !== null ? String(value) : '' });
+                            setRewardEditForm({ ...rewardEditForm, quotaRefreshValue: e.target.value });
                           }
                         }}
                         className="w-full px-2 py-1 border rounded text-xs"
@@ -4783,47 +4789,6 @@ function QuotaSettings() {
                       />
                     </div>
                   )}
-                  <div>
-                    <label className="text-xs font-medium block mb-1">回饋計算方式</label>
-                    <div className="flex flex-wrap gap-4 text-xs text-gray-700">
-                      <label className="inline-flex items-center gap-1">
-                        <input
-                          type="radio"
-                          name={`quota-calculation-mode-${quotaIndex}-${isNewRow ? 'new' : originalIndex}`}
-                          value="per_transaction"
-                          checked={(isNewRow ? rewardAddForm.quotaCalculationMode : rewardEditForm.quotaCalculationMode) === 'per_transaction'}
-                          onChange={(e) => {
-                            if (isNewRow) {
-                              setRewardAddForm({ ...rewardAddForm, quotaCalculationMode: e.target.value });
-                            } else {
-                              setRewardEditForm({ ...rewardEditForm, quotaCalculationMode: e.target.value });
-                            }
-                          }}
-                        />
-                        單筆回饋
-                      </label>
-                      <label className="inline-flex items-center gap-1">
-                        <input
-                          type="radio"
-                          name={`quota-calculation-mode-${quotaIndex}-${isNewRow ? 'new' : originalIndex}`}
-                          value="total_bill"
-                          checked={(isNewRow ? rewardAddForm.quotaCalculationMode : rewardEditForm.quotaCalculationMode) === 'total_bill'}
-                          onChange={(e) => {
-                            if (isNewRow) {
-                              setRewardAddForm({ ...rewardAddForm, quotaCalculationMode: e.target.value });
-                            } else {
-                              setRewardEditForm({ ...rewardEditForm, quotaCalculationMode: e.target.value });
-                            }
-                          }}
-                        />
-                        帳單總額
-                      </label>
-                    </div>
-                    <p className="text-[10px] text-gray-500 mt-1">
-                      單筆回饋：每筆消費後計算回饋並扣除額度<br/>
-                      帳單總額：累積消費金額後計算回饋並扣除額度
-                    </p>
-                  </div>
                 </div>
               ) : (
                 <div className="text-xs">{quota.refreshTimes?.[originalIndex] || '-'}</div>

@@ -49,7 +49,6 @@ export async function getAllCardsWithSchemes(): Promise<
         sr.quota_refresh_type,
         sr.quota_refresh_value,
         sr.quota_refresh_date,
-        sr.quota_calculation_mode,
         sr.display_order as reward_display_order,
         excl_ch.id as exclusion_channel_id,
         excl_ch.name as exclusion_channel_name,
@@ -145,7 +144,6 @@ export async function getAllCardsWithSchemes(): Promise<
                     ? row.quota_refresh_date.toISOString().split('T')[0]
                     : String(row.quota_refresh_date).split('T')[0])
                 : null,
-              quotaCalculationMode: row.quota_calculation_mode || 'per_transaction',
             });
           }
         }
@@ -259,28 +257,15 @@ export async function queryChannelRewardsByKeywords(
 
       // 返回所有匹配的通路（支持部分匹配時返回多個結果）
       // 例如："NET" 可以匹配 "NET" 和 "NETFLIX"，分別返回兩個結果
-      // 根據需求，需要按關鍵字分組，顯示方案中設定的通路名稱
       const channelRewardsList = [];
       for (const match of matches) {
         const channelRewards = await queryChannelRewards([match.id]);
         if (channelRewards.length > 0) {
-          // 取得通路名稱（方案中設定的名稱就是 channels 表中的名稱）
-          const channelResult = await pool.query(
-            'SELECT name FROM channels WHERE id = $1',
-            [match.id]
-          );
-          const channelName = channelResult.rows[0]?.name || match.name;
-          
-          // 為每個結果添加方案中設定的通路名稱
-          const resultsWithChannelNames = channelRewards[0].results.map((result: any) => ({
-            ...result,
-            channelNameInScheme: channelName, // 方案中設定的通路名稱
-          }));
-          
+          const { baseName } = parseChannelName(match.name);
           channelRewardsList.push({
             channelId: match.id,
-            channelName: channelName, // 使用方案中設定的通路名稱
-            results: resultsWithChannelNames,
+            channelName: baseName,
+            results: channelRewards[0].results,
           });
         }
       }
@@ -462,19 +447,28 @@ export async function queryChannelRewards(
 
       const paymentSchemeResults = paymentSchemeLinksResult.rows.map((row) => {
         const schemeRewards = row.scheme_rewards || [];
+        const paymentRewards = row.payment_rewards || [];
         
-        // 只使用卡片方案本身的回饋，不疊加支付方式的回饋
         const schemeTotal = schemeRewards.reduce(
           (sum: number, r: any) => sum + parseFloat(r.percentage),
           0
         );
+        const paymentTotal = paymentRewards.reduce(
+          (sum: number, r: any) => sum + parseFloat(r.percentage),
+          0
+        );
+        
+        const totalPercentage = schemeTotal + paymentTotal;
         
         const schemeBreakdown = schemeRewards.map((r: any) => `${r.percentage}%`).join('+');
-        const breakdown = schemeBreakdown || '0%';
+        const paymentBreakdown = paymentRewards.map((r: any) => `${r.percentage}%`).join('+');
+        const breakdown = [schemeBreakdown, paymentBreakdown]
+          .filter(b => b.length > 0)
+          .join('+') || '0%';
 
         return {
           isExcluded: false,
-          totalRewardPercentage: schemeTotal,
+          totalRewardPercentage: totalPercentage,
           rewardBreakdown: breakdown,
           schemeInfo: `${row.card_name}-${row.name}-${row.payment_name}`,
           requiresSwitch: row.requires_switch,

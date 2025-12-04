@@ -244,7 +244,7 @@ router.get('/:id/rewards', async (req: Request, res: Response) => {
     const result = await pool.query(
       `SELECT id, reward_percentage, calculation_method, quota_limit, 
               quota_refresh_type, quota_refresh_value, quota_refresh_date, 
-              quota_calculation_mode, display_order
+              quota_calculation_basis, display_order
        FROM payment_rewards
        WHERE payment_method_id = $1
        ORDER BY display_order`,
@@ -260,12 +260,12 @@ router.get('/:id/rewards', async (req: Request, res: Response) => {
 router.post('/:id/rewards', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { rewardPercentage, calculationMethod, quotaLimit, quotaRefreshType, quotaRefreshValue, quotaRefreshDate, quotaCalculationMode, displayOrder } = req.body;
+    const { rewardPercentage, calculationMethod, quotaLimit, quotaRefreshType, quotaRefreshValue, quotaRefreshDate, quotaCalculationBasis, displayOrder } = req.body;
 
     const result = await pool.query(
       `INSERT INTO payment_rewards 
        (payment_method_id, reward_percentage, calculation_method, quota_limit, 
-        quota_refresh_type, quota_refresh_value, quota_refresh_date, quota_calculation_mode, display_order)
+        quota_refresh_type, quota_refresh_value, quota_refresh_date, quota_calculation_basis, display_order)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING id`,
       [
@@ -276,6 +276,7 @@ router.post('/:id/rewards', async (req: Request, res: Response) => {
         quotaRefreshType || null,
         quotaRefreshValue || null,
         quotaRefreshDate || null,
+        quotaCalculationBasis || 'transaction',
         displayOrder || 0,
       ]
     );
@@ -290,14 +291,15 @@ router.post('/:id/rewards', async (req: Request, res: Response) => {
 router.put('/:id/rewards/:rewardId', async (req: Request, res: Response) => {
   try {
     const { id, rewardId } = req.params;
-    const { rewardPercentage, calculationMethod, quotaLimit, quotaRefreshType, quotaRefreshValue, quotaRefreshDate, displayOrder } = req.body;
+    const { rewardPercentage, calculationMethod, quotaLimit, quotaRefreshType, quotaRefreshValue, quotaRefreshDate, quotaCalculationBasis, displayOrder } = req.body;
 
     const result = await pool.query(
       `UPDATE payment_rewards
        SET reward_percentage = $1, calculation_method = $2, quota_limit = $3,
-           quota_refresh_type = $4, quota_refresh_value = $5, quota_refresh_date = $6, display_order = $7,
+           quota_refresh_type = $4, quota_refresh_value = $5, quota_refresh_date = $6, 
+           quota_calculation_basis = $7, display_order = $8,
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $8 AND payment_method_id = $9
+       WHERE id = $9 AND payment_method_id = $10
        RETURNING id`,
       [
         rewardPercentage,
@@ -306,6 +308,7 @@ router.put('/:id/rewards/:rewardId', async (req: Request, res: Response) => {
         quotaRefreshType || null,
         quotaRefreshValue || null,
         quotaRefreshDate || null,
+        quotaCalculationBasis || 'transaction',
         displayOrder || 0,
         rewardId,
         id,
@@ -376,7 +379,7 @@ router.put('/:id/rewards', async (req: Request, res: Response) => {
             return val !== undefined && val !== null ? parseFloat(val) : null;
           });
           const quotaRefreshDates = validRewards.map((r: any) => r.quotaRefreshDate || null);
-          const quotaCalculationModes = validRewards.map((r: any) => r.quotaCalculationMode || 'per_transaction');
+          const quotaCalculationBases = validRewards.map((r: any) => r.quotaCalculationBasis || 'transaction');
           const displayOrders = validRewards.map((r: any, idx: number) => {
             const val = r.displayOrder;
             return val !== undefined && val !== null ? parseInt(val) : idx;
@@ -385,7 +388,7 @@ router.put('/:id/rewards', async (req: Request, res: Response) => {
           await client.query(
             `INSERT INTO payment_rewards 
              (payment_method_id, reward_percentage, calculation_method, quota_limit, 
-              quota_refresh_type, quota_refresh_value, quota_refresh_date, quota_calculation_mode, display_order)
+              quota_refresh_type, quota_refresh_value, quota_refresh_date, quota_calculation_basis, display_order)
              SELECT $1::uuid, unnest($2::numeric[]), unnest($3::text[]), unnest($4::numeric[]),
                     unnest($5::text[]), unnest($6::numeric[]), unnest($7::date[]), unnest($8::text[]), unnest($9::integer[])`,
             [
@@ -396,7 +399,7 @@ router.put('/:id/rewards', async (req: Request, res: Response) => {
               quotaRefreshTypes,
               quotaRefreshValues,
               quotaRefreshDates,
-              quotaCalculationModes,
+              quotaCalculationBases,
               displayOrders,
             ]
           );
@@ -455,4 +458,3 @@ router.put('/:id/rewards/order', async (req: Request, res: Response) => {
 });
 
 export default router;
-

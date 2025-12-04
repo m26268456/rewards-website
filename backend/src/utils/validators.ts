@@ -28,12 +28,13 @@ export const updateSchemeSchema = createSchemeSchema.omit({ cardId: true }).part
 });
 
 // 回饋組成驗證
+// 修改重點：quotaRefreshValue 限制最大值為 28
 export const rewardSchema = z.object({
   percentage: z.number().min(0).max(100),
   calculationMethod: z.enum(['round', 'floor', 'ceil']).default('round'),
   quotaLimit: z.number().min(0).optional().nullable(),
-  quotaRefreshType: z.enum(['daily', 'monthly', 'yearly', 'custom']).optional().nullable(),
-  quotaRefreshValue: z.number().int().min(1).optional().nullable(),
+  quotaRefreshType: z.enum(['monthly', 'date', 'activity']).optional().nullable(),
+  quotaRefreshValue: z.number().int().min(1).max(28, { message: "每月刷新日期必須在 1 到 28 號之間" }).optional().nullable(),
   quotaRefreshDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
   displayOrder: z.number().int().min(0).optional(),
 });
@@ -91,4 +92,3 @@ export const queryChannelsSchema = z.object({
 }).refine(data => data.channelIds || data.keywords, {
   message: '必須提供 channelIds 或 keywords',
 });
-
