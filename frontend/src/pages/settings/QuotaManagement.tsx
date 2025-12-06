@@ -264,7 +264,7 @@ export default function QuotaManagement() {
                 const isEditingQ = editingQuota?.idx === primary.__index && editingQuota?.rIdx === rIdx;
                 const isEditingR = editingReward?.idx === primary.__index && editingReward?.rIdx === rIdx;
                 const isCardScheme = primary.schemeId && !primary.paymentMethodId;
-                const sharedBound = primary.sharedRewardGroupId || null;
+                const sharedBound = primary.sharedRewardGroupId && primary.sharedRewardGroupId !== primary.schemeId ? primary.sharedRewardGroupId : null;
 
                 const methodRaw = primary.calculationMethods[rIdx];
                 const methodText =
