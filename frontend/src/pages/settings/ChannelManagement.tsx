@@ -6,12 +6,41 @@ export default function ChannelManagement() {
   const [channels, setChannels] = useState<any[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingChannel, setEditingChannel] = useState<any>(null);
+  const [isReordering, setIsReordering] = useState(false);
+  const [reorderedChannels, setReorderedChannels] = useState<any[]>([]);
 
   useEffect(() => { loadChannels(); }, []);
 
   const loadChannels = async () => {
     const res = await api.get('/channels?commonOnly=true');
     setChannels(res.data.data);
+  };
+
+  const saveChannelOrder = async () => {
+    try {
+      await Promise.all(
+        reorderedChannels.map((ch, idx) =>
+          api.put(`/channels/${ch.id}`, { ...ch, displayOrder: idx, isCommon: true })
+        )
+      );
+      setIsReordering(false);
+      loadChannels();
+    } catch (e) {
+      alert('排序更新失敗');
+    }
+  };
+
+  const moveChannel = (index: number, direction: 'up' | 'down' | 'top' | 'bottom') => {
+    const newArr = [...reorderedChannels];
+    const item = newArr[index];
+    newArr.splice(index, 1);
+    if (direction === 'top') newArr.unshift(item);
+    else if (direction === 'bottom') newArr.push(item);
+    else {
+      const target = direction === 'up' ? index - 1 : index + 1;
+      newArr.splice(Math.max(0, Math.min(target, newArr.length)), 0, item);
+    }
+    setReorderedChannels(newArr);
   };
 
   const handleSubmit = async (e: FormEvent) => {
@@ -42,10 +71,25 @@ export default function ChannelManagement() {
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h4 className="font-medium">常用通路列表</h4>
-        <button onClick={() => { setEditingChannel(null); setShowForm(true); }} className="px-3 py-1 bg-blue-600 text-white rounded text-sm">新增通路</button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              if (isReordering) saveChannelOrder();
+              else { setIsReordering(true); setReorderedChannels([...channels]); }
+            }}
+            className={`px-3 py-1 rounded text-sm text-white ${isReordering ? 'bg-green-500' : 'bg-gray-500'}`}
+          >
+            {isReordering ? '儲存順序' : '調整順序'}
+          </button>
+          {isReordering ? (
+            <button onClick={() => setIsReordering(false)} className="px-3 py-1 bg-red-500 text-white rounded text-sm">取消</button>
+          ) : (
+            <button onClick={() => { setEditingChannel(null); setShowForm(true); }} className="px-3 py-1 bg-blue-600 text-white rounded text-sm">新增通路</button>
+          )}
+        </div>
       </div>
 
-      {showForm && (
+      {showForm && !editingChannel && (
         <div className="p-4 bg-gray-50 rounded border">
           <form onSubmit={handleSubmit} className="space-y-3">
             <input name="name" defaultValue={editingChannel?.name} placeholder="通路名稱" required className="w-full border p-2 rounded" />
@@ -57,14 +101,38 @@ export default function ChannelManagement() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-        {channels.map(ch => (
-          <div key={ch.id} className="p-2 border rounded flex justify-between items-center bg-white">
-            <span>{ch.name}</span>
-            <div className="flex gap-1">
-              <button onClick={() => { setEditingChannel(ch); setShowForm(true); }} className="text-yellow-600 text-xs">編輯</button>
-              <button onClick={() => handleDelete(ch.id)} className="text-red-600 text-xs">刪除</button>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {(isReordering ? reorderedChannels : channels).map((ch, idx) => (
+          <div key={ch.id} className="p-2 border rounded bg-white space-y-2">
+            <div className="flex justify-between items-center">
+              <span>{ch.name}</span>
+              <div className="flex gap-1">
+                {isReordering ? (
+                  <>
+                    <button onClick={() => moveChannel(idx, 'up')} className="text-blue-600 text-xs border px-1 rounded" disabled={idx === 0}>⬆</button>
+                    <button onClick={() => moveChannel(idx, 'down')} className="text-blue-600 text-xs border px-1 rounded" disabled={idx === (isReordering ? reorderedChannels.length - 1 : channels.length - 1)}>⬇</button>
+                    <button onClick={() => moveChannel(idx, 'top')} className="text-gray-600 text-xs border px-1 rounded" disabled={idx === 0}>⇤頂</button>
+                    <button onClick={() => moveChannel(idx, 'bottom')} className="text-gray-600 text-xs border px-1 rounded" disabled={idx === (isReordering ? reorderedChannels.length - 1 : channels.length - 1)}>⇥底</button>
+                  </>
+                ) : (
+                  <>
+                    <button onClick={() => { setEditingChannel(ch); setShowForm(true); }} className="text-yellow-600 text-xs">編輯</button>
+                    <button onClick={() => handleDelete(ch.id)} className="text-red-600 text-xs">刪除</button>
+                  </>
+                )}
+              </div>
             </div>
+            {!isReordering && editingChannel?.id === ch.id && showForm && (
+              <div className="p-2 bg-gray-50 border rounded">
+                <form onSubmit={handleSubmit} className="space-y-2">
+                  <input name="name" defaultValue={editingChannel?.name} placeholder="通路名稱" required className="w-full border p-2 rounded text-sm" />
+                  <div className="flex gap-2">
+                    <button type="submit" className="px-3 py-1 bg-blue-600 text-white rounded text-xs">儲存</button>
+                    <button type="button" onClick={() => { setShowForm(false); setEditingChannel(null); }} className="px-3 py-1 bg-gray-400 text-white rounded text-xs">取消</button>
+                  </div>
+                </form>
+              </div>
+            )}
           </div>
         ))}
       </div>

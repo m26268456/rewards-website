@@ -21,8 +21,16 @@ function PaymentMethodItem({ payment, onEdit, onDelete, onReload }: any) {
   const [channelText, setChannelText] = useState('');
   
   // 回饋組成編輯狀態
-  const [isEditingRewards, setIsEditingRewards] = useState(false);
-  const [rewardForm, setRewardForm] = useState<any[]>([]);
+  const [editingRewardIdx, setEditingRewardIdx] = useState<number | null>(null);
+  const [rewardForm, setRewardForm] = useState({
+    percentage: '',
+    calculationMethod: 'round',
+    quotaLimit: '',
+    quotaRefreshType: '',
+    quotaRefreshValue: '',
+    quotaRefreshDate: '',
+    quotaCalculationBasis: 'transaction',
+  });
 
   useEffect(() => {
     if (showDetails) loadDetails();
@@ -40,14 +48,6 @@ function PaymentMethodItem({ payment, onEdit, onDelete, onReload }: any) {
       // setLinkedSchemes(lsRes.data.data); // 視後端實作而定
       
       setChannelText(chRes.data.data.map((c: any) => c.note ? `${c.name} (${c.note})` : c.name).join('\n'));
-      setRewardForm(rwRes.data.data.map((r: any) => ({
-        percentage: r.reward_percentage,
-        calculationMethod: r.calculation_method,
-        quotaLimit: r.quota_limit,
-        quotaRefreshType: r.quota_refresh_type,
-        quotaRefreshValue: r.quota_refresh_value,
-        quotaCalculationBasis: r.quota_calculation_basis || 'transaction'
-      })));
     } catch (e) { console.error(e); }
   };
 
@@ -64,6 +64,41 @@ function PaymentMethodItem({ payment, onEdit, onDelete, onReload }: any) {
       setIsEditingChannels(false);
       loadDetails();
     } catch (e) { alert('更新失敗'); }
+  };
+
+  const handleRewardEdit = (idx: number) => {
+    const r = rewards[idx];
+    setEditingRewardIdx(idx);
+    setRewardForm({
+      percentage: String(r.reward_percentage ?? ''),
+      calculationMethod: r.calculation_method || 'round',
+      quotaLimit: r.quota_limit !== null && r.quota_limit !== undefined ? String(r.quota_limit) : '',
+      quotaRefreshType: r.quota_refresh_type || '',
+      quotaRefreshValue: r.quota_refresh_value !== null && r.quota_refresh_value !== undefined ? String(r.quota_refresh_value) : '',
+      quotaRefreshDate: r.quota_refresh_date || '',
+      quotaCalculationBasis: r.quota_calculation_basis || 'transaction',
+    });
+  };
+
+  const handleRewardSave = async () => {
+    if (editingRewardIdx === null) return;
+    const r = rewards[editingRewardIdx];
+    try {
+      await api.put(`/payment-methods/${payment.id}/rewards/${r.id}`, {
+        rewardPercentage: parseFloat(rewardForm.percentage),
+        calculationMethod: rewardForm.calculationMethod,
+        quotaLimit: rewardForm.quotaLimit ? parseFloat(rewardForm.quotaLimit) : null,
+        quotaRefreshType: rewardForm.quotaRefreshType || null,
+        quotaRefreshValue: rewardForm.quotaRefreshType === 'monthly' && rewardForm.quotaRefreshValue ? parseInt(rewardForm.quotaRefreshValue) : null,
+        quotaRefreshDate: rewardForm.quotaRefreshType === 'date' ? rewardForm.quotaRefreshDate : null,
+        quotaCalculationBasis: rewardForm.quotaCalculationBasis,
+      });
+      alert('回饋已更新');
+      setEditingRewardIdx(null);
+      loadDetails();
+    } catch (e: any) {
+      alert(e?.response?.data?.error || '更新失敗');
+    }
   };
 
   return (
@@ -106,11 +141,144 @@ function PaymentMethodItem({ payment, onEdit, onDelete, onReload }: any) {
             )}
           </div>
 
-          {/* 回饋組成 (需包含 quotaCalculationBasis) */}
-          <div>
-            <h5 className="text-sm font-medium mb-1">回饋組成</h5>
-            {/* 這裡應實作類似 SchemeDetailManager 的表格 */}
-            <div className="text-xs text-gray-500">(回饋組成管理介面待實作，請參考 CardManagement)</div>
+          {/* 回饋組成 (包含 quotaCalculationBasis) */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <h5 className="text-sm font-medium mb-1">回饋組成</h5>
+              {editingRewardIdx !== null && (
+                <button onClick={() => setEditingRewardIdx(null)} className="text-xs text-gray-500">取消編輯</button>
+              )}
+            </div>
+            {rewards.length === 0 && (
+              <div className="text-xs text-gray-500">尚未設定回饋</div>
+            )}
+            {rewards.length > 0 && (
+              <div className="overflow-x-auto rounded border border-gray-200">
+                <table className="min-w-full text-xs text-gray-700">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-2 py-1 text-left font-semibold whitespace-nowrap">回饋 %</th>
+                      <th className="px-2 py-1 text-left font-semibold whitespace-nowrap">方式 / 基準</th>
+                      <th className="px-2 py-1 text-left font-semibold whitespace-nowrap">上限</th>
+                      <th className="px-2 py-1 text-left font-semibold whitespace-nowrap">刷新</th>
+                      <th className="px-2 py-1 text-left font-semibold whitespace-nowrap">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rewards.map((r: any, idx: number) => {
+                      const methodMap: Record<string, string> = { round: '四捨五入', floor: '無條件捨去', ceil: '無條件進位' };
+                      const basisMap: Record<string, string> = { transaction: '單筆回饋', statement: '帳單總額' };
+                      const refreshText =
+                        r.quota_refresh_type === 'monthly' && r.quota_refresh_value
+                          ? `每月 ${r.quota_refresh_value} 號`
+                          : r.quota_refresh_type === 'date' && r.quota_refresh_date
+                          ? `指定 ${String(r.quota_refresh_date).split('T')[0]}`
+                          : r.quota_refresh_type === 'activity'
+                          ? '活動結束'
+                          : '不刷新';
+                      return (
+                        <tr key={r.id || idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                          <td className="px-2 py-1 font-semibold text-green-700">{r.reward_percentage}%</td>
+                          <td className="px-2 py-1 space-y-0.5">
+                            <div>{methodMap[r.calculation_method] || r.calculation_method}</div>
+                            <div className="text-[11px] text-purple-600 border border-purple-200 rounded px-1 inline-block">
+                              {basisMap[r.quota_calculation_basis || 'transaction'] || '單筆回饋'}
+                            </div>
+                          </td>
+                          <td className="px-2 py-1">{r.quota_limit ?? '無上限'}</td>
+                          <td className="px-2 py-1">{refreshText}</td>
+                          <td className="px-2 py-1">
+                            <button onClick={() => handleRewardEdit(idx)} className="text-blue-600 text-xs border px-2 py-0.5 rounded">編輯</button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {editingRewardIdx !== null && (
+              <div className="p-3 bg-gray-50 border rounded space-y-2">
+                <div className="text-sm font-medium">編輯回饋</div>
+                <div className="flex gap-2">
+                  <input
+                    value={rewardForm.percentage}
+                    onChange={e => setRewardForm({ ...rewardForm, percentage: e.target.value })}
+                    className="w-1/3 border p-1 rounded text-xs"
+                    placeholder="%"
+                  />
+                  <select
+                    value={rewardForm.calculationMethod}
+                    onChange={e => setRewardForm({ ...rewardForm, calculationMethod: e.target.value })}
+                    className="w-2/3 border p-1 rounded text-xs"
+                  >
+                    <option value="round">四捨五入</option>
+                    <option value="floor">無條件捨去</option>
+                    <option value="ceil">無條件進位</option>
+                  </select>
+                </div>
+                <div className="flex flex-col">
+                  <label className="text-[10px] text-gray-500 mb-0.5">計算基準</label>
+                  <select
+                    value={rewardForm.quotaCalculationBasis}
+                    onChange={e => setRewardForm({ ...rewardForm, quotaCalculationBasis: e.target.value })}
+                    className="w-full border p-1 rounded text-xs bg-yellow-50"
+                  >
+                    <option value="transaction">單筆回饋</option>
+                    <option value="statement">帳單總額</option>
+                  </select>
+                </div>
+                <input
+                  value={rewardForm.quotaLimit}
+                  onChange={e => setRewardForm({ ...rewardForm, quotaLimit: e.target.value })}
+                  className="w-full border p-1 rounded text-xs"
+                  placeholder="上限"
+                />
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] text-gray-500">刷新設定</label>
+                  <select
+                    value={rewardForm.quotaRefreshType}
+                    onChange={e => setRewardForm({ ...rewardForm, quotaRefreshType: e.target.value, quotaRefreshValue: '', quotaRefreshDate: '' })}
+                    className="w-full border p-1 rounded text-xs"
+                  >
+                    <option value="">不刷新</option>
+                    <option value="monthly">每月OO號</option>
+                    <option value="date">指定日期</option>
+                    <option value="activity">活動結束</option>
+                  </select>
+                  {rewardForm.quotaRefreshType === 'monthly' && (
+                    <input
+                      type="number"
+                      min="1"
+                      max="28"
+                      value={rewardForm.quotaRefreshValue}
+                      onChange={e => {
+                        const val = e.target.value;
+                        const num = parseInt(val);
+                        if (val === '' || (num >= 1 && num <= 28)) {
+                          setRewardForm({ ...rewardForm, quotaRefreshValue: val });
+                        }
+                      }}
+                      className="w-full border p-1 rounded text-xs"
+                      placeholder="1-28號"
+                    />
+                  )}
+                  {rewardForm.quotaRefreshType === 'date' && (
+                    <input
+                      type="date"
+                      value={rewardForm.quotaRefreshDate}
+                      onChange={e => setRewardForm({ ...rewardForm, quotaRefreshDate: e.target.value })}
+                      className="w-full border p-1 rounded text-xs"
+                    />
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={handleRewardSave} className="bg-blue-500 text-white px-2 py-1 rounded text-xs">儲存</button>
+                  <button onClick={() => setEditingRewardIdx(null)} className="bg-gray-300 px-2 py-1 rounded text-xs">取消</button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -122,12 +290,41 @@ export default function PaymentManagement() {
   const [payments, setPayments] = useState<any[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingPayment, setEditingPayment] = useState<any>(null);
+  const [isReordering, setIsReordering] = useState(false);
+  const [reorderedPayments, setReorderedPayments] = useState<any[]>([]);
 
   useEffect(() => { loadPayments(); }, []);
 
   const loadPayments = async () => {
     const res = await api.get('/payment-methods');
     setPayments(res.data.data);
+  };
+
+  const savePaymentOrder = async () => {
+    try {
+      await Promise.all(
+        reorderedPayments.map((pm, idx) =>
+          api.put(`/payment-methods/${pm.id}`, { ...pm, displayOrder: idx })
+        )
+      );
+      setIsReordering(false);
+      loadPayments();
+    } catch (e) {
+      alert('排序更新失敗');
+    }
+  };
+
+  const movePayment = (index: number, direction: 'up' | 'down' | 'top' | 'bottom') => {
+    const newArr = [...reorderedPayments];
+    const item = newArr[index];
+    newArr.splice(index, 1);
+    if (direction === 'top') newArr.unshift(item);
+    else if (direction === 'bottom') newArr.push(item);
+    else {
+      const target = direction === 'up' ? index - 1 : index + 1;
+      newArr.splice(Math.max(0, Math.min(target, newArr.length)), 0, item);
+    }
+    setReorderedPayments(newArr);
   };
 
   const handleSubmit = async (e: FormEvent) => {
@@ -158,10 +355,26 @@ export default function PaymentManagement() {
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h4 className="font-medium">支付方式列表</h4>
-        <button onClick={() => { setEditingPayment(null); setShowForm(true); }} className="px-3 py-1 bg-blue-600 text-white rounded text-sm">新增支付方式</button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              if (isReordering) savePaymentOrder();
+              else { setIsReordering(true); setReorderedPayments([...payments]); }
+            }}
+            className={`px-3 py-1 rounded text-sm text-white ${isReordering ? 'bg-green-500' : 'bg-gray-500'}`}
+          >
+            {isReordering ? '儲存順序' : '調整順序'}
+          </button>
+          {isReordering ? (
+            <button onClick={() => setIsReordering(false)} className="px-3 py-1 bg-red-500 text-white rounded text-sm">取消</button>
+          ) : (
+            <button onClick={() => { setEditingPayment(null); setShowForm(true); }} className="px-3 py-1 bg-blue-600 text-white rounded text-sm">新增支付方式</button>
+          )}
+        </div>
       </div>
 
-      {showForm && (
+      {/* 新增表單（僅新增時） */}
+      {showForm && !editingPayment && (
         <div className="p-4 bg-gray-50 rounded border">
           <form onSubmit={handleSubmit} className="space-y-3">
             <input name="name" defaultValue={editingPayment?.name} placeholder="名稱" required className="w-full border p-2 rounded" />
@@ -175,14 +388,37 @@ export default function PaymentManagement() {
       )}
 
       <div className="space-y-2">
-        {payments.map(pm => (
-          <PaymentMethodItem 
-            key={pm.id} 
-            payment={pm} 
-            onEdit={() => { setEditingPayment(pm); setShowForm(true); }} 
-            onDelete={() => handleDelete(pm.id)}
-            onReload={loadPayments}
-          />
+        {(isReordering ? reorderedPayments : payments).map((pm, idx) => (
+          <div key={pm.id} className="flex items-start gap-2">
+            <div className="flex-1">
+              <PaymentMethodItem 
+                payment={pm} 
+                onEdit={() => { if (!isReordering) { setEditingPayment(pm); setShowForm(true); }}}
+                onDelete={() => !isReordering && handleDelete(pm.id)}
+                onReload={loadPayments}
+              />
+              {!isReordering && editingPayment?.id === pm.id && showForm && (
+                <div className="p-3 bg-gray-50 border rounded mt-2">
+                  <form onSubmit={handleSubmit} className="space-y-3">
+                    <input name="name" defaultValue={editingPayment?.name} placeholder="名稱" required className="w-full border p-2 rounded text-sm" />
+                    <input name="note" defaultValue={editingPayment?.note} placeholder="備註" className="w-full border p-2 rounded text-sm" />
+                    <div className="flex gap-2">
+                      <button type="submit" className="px-3 py-1 bg-blue-600 text-white rounded text-xs">儲存</button>
+                      <button type="button" onClick={() => { setShowForm(false); setEditingPayment(null); }} className="px-3 py-1 bg-gray-400 text-white rounded text-xs">取消</button>
+                    </div>
+                  </form>
+                </div>
+              )}
+            </div>
+            {isReordering && (
+              <div className="flex flex-col gap-1">
+                <button onClick={() => movePayment(idx, 'up')} className="bg-blue-500 text-white px-2 rounded text-xs" disabled={idx === 0}>⬆</button>
+                <button onClick={() => movePayment(idx, 'down')} className="bg-blue-500 text-white px-2 rounded text-xs" disabled={idx === (isReordering ? reorderedPayments.length - 1 : payments.length - 1)}>⬇</button>
+                <button onClick={() => movePayment(idx, 'top')} className="bg-gray-500 text-white px-2 rounded text-xs" disabled={idx === 0}>⇤頂</button>
+                <button onClick={() => movePayment(idx, 'bottom')} className="bg-gray-500 text-white px-2 rounded text-xs" disabled={idx === (isReordering ? reorderedPayments.length - 1 : payments.length - 1)}>⇥底</button>
+              </div>
+            )}
+          </div>
         ))}
       </div>
     </div>

@@ -172,6 +172,8 @@ export default function QuotaQuery() {
                       calculationMethod === 'round' ? '四捨五入' :
                       calculationMethod === 'floor' ? '無條件捨去' :
                       calculationMethod === 'ceil' ? '無條件進位' : '四捨五入';
+                    const basis = (quota as any).calculationBases?.[originalIndex] || 'transaction';
+                    const basisText = basis === 'statement' ? '帳單總額' : '單筆回饋';
                     
                     const usedQuota = quota.usedQuotas?.[originalIndex] || 0;
                     const remainingQuota = quota.remainingQuotas?.[originalIndex] ?? null;
@@ -194,8 +196,11 @@ export default function QuotaQuery() {
                             {rewardPercentage || '-'}%
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-600">
-                          {calculationMethodText}
+                        <td className="px-4 py-3 text-xs text-gray-700 space-y-1">
+                          <div>{calculationMethodText}</div>
+                          <div className="text-[11px] text-purple-700 border border-purple-200 rounded px-1 inline-block">
+                            {basisText}
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-sm">
                           {formatQuotaInfo(usedQuota, remainingQuota, quotaLimit)}

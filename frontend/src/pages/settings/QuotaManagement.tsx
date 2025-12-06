@@ -43,9 +43,14 @@ export default function QuotaManagement() {
     refreshType: '', refreshValue: '', refreshDate: '',
     calculationBasis: 'transaction' 
   });
+  // 共同回饋綁定
+  const [sharedGroupOptions, setSharedGroupOptions] = useState<Array<{ id: string; name: string }>>([]);
+  const [bindingTarget, setBindingTarget] = useState<{ idx: number; group: string } | null>(null);
+  const [selectedSharedGroup, setSelectedSharedGroup] = useState<string>('');
 
   useEffect(() => {
     loadQuotas();
+    loadSharedGroups();
     const timer = setInterval(() => setCurrentTime(new Date().toLocaleString('zh-TW', { hour12: false })), 1000);
     return () => clearInterval(timer);
   }, []);
@@ -58,6 +63,23 @@ export default function QuotaManagement() {
         setQuotas(data);
       }
     } catch (e) { console.error(e); }
+  };
+
+  const loadSharedGroups = async () => {
+    try {
+      // 從方案總覽取得所有方案，將名稱用於下拉（僅示意：共用回饋根方案列表）
+      const res = await api.get('/schemes/overview');
+      const data = res.data.data || [];
+      const options: Array<{ id: string; name: string }> = [];
+      data.forEach((card: any) => {
+        card.schemes?.forEach((s: any) => {
+          options.push({ id: s.id, name: `${card.name}-${s.name}` });
+        });
+      });
+      setSharedGroupOptions(options);
+    } catch (e) {
+      console.error('載入共同回饋清單失敗', e);
+    }
   };
 
   const handleQuotaSave = async () => {
@@ -134,6 +156,22 @@ export default function QuotaManagement() {
     } catch (e: any) { alert(e.response?.data?.error || '更新失敗'); }
   };
 
+  // 綁定共同回饋群組（只對信用卡方案）
+  const handleBindShared = async () => {
+    if (!bindingTarget) return;
+    const q = quotas[bindingTarget.idx];
+    if (!q.schemeId) return alert('僅信用卡方案可綁定共同回饋');
+    try {
+      await api.put(`/schemes/${q.schemeId}/shared-reward`, { sharedRewardGroupId: selectedSharedGroup || null });
+      alert('共同回饋綁定已更新');
+      setBindingTarget(null);
+      setSelectedSharedGroup('');
+      loadQuotas();
+    } catch (e: any) {
+      alert(e.response?.data?.error || '更新失敗');
+    }
+  };
+
   const cardGroups = new Map();
   const paymentGroups = new Map();
   quotas.forEach(q => {
@@ -148,131 +186,92 @@ export default function QuotaManagement() {
   });
 
   const renderTable = (list: any[], groupKey: string) => (
-    <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-gray-200">
-        <thead className="bg-gray-50">
-          <tr>
-            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 whitespace-nowrap">名稱</th>
-            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 whitespace-nowrap">回饋</th>
-            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 whitespace-nowrap">額度</th>
-            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 whitespace-nowrap">操作</th>
-          </tr>
-        </thead>
-        <tbody className="bg-white divide-y divide-gray-200">
-          {list.map((q) => {
-            const rewardIndices = q.rewardIds.map((_: any, i: number) => i);
-            return rewardIndices.map((rIdx: number) => {
-              const isFirst = rIdx === 0;
-              const isEditingQ = editingQuota?.idx === q.__index && editingQuota?.rIdx === rIdx;
-              const isEditingR = editingReward?.idx === q.__index && editingReward?.rIdx === rIdx;
-              // [修正] 共同回饋綁定只在編輯信用卡方案的「設定」時顯示
-              const showBindingInfo = isEditingR && q.schemeId && !q.paymentMethodId;
-              
-              return (
-                <tr key={`${q.__index}-${rIdx}`}>
-                  {isFirst && <td rowSpan={rewardIndices.length} className="px-4 py-2 text-sm font-medium border-r align-top">{q.name}</td>}
-                  <td className="px-4 py-2 text-sm align-top">
-                    {isEditingR ? (
-                      <div className="space-y-2">
-                        <div className="flex gap-2">
-                          <input value={rewardForm.percentage} onChange={e => setRewardForm({...rewardForm, percentage: e.target.value})} className="w-1/3 border p-1 rounded text-xs" placeholder="%" />
-                          <select value={rewardForm.method} onChange={e => setRewardForm({...rewardForm, method: e.target.value})} className="w-2/3 border p-1 rounded text-xs">
-                            <option value="round">四捨五入</option>
-                            <option value="floor">無條件捨去</option>
-                            <option value="ceil">無條件進位</option>
-                          </select>
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gradient-to-r from-gray-50 to-gray-100 sticky top-0 z-20 shadow-sm">
+            <tr>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap sticky left-0 bg-gray-50 z-30 border-r border-gray-200">名稱</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">回饋組成</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">計算方式</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">額度狀態</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">刷新時間</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">管理</th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {list.map((q) => {
+              const rewardIndices = q.rewardIds.map((_: any, i: number) => i);
+              return rewardIndices.map((rIdx: number) => {
+                const isFirst = rIdx === 0;
+                const isEditingQ = editingQuota?.idx === q.__index && editingQuota?.rIdx === rIdx;
+                const isEditingR = editingReward?.idx === q.__index && editingReward?.rIdx === rIdx;
+                const isCardScheme = q.schemeId && !q.paymentMethodId;
+                const sharedBound = q.sharedRewardGroupId || null;
+
+                const methodText = q.calculationMethods[rIdx];
+                const basis = q.quotaCalculationBases?.[rIdx] || 'transaction';
+                const basisText = basis === 'statement' ? '帳單總額' : '單筆回饋';
+
+                return (
+                  <tr key={`${q.__index}-${rIdx}`} className={rIdx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                    {isFirst && (
+                      <td rowSpan={rewardIndices.length} className="px-4 py-3 text-sm font-medium sticky left-0 bg-white z-10 border-r border-gray-200 align-top">
+                        <div className="space-y-1">
+                          <div>{q.name}</div>
+                          {sharedBound && (
+                            <div className="text-[11px] text-blue-700 bg-blue-50 border border-blue-100 rounded px-2 py-1 inline-block">
+                              共用回饋
+                            </div>
+                          )}
                         </div>
-                        <div className="flex flex-col">
-                          <label className="text-[10px] text-gray-500 mb-0.5">計算基準</label>
-                          <select value={rewardForm.calculationBasis} onChange={e => setRewardForm({...rewardForm, calculationBasis: e.target.value})} className="w-full border p-1 rounded text-xs bg-yellow-50">
-                            <option value="transaction">單筆回饋</option>
-                            <option value="statement">帳單總額</option>
-                          </select>
+                      </td>
+                    )}
+                    <td className="px-4 py-3 text-sm align-top">
+                      <span className="bg-orange-100 px-1 rounded font-bold">{q.rewardComposition.split('/')[rIdx]}</span>
+                    </td>
+                    <td className="px-4 py-3 text-xs align-top space-y-1 text-gray-700">
+                      <div>{methodText}</div>
+                      <div className="text-[11px] text-purple-700 border border-purple-200 rounded px-1 inline-block">{basisText}</div>
+                    </td>
+                    <td className="px-4 py-3 text-sm align-top">
+                      {formatQuotaInfo(
+                        q.usedQuotas[rIdx], q.remainingQuotas[rIdx], q.quotaLimits[rIdx],
+                        isEditingQ, quotaAdjust, setQuotaAdjust
+                      )}
+                      {isEditingQ && (
+                        <div className="flex gap-1 mt-1">
+                          <button onClick={handleQuotaSave} className="bg-green-500 text-white px-2 py-0.5 rounded text-xs">確認</button>
+                          <button onClick={() => { setEditingQuota(null); setQuotaAdjust(''); }} className="bg-gray-300 px-2 py-0.5 rounded text-xs">取消</button>
                         </div>
-                        <input value={rewardForm.limit} onChange={e => setRewardForm({...rewardForm, limit: e.target.value})} className="w-full border p-1 rounded text-xs" placeholder="上限" />
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-sm align-top">
+                      {q.refreshTimes?.[rIdx] || '-'}
+                    </td>
+                    <td className="px-4 py-3 text-sm align-top">
+                      {!isEditingQ && !isEditingR && (
                         <div className="flex flex-col gap-1">
-                          <label className="text-[10px] text-gray-500">刷新設定</label>
-                          <select value={rewardForm.refreshType} onChange={e => setRewardForm({...rewardForm, refreshType: e.target.value, refreshValue: '', refreshDate: ''})} className="w-full border p-1 rounded text-xs">
-                            <option value="">不刷新</option>
-                            <option value="monthly">每月OO號</option>
-                            <option value="date">指定日期</option>
-                            <option value="activity">活動結束</option>
-                          </select>
-                          {rewardForm.refreshType === 'monthly' && (
-                            <input 
-                              type="number" 
-                              min="1" 
-                              max="28" 
-                              value={rewardForm.refreshValue} 
-                              onChange={e => {
-                                const val = e.target.value;
-                                const num = parseInt(val);
-                                if (val === '' || (num >= 1 && num <= 28)) {
-                                  setRewardForm({...rewardForm, refreshValue: val});
-                                }
-                              }} 
-                              className="w-full border p-1 rounded text-xs" 
-                              placeholder="1-28號" 
-                            />
-                          )}
-                          {rewardForm.refreshType === 'date' && (
-                            <input 
-                              type="date" 
-                              value={rewardForm.refreshDate} 
-                              onChange={e => setRewardForm({...rewardForm, refreshDate: e.target.value})} 
-                              className="w-full border p-1 rounded text-xs" 
-                            />
+                          <button onClick={() => { setEditingQuota({ idx: q.__index, rIdx, group: groupKey }); setQuotaAdjust(''); }} className="text-yellow-600 text-xs border border-yellow-600 rounded px-1 hover:bg-yellow-50">調額</button>
+                          <button onClick={() => handleRewardEdit(q.__index, rIdx, groupKey)} className="text-purple-600 text-xs border border-purple-600 rounded px-1 hover:bg-purple-50">設定</button>
+                          {isCardScheme && (
+                            <button
+                              onClick={() => { setBindingTarget({ idx: q.__index, group: groupKey }); setSelectedSharedGroup(sharedBound || ''); }}
+                              className="text-blue-600 text-xs border border-blue-600 rounded px-1 hover:bg-blue-50"
+                            >
+                              {sharedBound ? '變更共用' : '綁定共用'}
+                            </button>
                           )}
                         </div>
-                        <div className="flex gap-1">
-                          <button onClick={handleRewardSave} className="bg-blue-500 text-white px-2 py-1 rounded text-xs">儲存</button>
-                          <button onClick={() => setEditingReward(null)} className="bg-gray-300 px-2 py-1 rounded text-xs">取消</button>
-                        </div>
-                        
-                        {/* [修正] 共同回饋綁定 UI - 僅在此處顯示 */}
-                        {showBindingInfo && (
-                          <div className="mt-2 p-2 bg-blue-50 border border-blue-100 rounded text-xs">
-                            <div className="font-semibold text-blue-700 mb-1">共同回饋設定</div>
-                            <div className="text-gray-500">請至「信用卡管理」頁面進行綁定設定。</div>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="text-xs">
-                        <span className="bg-orange-100 px-1 rounded font-bold">{q.rewardComposition.split('/')[rIdx]}</span>
-                        <div className="text-gray-500 mt-0.5">{q.calculationMethods[rIdx]}</div>
-                        {q.quotaCalculationBases?.[rIdx] === 'statement' && (
-                          <div className="text-purple-600 border border-purple-200 px-1 rounded mt-0.5 inline-block scale-90 origin-left">帳單總額</div>
-                        )}
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-4 py-2 text-sm align-top">
-                    {formatQuotaInfo(
-                      q.usedQuotas[rIdx], q.remainingQuotas[rIdx], q.quotaLimits[rIdx],
-                      isEditingQ, quotaAdjust, setQuotaAdjust
-                    )}
-                    {isEditingQ && (
-                      <div className="flex gap-1 mt-1">
-                        <button onClick={handleQuotaSave} className="bg-green-500 text-white px-2 py-0.5 rounded text-xs">確認</button>
-                        <button onClick={() => { setEditingQuota(null); setQuotaAdjust(''); }} className="bg-gray-300 px-2 py-0.5 rounded text-xs">取消</button>
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-4 py-2 text-sm align-top">
-                    {!isEditingQ && !isEditingR && (
-                      <div className="flex flex-col gap-1">
-                        <button onClick={() => { setEditingQuota({ idx: q.__index, rIdx, group: groupKey }); setQuotaAdjust(''); }} className="text-yellow-600 text-xs border border-yellow-600 rounded px-1 hover:bg-yellow-50">調額</button>
-                        <button onClick={() => handleRewardEdit(q.__index, rIdx, groupKey)} className="text-purple-600 text-xs border border-purple-600 rounded px-1 hover:bg-purple-50">設定</button>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              );
-            });
-          })}
-        </tbody>
-      </table>
+                      )}
+                    </td>
+                  </tr>
+                );
+              });
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 
