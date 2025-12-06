@@ -287,6 +287,7 @@ export default function QuotaManagement() {
                   </tr>
                 );
               });
+              });
             })}
           </tbody>
         </table>
