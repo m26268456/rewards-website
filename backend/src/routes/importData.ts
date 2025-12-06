@@ -1,11 +1,10 @@
-import { Router, Request, Response, NextFunction } from 'express';
+import { Router, Request, Response } from 'express';
 import { pool } from '../config/database';
-import { logger } from '../utils/logger';
 
 const router = Router();
 
 // 清除所有資料並導入新資料
-router.post('/import', async (req: Request, res: Response, next: NextFunction) => {
+router.post('/import', async (req: Request, res: Response) => {
   let client;
   try {
     console.log('📥 收到資料導入請求');
@@ -205,9 +204,9 @@ router.post('/import', async (req: Request, res: Response, next: NextFunction) =
 
               // 插入方案回饋組成（使用眾數作為主要回饋）
               await client.query(
-                `INSERT INTO scheme_rewards (scheme_id, reward_percentage, calculation_method, quota_limit, quota_refresh_type, quota_refresh_value, quota_refresh_date, quota_calculation_basis, display_order)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-                [schemeId, mode, 'round', null, null, null, null, 'transaction', 1]
+                `INSERT INTO scheme_rewards (scheme_id, reward_percentage, calculation_method, quota_limit, quota_refresh_type, quota_refresh_value, quota_refresh_date, display_order)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+                [schemeId, mode, 'round', null, null, null, null, 1]
               );
 
               // 插入方案適用通路
@@ -317,9 +316,9 @@ router.post('/import', async (req: Request, res: Response, next: NextFunction) =
 
           // 插入支付方式回饋組成
           await client.query(
-            `INSERT INTO payment_rewards (payment_method_id, reward_percentage, calculation_method, quota_limit, quota_refresh_type, quota_refresh_value, quota_refresh_date, quota_calculation_basis, display_order)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-            [paymentId, mode, 'round', null, null, null, null, 'transaction', 1]
+            `INSERT INTO payment_rewards (payment_method_id, reward_percentage, calculation_method, quota_limit, quota_refresh_type, quota_refresh_value, quota_refresh_date, display_order)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+            [paymentId, mode, 'round', null, null, null, null, 1]
           );
 
           // 插入支付方式適用通路
@@ -365,15 +364,16 @@ router.post('/import', async (req: Request, res: Response, next: NextFunction) =
         await client.query('ROLLBACK');
         console.log('⚠️  事務已回滾');
       } catch (rollbackError) {
-        logger.error('❌ 回滾錯誤:', rollbackError);
+        console.error('❌ 回滾錯誤:', rollbackError);
       }
-    }
-    logger.error('❌ 導入資料錯誤:', error);
-    return next(error);
-  } finally {
-    if (client) {
       client.release();
     }
+    console.error('❌ 導入資料錯誤:', error);
+    console.error('錯誤詳情:', (error as Error).stack);
+    res.status(500).json({
+      success: false,
+      error: (error as Error).message,
+    });
   }
 });
 

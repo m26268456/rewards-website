@@ -1,20 +1,14 @@
-import { Router, Request, Response, NextFunction } from 'express';
+import { Router, Request, Response } from 'express';
 import { pool } from '../config/database';
-import { logger } from '../utils/logger';
 
 const router = Router();
-
-const handleError = (message: string, error: unknown, next: NextFunction): void => {
-  logger.error(message, error);
-  next(error);
-};
 
 // ============================================
 // A: 回饋查詢設定
 // ============================================
 
 // 更新卡片順序
-router.put('/cards/order', async (req: Request, res: Response, next: NextFunction) => {
+router.put('/cards/order', async (req: Request, res: Response) => {
   try {
     const { orders } = req.body; // [{ id, displayOrder }]
 
@@ -34,7 +28,7 @@ router.put('/cards/order', async (req: Request, res: Response, next: NextFunctio
       }
 
       await client.query('COMMIT');
-      return res.json({ success: true, message: '順序已更新' });
+      res.json({ success: true, message: '順序已更新' });
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
@@ -42,12 +36,12 @@ router.put('/cards/order', async (req: Request, res: Response, next: NextFunctio
       client.release();
     }
   } catch (error) {
-    return handleError('更新卡片順序失敗', error, next);
+    res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
 
 // 更新支付方式順序
-router.put('/payment-methods/order', async (req: Request, res: Response, next: NextFunction) => {
+router.put('/payment-methods/order', async (req: Request, res: Response) => {
   try {
     const { orders } = req.body;
 
@@ -67,7 +61,7 @@ router.put('/payment-methods/order', async (req: Request, res: Response, next: N
       }
 
       await client.query('COMMIT');
-      return res.json({ success: true, message: '順序已更新' });
+      res.json({ success: true, message: '順序已更新' });
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
@@ -75,12 +69,12 @@ router.put('/payment-methods/order', async (req: Request, res: Response, next: N
       client.release();
     }
   } catch (error) {
-    return handleError('更新支付方式順序失敗', error, next);
+    res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
 
 // 更新常用通路順序
-router.put('/channels/common/order', async (req: Request, res: Response, next: NextFunction) => {
+router.put('/channels/common/order', async (req: Request, res: Response) => {
   try {
     const { orders } = req.body;
 
@@ -100,7 +94,7 @@ router.put('/channels/common/order', async (req: Request, res: Response, next: N
       }
 
       await client.query('COMMIT');
-      return res.json({ success: true, message: '順序已更新' });
+      res.json({ success: true, message: '順序已更新' });
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
@@ -108,7 +102,7 @@ router.put('/channels/common/order', async (req: Request, res: Response, next: N
       client.release();
     }
   } catch (error) {
-    return handleError('更新常用通路順序失敗', error, next);
+    res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
 
@@ -117,7 +111,7 @@ router.put('/channels/common/order', async (req: Request, res: Response, next: N
 // ============================================
 
 // 取得計算方案列表
-router.get('/calculation-schemes', async (_req: Request, res: Response, next: NextFunction) => {
+router.get('/calculation-schemes', async (req: Request, res: Response) => {
   try {
     // 取得所有計算方案，按 display_order 排序
     const result = await pool.query(
@@ -141,38 +135,32 @@ router.get('/calculation-schemes', async (_req: Request, res: Response, next: Ne
        ORDER BY cs.display_order, cs.id`
     );
 
-    return res.json({ success: true, data: result.rows });
+    res.json({ success: true, data: result.rows });
   } catch (error) {
-    return handleError('取得計算方案列表失敗', error, next);
+    res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
 
 // 新增計算方案
-router.post('/calculation-schemes', async (req: Request, res: Response, next: NextFunction) => {
+router.post('/calculation-schemes', async (req: Request, res: Response) => {
   try {
-    const { schemeId, paymentMethodId } = req.body;
-
-    // 取得目前最大 display_order，新的放在最底部
-    const maxOrderResult = await pool.query(
-      'SELECT COALESCE(MAX(display_order), -1) AS max_order FROM calculation_schemes'
-    );
-    const nextOrder = (maxOrderResult.rows[0]?.max_order ?? -1) + 1;
+    const { schemeId, paymentMethodId, displayOrder } = req.body;
 
     const result = await pool.query(
       `INSERT INTO calculation_schemes (scheme_id, payment_method_id, display_order)
        VALUES ($1, $2, $3)
        RETURNING id`,
-      [schemeId || null, paymentMethodId || null, nextOrder]
+      [schemeId || null, paymentMethodId || null, displayOrder || 0]
     );
 
-    return res.json({ success: true, data: result.rows[0] });
+    res.json({ success: true, data: result.rows[0] });
   } catch (error) {
-    return handleError('新增計算方案失敗', error, next);
+    res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
 
 // 更新計算方案順序
-router.put('/calculation-schemes/order', async (req: Request, res: Response, next: NextFunction) => {
+router.put('/calculation-schemes/order', async (req: Request, res: Response) => {
   try {
     const { orders } = req.body;
 
@@ -196,7 +184,7 @@ router.put('/calculation-schemes/order', async (req: Request, res: Response, nex
       }
 
       await client.query('COMMIT');
-      return res.json({ success: true, message: '順序已更新' });
+      res.json({ success: true, message: '順序已更新' });
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
@@ -204,20 +192,20 @@ router.put('/calculation-schemes/order', async (req: Request, res: Response, nex
       client.release();
     }
   } catch (error) {
-    return handleError('更新計算方案順序失敗', error, next);
+    res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
 
 // 刪除計算方案
-router.delete('/calculation-schemes/:id', async (req: Request, res: Response, next: NextFunction) => {
+router.delete('/calculation-schemes/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
     await pool.query('DELETE FROM calculation_schemes WHERE id = $1', [id]);
 
-    return res.json({ success: true, message: '方案已刪除' });
+    res.json({ success: true, message: '方案已刪除' });
   } catch (error) {
-    return handleError('刪除計算方案失敗', error, next);
+    res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
 
@@ -226,17 +214,17 @@ router.delete('/calculation-schemes/:id', async (req: Request, res: Response, ne
 // ============================================
 
 // 取得事由字串
-router.get('/reason-strings', async (_req: Request, res: Response, next: NextFunction) => {
+router.get('/reason-strings', async (req: Request, res: Response) => {
   try {
     const result = await pool.query('SELECT id, content FROM reason_strings ORDER BY created_at');
-    return res.json({ success: true, data: result.rows });
+    res.json({ success: true, data: result.rows });
   } catch (error) {
-    return handleError('取得事由字串失敗', error, next);
+    res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
 
 // 更新事由字串
-router.put('/reason-strings', async (req: Request, res: Response, next: NextFunction) => {
+router.put('/reason-strings', async (req: Request, res: Response) => {
   try {
     const { content } = req.body;
 
@@ -248,26 +236,26 @@ router.put('/reason-strings', async (req: Request, res: Response, next: NextFunc
       await pool.query('INSERT INTO reason_strings (content) VALUES ($1)', [content]);
     }
 
-    return res.json({ success: true, message: '事由字串已更新' });
+    res.json({ success: true, message: '事由字串已更新' });
   } catch (error) {
-    return handleError('更新事由字串失敗', error, next);
+    res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
 
 // 取得交易類型
-router.get('/transaction-types', async (_req: Request, res: Response, next: NextFunction) => {
+router.get('/transaction-types', async (req: Request, res: Response) => {
   try {
     const result = await pool.query(
       'SELECT id, name, display_order FROM transaction_types ORDER BY display_order, created_at'
     );
-    return res.json({ success: true, data: result.rows });
+    res.json({ success: true, data: result.rows });
   } catch (error) {
-    return handleError('取得交易類型失敗', error, next);
+    res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
 
 // 新增交易類型
-router.post('/transaction-types', async (req: Request, res: Response, next: NextFunction) => {
+router.post('/transaction-types', async (req: Request, res: Response) => {
   try {
     const { name, displayOrder } = req.body;
 
@@ -282,14 +270,14 @@ router.post('/transaction-types', async (req: Request, res: Response, next: Next
       [name, displayOrder || 0]
     );
 
-    return res.json({ success: true, data: result.rows[0] });
+    res.json({ success: true, data: result.rows[0] });
   } catch (error) {
-    return handleError('新增交易類型失敗', error, next);
+    res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
 
 // 更新交易類型順序（必須在 /:id 之前）
-router.put('/transaction-types/order', async (req: Request, res: Response, next: NextFunction) => {
+router.put('/transaction-types/order', async (req: Request, res: Response) => {
   try {
     const { orders } = req.body;
 
@@ -309,7 +297,7 @@ router.put('/transaction-types/order', async (req: Request, res: Response, next:
       }
 
       await client.query('COMMIT');
-      return res.json({ success: true, message: '順序已更新' });
+      res.json({ success: true, message: '順序已更新' });
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
@@ -317,12 +305,12 @@ router.put('/transaction-types/order', async (req: Request, res: Response, next:
       client.release();
     }
   } catch (error) {
-    return handleError('更新交易類型順序失敗', error, next);
+    res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
 
 // 更新交易類型
-router.put('/transaction-types/:id', async (req: Request, res: Response, next: NextFunction) => {
+router.put('/transaction-types/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { name, displayOrder } = req.body;
@@ -339,27 +327,27 @@ router.put('/transaction-types/:id', async (req: Request, res: Response, next: N
       return res.status(404).json({ success: false, error: '類型不存在' });
     }
 
-    return res.json({ success: true, data: result.rows[0] });
+    res.json({ success: true, data: result.rows[0] });
   } catch (error) {
-    return handleError('更新交易類型失敗', error, next);
+    res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
 
 // 刪除交易類型
-router.delete('/transaction-types/:id', async (req: Request, res: Response, next: NextFunction) => {
+router.delete('/transaction-types/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
     await pool.query('DELETE FROM transaction_types WHERE id = $1', [id]);
 
-    return res.json({ success: true, message: '類型已刪除' });
+    res.json({ success: true, message: '類型已刪除' });
   } catch (error) {
-    return handleError('刪除交易類型失敗', error, next);
+    res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
 
 // 清除交易明細（依時間區間）
-router.delete('/transactions/clear', async (req: Request, res: Response, next: NextFunction) => {
+router.delete('/transactions/clear', async (req: Request, res: Response) => {
   try {
     const { startDate, endDate } = req.query;
 
@@ -446,7 +434,7 @@ router.delete('/transactions/clear', async (req: Request, res: Response, next: N
 
       await client.query('COMMIT');
 
-      return res.json({
+      res.json({
         success: true,
         message: `已清除 ${deleteResult.rows.length} 筆交易`,
       });
@@ -457,7 +445,7 @@ router.delete('/transactions/clear', async (req: Request, res: Response, next: N
       client.release();
     }
   } catch (error) {
-    return handleError('清除交易明細失敗', error, next);
+    res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
 

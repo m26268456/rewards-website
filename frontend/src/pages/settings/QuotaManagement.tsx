@@ -149,7 +149,7 @@ export default function QuotaManagement() {
 
   const renderTable = (list: any[], groupKey: string) => (
     <div className="overflow-x-auto">
-      <table className="w-auto min-w-max divide-y divide-gray-200">
+      <table className="min-w-full divide-y divide-gray-200">
         <thead className="bg-gray-50">
           <tr>
             <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 whitespace-nowrap">名稱</th>

@@ -1,17 +1,18 @@
-import { Router, Request, Response, NextFunction } from 'express';
+import { Router, Request, Response } from 'express';
 import { pool } from '../config/database';
-import { calculateMarginalReward, calculateReward } from '../utils/rewardCalculation';
-import { calculateNextRefreshTime } from '../utils/quotaRefresh';
+import { calculateTotalReward, calculateMarginalReward, calculateReward } from '../utils/rewardCalculation';
+import { utcToZonedTime, format as formatTz } from 'date-fns-tz';
+import * as XLSX from 'xlsx';
 import { CalculationMethod, QuotaCalculationBasis } from '../utils/types';
-import { logger } from '../utils/logger';
-import { validate } from '../middleware/validate';
-import { createTransactionSchema } from '../utils/validators';
+
+// 時區設定：UTC+8 (Asia/Taipei)
+const TIMEZONE = 'Asia/Taipei';
 
 const router = Router();
 
 // ... (GET / 保持不變，省略以節省篇幅) ...
 // 取得所有交易記錄
-router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
+router.get('/', async (req: Request, res: Response) => {
   try {
     const result = await pool.query(
       `SELECT t.id, t.transaction_date, t.reason, t.amount, t.note, t.created_at,
@@ -35,13 +36,12 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
 
     res.json({ success: true, data: result.rows });
   } catch (error) {
-    logger.error('取得交易列表失敗:', error);
-    next(error);
+    res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
 
 // 新增交易記錄 (核心修改處)
-router.post('/', validate(createTransactionSchema), async (req: Request, res: Response, next: NextFunction) => {
+router.post('/', async (req: Request, res: Response) => {
   try {
     const {
       transactionDate,
@@ -176,10 +176,12 @@ router.post('/', validate(createTransactionSchema), async (req: Request, res: Re
           let currentAccumulated = 0;
           let quotaId: string | null = null;
           let currentUsedQuota = 0;
+          let currentRemainingQuota: number | null = null;
 
           if (quotaResult.rows.length > 0) {
             currentAccumulated = parseFloat(quotaResult.rows[0].current_amount) || 0;
             currentUsedQuota = parseFloat(quotaResult.rows[0].used_quota) || 0;
+            currentRemainingQuota = quotaResult.rows[0].remaining_quota ? parseFloat(quotaResult.rows[0].remaining_quota) : null;
             quotaId = quotaResult.rows[0].id;
           }
 
@@ -217,58 +219,15 @@ router.post('/', validate(createTransactionSchema), async (req: Request, res: Re
               [newUsedQuota, newRemainingQuota, newCurrentAmount, quotaId]
             );
           } else {
-            // 計算 next_refresh_at
-            let nextRefreshAt: Date | null = null;
-            if (reward.type === 'scheme') {
-              const rewardSetting = await client.query(
-                `SELECT sr.quota_refresh_type, sr.quota_refresh_value, sr.quota_refresh_date, cs.activity_end_date
-                 FROM scheme_rewards sr
-                 JOIN card_schemes cs ON sr.scheme_id = cs.id
-                 WHERE sr.id = $1`,
-                [reward.id]
-              );
-              if (rewardSetting.rows[0]) {
-                const r = rewardSetting.rows[0];
-                nextRefreshAt = calculateNextRefreshTime(
-                  r.quota_refresh_type,
-                  r.quota_refresh_value,
-                  r.quota_refresh_date
-                    ? new Date(r.quota_refresh_date).toISOString().split('T')[0]
-                    : null,
-                  r.activity_end_date
-                    ? new Date(r.activity_end_date).toISOString().split('T')[0]
-                    : null
-                );
-              }
-            } else {
-              const rewardSetting = await client.query(
-                `SELECT quota_refresh_type, quota_refresh_value, quota_refresh_date
-                 FROM payment_rewards
-                 WHERE id = $1`,
-                [reward.id]
-              );
-              if (rewardSetting.rows[0]) {
-                const r = rewardSetting.rows[0];
-                nextRefreshAt = calculateNextRefreshTime(
-                  r.quota_refresh_type,
-                  r.quota_refresh_value,
-                  r.quota_refresh_date
-                    ? new Date(r.quota_refresh_date).toISOString().split('T')[0]
-                    : null,
-                  null
-                );
-              }
-            }
-
             // 創建新記錄
             const insertParams = reward.type === 'scheme' 
-              ? [validSchemeId, validPaymentMethodId, reward.id, null, newUsedQuota, newRemainingQuota, newCurrentAmount, nextRefreshAt]
-              : [null, validPaymentMethodId, null, reward.id, newUsedQuota, newRemainingQuota, newCurrentAmount, nextRefreshAt];
+              ? [validSchemeId, validPaymentMethodId, reward.id, null, newUsedQuota, newRemainingQuota, newCurrentAmount]
+              : [null, validPaymentMethodId, null, reward.id, newUsedQuota, newRemainingQuota, newCurrentAmount];
             
             await client.query(
               `INSERT INTO quota_trackings 
-               (scheme_id, payment_method_id, reward_id, payment_reward_id, used_quota, remaining_quota, current_amount, next_refresh_at)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+               (scheme_id, payment_method_id, reward_id, payment_reward_id, used_quota, remaining_quota, current_amount)
+               VALUES ($1, $2, $3, $4, $5, $6, $7)`,
               insertParams
             );
           }
@@ -276,7 +235,7 @@ router.post('/', validate(createTransactionSchema), async (req: Request, res: Re
       }
 
       await client.query('COMMIT');
-      return res.json({ success: true, data: transaction });
+      res.json({ success: true, data: transaction });
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
@@ -284,8 +243,7 @@ router.post('/', validate(createTransactionSchema), async (req: Request, res: Re
       client.release();
     }
   } catch (error) {
-    logger.error('新增交易失敗:', error);
-    return next(error);
+    res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
 
@@ -296,137 +254,5 @@ router.post('/', validate(createTransactionSchema), async (req: Request, res: Re
 // 補上 Delete 的簡單修正建議：
 // 在 delete 路由中，同樣需要判斷 basis。若是 statement，則回扣量 = calculateReward(total) - calculateReward(total - amount)。
 // 這與 calculateMarginalReward(total - amount, amount) 是等價的。
-
-// 刪除交易並回補額度
-router.delete('/:id', async (req: Request, res: Response, next: NextFunction) => {
-  const { id } = req.params;
-
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-
-    // 取得交易資料
-    const txResult = await client.query(
-      `SELECT id, amount, scheme_id, payment_method_id 
-       FROM transactions 
-       WHERE id = $1`,
-      [id]
-    );
-
-    if (txResult.rows.length === 0) {
-      await client.query('ROLLBACK');
-      return res.status(404).json({ success: false, error: '交易不存在' });
-    }
-
-    const tx = txResult.rows[0];
-    const amountNum = tx.amount ? parseFloat(tx.amount) : null;
-    const schemeId: string | null = tx.scheme_id || null;
-    const paymentMethodId: string | null = tx.payment_method_id || null;
-
-    // 若有金額且有綁定方案或支付方式，需回補額度
-    if (amountNum && (schemeId || paymentMethodId)) {
-      // 取得相關回饋組成
-      let schemeRewards: any[] = [];
-      if (schemeId) {
-        const resScheme = await client.query(
-          `SELECT id, reward_percentage, calculation_method, quota_limit, quota_calculation_basis
-           FROM scheme_rewards
-           WHERE scheme_id = $1
-           ORDER BY display_order`,
-          [schemeId]
-        );
-        schemeRewards = resScheme.rows.map((r) => ({ ...r, type: 'scheme' }));
-      }
-
-      let paymentRewards: any[] = [];
-      if (paymentMethodId) {
-        const resPay = await client.query(
-          `SELECT id, reward_percentage, calculation_method, quota_limit, quota_calculation_basis
-           FROM payment_rewards
-           WHERE payment_method_id = $1
-           ORDER BY display_order`,
-          [paymentMethodId]
-        );
-        paymentRewards = resPay.rows.map((r) => ({ ...r, type: 'payment' }));
-      }
-
-      const allRewards = [...schemeRewards, ...paymentRewards];
-
-      for (const reward of allRewards) {
-        const percentage = parseFloat(reward.reward_percentage);
-        const method = reward.calculation_method as CalculationMethod;
-        const basis = (reward.quota_calculation_basis || 'transaction') as QuotaCalculationBasis;
-
-        // 取得對應的 quota_tracking
-        let quotaQuery = '';
-        let quotaParams: any[] = [];
-
-        if (reward.type === 'scheme') {
-          quotaQuery = `
-            SELECT id, used_quota, remaining_quota, current_amount
-            FROM quota_trackings
-            WHERE scheme_id = $1 AND reward_id = $2
-              AND (payment_method_id = $3 OR (payment_method_id IS NULL AND $3 IS NULL))
-              AND payment_reward_id IS NULL`;
-          quotaParams = [schemeId, reward.id, paymentMethodId];
-        } else {
-          quotaQuery = `
-            SELECT id, used_quota, remaining_quota, current_amount
-            FROM quota_trackings
-            WHERE payment_method_id = $1
-              AND payment_reward_id = $2
-              AND scheme_id IS NULL`;
-          quotaParams = [paymentMethodId, reward.id];
-        }
-
-        const quotaResult = await client.query(quotaQuery, quotaParams);
-        if (quotaResult.rows.length === 0) {
-          // 沒有追蹤記錄，直接跳過
-          continue;
-        }
-
-        const quotaRow = quotaResult.rows[0];
-        const currentAmount = quotaRow.current_amount ? parseFloat(quotaRow.current_amount) : 0;
-        const currentUsed = quotaRow.used_quota ? parseFloat(quotaRow.used_quota) : 0;
-        const quotaLimit = reward.quota_limit ? parseFloat(reward.quota_limit) : null;
-
-        const newCurrentAmount = Math.max(0, currentAmount - amountNum);
-
-        let rollbackAmount = 0;
-        if (basis === 'statement') {
-          // 回補邊際回饋 = f(total) - f(total - amount)
-          rollbackAmount = calculateMarginalReward(newCurrentAmount, amountNum, percentage, method);
-        } else {
-          rollbackAmount = calculateReward(amountNum, percentage, method);
-        }
-
-        const newUsed = Math.max(0, currentUsed - rollbackAmount);
-        const newRemaining = quotaLimit !== null ? quotaLimit - newUsed : null;
-
-        await client.query(
-          `UPDATE quota_trackings
-           SET used_quota = $1,
-               remaining_quota = $2,
-               current_amount = $3,
-               updated_at = CURRENT_TIMESTAMP
-           WHERE id = $4`,
-          [newUsed, newRemaining, newCurrentAmount, quotaRow.id]
-        );
-      }
-    }
-
-    // 刪除交易
-    await client.query('DELETE FROM transactions WHERE id = $1', [id]);
-
-    await client.query('COMMIT');
-    return res.json({ success: true, message: '交易已刪除並回補額度' });
-  } catch (error) {
-    await client.query('ROLLBACK');
-    logger.error(`刪除交易失敗 ID ${id}:`, error);
-    return next(error);
-  } finally {
-    client.release();
-  }
-});
 
 export default router;

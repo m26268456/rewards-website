@@ -1,26 +1,22 @@
-import { Router, Request, Response, NextFunction } from 'express';
+import { Router, Request, Response } from 'express';
 import { pool } from '../config/database';
-import { logger } from '../utils/logger';
-import { validate } from '../middleware/validate';
-import { createCardSchema } from '../utils/validators';
 
 const router = Router();
 
 // 取得所有卡片（用於管理設定）
-router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
+router.get('/', async (req: Request, res: Response) => {
   try {
     const result = await pool.query(
       'SELECT id, name, note, display_order FROM cards ORDER BY display_order, created_at'
     );
-    return res.json({ success: true, data: result.rows });
+    res.json({ success: true, data: result.rows });
   } catch (error) {
-    logger.error('取得卡片列表失敗:', error);
-    return next(error);
+    res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
 
 // 新增卡片
-router.post('/', validate(createCardSchema), async (req: Request, res: Response, next: NextFunction) => {
+router.post('/', async (req: Request, res: Response) => {
   try {
     const { name, note, displayOrder } = req.body;
 
@@ -35,15 +31,14 @@ router.post('/', validate(createCardSchema), async (req: Request, res: Response,
       [name, note || null, displayOrder || 0]
     );
 
-    return res.json({ success: true, data: result.rows[0] });
+    res.json({ success: true, data: result.rows[0] });
   } catch (error) {
-    logger.error('新增卡片失敗:', error);
-    return next(error);
+    res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
 
 // 更新卡片
-router.put('/:id', validate(createCardSchema.partial()), async (req: Request, res: Response, next: NextFunction) => {
+router.put('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { name, note, displayOrder } = req.body;
@@ -60,15 +55,14 @@ router.put('/:id', validate(createCardSchema.partial()), async (req: Request, re
       return res.status(404).json({ success: false, error: '卡片不存在' });
     }
 
-    return res.json({ success: true, data: result.rows[0] });
+    res.json({ success: true, data: result.rows[0] });
   } catch (error) {
-    logger.error(`更新卡片失敗 ID ${req.params.id}:`, error);
-    return next(error);
+    res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
 
 // 刪除卡片
-router.delete('/:id', async (req: Request, res: Response, next: NextFunction) => {
+router.delete('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
@@ -78,10 +72,9 @@ router.delete('/:id', async (req: Request, res: Response, next: NextFunction) =>
       return res.status(404).json({ success: false, error: '卡片不存在' });
     }
 
-    return res.json({ success: true, message: '卡片已刪除' });
+    res.json({ success: true, message: '卡片已刪除' });
   } catch (error) {
-    logger.error(`刪除卡片失敗 ID ${req.params.id}:`, error);
-    return next(error);
+    res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
 

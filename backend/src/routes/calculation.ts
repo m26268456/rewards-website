@@ -1,13 +1,12 @@
-import { Router, Request, Response, NextFunction } from 'express';
+import { Router, Request, Response } from 'express';
 import { pool } from '../config/database';
 import { calculateTotalReward } from '../utils/rewardCalculation';
 import { CalculationMethod } from '../utils/types';
-import { logger } from '../utils/logger';
 
 const router = Router();
 
 // 回饋計算（不帶入方案）
-router.post('/calculate', async (req: Request, res: Response, next: NextFunction) => {
+router.post('/calculate', async (req: Request, res: Response) => {
   try {
     const { amount, rewards } = req.body;
 
@@ -26,15 +25,14 @@ router.post('/calculate', async (req: Request, res: Response, next: NextFunction
       }))
     );
 
-    return res.json({ success: true, data: calculation });
+    res.json({ success: true, data: calculation });
   } catch (error) {
-    logger.error('回饋計算失敗 (不帶方案):', error);
-    return next(error);
+    res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
 
 // 回饋計算（帶入方案）
-router.post('/calculate-with-scheme', async (req: Request, res: Response, next: NextFunction) => {
+router.post('/calculate-with-scheme', async (req: Request, res: Response) => {
   try {
     const { amount, schemeId, paymentMethodId } = req.body;
 
@@ -89,7 +87,7 @@ router.post('/calculate-with-scheme', async (req: Request, res: Response, next: 
     let quotaInfo: any[] = [];
     if (schemeId && rewardsResult) {
       quotaInfo = await Promise.all(
-        rewardsResult.rows.map(async (reward: any, idx: number) => {
+        rewardsResult.rows.map(async (reward: any) => {
           // quota_limit 應該從 scheme_rewards 表讀取，而不是 quota_trackings
           const quotaLimit = reward.quota_limit ? parseFloat(reward.quota_limit) : null;
           
@@ -104,10 +102,13 @@ router.post('/calculate-with-scheme', async (req: Request, res: Response, next: 
 
           const quota = quotaResult.rows[0];
           const remainingQuota = quota?.remaining_quota ? parseFloat(quota.remaining_quota) : null;
+          const usedQuota = quota?.used_quota ? parseFloat(quota.used_quota) : 0;
           const percentage = parseFloat(reward.reward_percentage);
 
           // 計算預估消費後的剩餘額度
-          const calculatedReward = calculation.breakdown[idx]?.calculatedReward || 0;
+          const calculatedReward = calculation.breakdown.find(
+            (b) => b.percentage === percentage
+          )?.calculatedReward || 0;
 
           // 當前餘額（如果有追蹤記錄，使用 remaining_quota；否則使用 quota_limit）
           let currentQuota: number | null = null;
@@ -147,7 +148,7 @@ router.post('/calculate-with-scheme', async (req: Request, res: Response, next: 
       );
     }
 
-    return res.json({
+    res.json({
       success: true,
       data: {
         ...calculation,
@@ -155,13 +156,12 @@ router.post('/calculate-with-scheme', async (req: Request, res: Response, next: 
       },
     });
   } catch (error) {
-    logger.error('回饋計算失敗 (帶方案):', error);
-    return next(error);
+    res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
 
 // 取得可用於計算的方案列表（從設定表）
-router.get('/schemes', async (_req: Request, res: Response, next: NextFunction) => {
+router.get('/schemes', async (req: Request, res: Response) => {
   try {
     // 從 calculation_schemes 表取得，按 display_order 排序
     const result = await pool.query(
@@ -197,10 +197,9 @@ router.get('/schemes', async (_req: Request, res: Response, next: NextFunction) 
       paymentId: r.payment_method_id,
     }));
 
-    return res.json({ success: true, data: schemes });
+    res.json({ success: true, data: schemes });
   } catch (error) {
-    logger.error('取得計算方案列表失敗:', error);
-    return next(error);
+    res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
 
