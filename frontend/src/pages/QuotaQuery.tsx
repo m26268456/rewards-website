@@ -19,6 +19,7 @@ interface QuotaInfo {
   cardName?: string | null;
   paymentMethodName?: string | null;
   schemeName?: string | null;
+  sharedRewardGroupId?: string | null;
 }
 
 export default function QuotaQuery() {
@@ -111,6 +112,22 @@ export default function QuotaQuery() {
   const renderQuotaTable = (quotaList: QuotaInfo[]) => {
     if (quotaList.length === 0) return null;
     
+    // 將共同回饋群組置頂
+    const groupedQuotas = quotaList.reduce((acc, quota) => {
+      const key = quota.sharedRewardGroupId || `solo-${quota.schemeId || quota.paymentMethodId}`;
+      if (!acc.has(key)) {
+        acc.set(key, []);
+      }
+      acc.get(key)!.push(quota);
+      return acc;
+    }, new Map<string, QuotaInfo[]>());
+
+    const sortedGroups = Array.from(groupedQuotas.entries()).sort(([a], [b]) => {
+      const aIsShared = a.startsWith('solo-') ? 1 : 0;
+      const bIsShared = b.startsWith('solo-') ? 1 : 0;
+      return aIsShared - bIsShared;
+    });
+    
     return (
       <div className="mb-4">
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
@@ -146,7 +163,9 @@ export default function QuotaQuery() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {quotaList.map((quota, quotaIndex) => {
+                {sortedGroups.map(([sharedKey, quotas]) => {
+                  const isSharedGroup = !sharedKey.startsWith('solo-');
+                  return quotas.map((quota, quotaIndex) => {
                   let validRewardIndices: number[] = [];
                   
                   if (quota.rewardIds && quota.rewardIds.length > 0) {
@@ -161,8 +180,10 @@ export default function QuotaQuery() {
                   }
                   
                   const rewardCount = validRewardIndices.length;
-                  const bgColor = quotaIndex % 2 === 0 ? 'bg-white' : 'bg-blue-50';
-                  const borderColor = quotaIndex % 2 === 0 ? 'border-gray-200' : 'border-blue-200';
+                  const bgColor = isSharedGroup 
+                    ? (quotaIndex % 2 === 0 ? 'bg-blue-50' : 'bg-blue-100')
+                    : (quotaIndex % 2 === 0 ? 'bg-white' : 'bg-blue-50');
+                  const borderColor = isSharedGroup ? 'border-blue-300' : (quotaIndex % 2 === 0 ? 'border-gray-200' : 'border-blue-200');
                   
                   return validRewardIndices.map((originalIndex, displayIndex) => {
                     const isFirstRow = displayIndex === 0;
@@ -182,13 +203,18 @@ export default function QuotaQuery() {
                     const referenceAmount = quota.referenceAmounts?.[originalIndex] ?? null;
                     
                     return (
-                      <tr key={`${quotaIndex}-${originalIndex}`} className={`${bgColor} ${borderColor} border-l-4 hover:bg-blue-100 transition-colors`}>
+                      <tr key={`${sharedKey}-${quotaIndex}-${originalIndex}`} className={`${bgColor} ${borderColor} border-l-4 hover:bg-blue-100 transition-colors`}>
                         {isFirstRow && (
                           <td
                             className={`px-4 py-3 text-sm font-medium sticky left-0 ${bgColor} z-10 border-r border-gray-200`}
                             rowSpan={rewardCount}
                           >
                             <div className="font-semibold text-gray-900">{quota.name}</div>
+                            {quota.sharedRewardGroupId && (
+                              <div className="text-[11px] text-blue-700 bg-blue-50 border border-blue-100 rounded px-2 py-1 inline-block mt-1">
+                                共用回饋
+                              </div>
+                            )}
                           </td>
                         )}
                         <td className="px-4 py-3 text-sm">
@@ -215,6 +241,7 @@ export default function QuotaQuery() {
                         </td>
                       </tr>
                     );
+                  });
                   });
                 })}
               </tbody>

@@ -197,7 +197,12 @@ export default function QuotaManagement() {
       }
       map.get(key)!.push(item);
     });
-    return order.map(k => ({ key: k, items: map.get(k)! }));
+    // 將有共同回饋的群組置頂
+    return order.sort((a, b) => {
+      const aIsShared = a.startsWith('solo-') ? 1 : 0;
+      const bIsShared = b.startsWith('solo-') ? 1 : 0;
+      return aIsShared - bIsShared; // 共同回饋群組 (0) 排在前面，單獨項目 (1) 排在後面
+    }).map(k => ({ key: k, items: map.get(k)! }));
   };
 
   const renderTable = (list: any[], groupKey: string) => (
@@ -216,6 +221,7 @@ export default function QuotaManagement() {
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {groupByShared(list).map(({ key: sharedKey, items }) => {
+              const isSharedGroup = !sharedKey.startsWith('solo-');
               return items.map((q) => {
               const rewardIndices = q.rewardIds.map((_: any, i: number) => i);
               return rewardIndices.map((rIdx: number) => {
@@ -229,13 +235,19 @@ export default function QuotaManagement() {
                 const basis = q.quotaCalculationBases?.[rIdx] || 'transaction';
                 const basisText = basis === 'statement' ? '帳單總額' : '單筆回饋';
 
+                // 共同回饋群組使用特殊底色
+                const rowBgColor = isSharedGroup 
+                  ? (rIdx % 2 === 0 ? 'bg-blue-50' : 'bg-blue-100')
+                  : (rIdx % 2 === 0 ? 'bg-white' : 'bg-gray-50');
+                const rowBorderColor = isSharedGroup ? 'border-blue-300' : 'border-blue-100';
+
                 return (
                   <tr
                     key={`${sharedKey}-${q.__index}-${rIdx}`}
-                    className={`${rIdx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} border-l-4 border-blue-100 hover:bg-blue-50 transition-colors`}
+                    className={`${rowBgColor} border-l-4 ${rowBorderColor} hover:bg-blue-50 transition-colors`}
                   >
                     {isFirst && (
-                      <td rowSpan={rewardIndices.length} className="px-4 py-3 text-sm font-medium sticky left-0 bg-white z-10 border-r border-gray-200 align-top">
+                      <td rowSpan={rewardIndices.length} className={`px-4 py-3 text-sm font-medium sticky left-0 ${rowBgColor} z-10 border-r border-gray-200 align-top`}>
                         <div className="space-y-1">
                           <div>{q.name}</div>
                           {sharedBound && (
@@ -247,11 +259,46 @@ export default function QuotaManagement() {
                       </td>
                     )}
                     <td className="px-4 py-3 text-sm align-top">
-                      <span className="bg-orange-100 px-1 rounded font-bold">{q.rewardComposition.split('/')[rIdx]}</span>
+                      {isEditingR ? (
+                        <div className="space-y-2">
+                          <input 
+                            value={rewardForm.percentage} 
+                            onChange={e => setRewardForm({...rewardForm, percentage: e.target.value})} 
+                            className="w-full border p-1 rounded text-xs" 
+                            placeholder="%" 
+                          />
+                        </div>
+                      ) : (
+                        <span className="bg-orange-100 px-1 rounded font-bold">{q.rewardComposition.split('/')[rIdx]}</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-xs align-top space-y-1 text-gray-700">
-                      <div>{methodText}</div>
-                      <div className="text-[11px] text-purple-700 border border-purple-200 rounded px-1 inline-block">{basisText}</div>
+                      {isEditingR ? (
+                        <div className="space-y-2">
+                          <select 
+                            value={rewardForm.method} 
+                            onChange={e => setRewardForm({...rewardForm, method: e.target.value})} 
+                            className="w-full border p-1 rounded text-xs"
+                          >
+                            <option value="round">四捨五入</option>
+                            <option value="floor">無條件捨去</option>
+                            <option value="ceil">無條件進位</option>
+                          </select>
+                          <select 
+                            value={rewardForm.calculationBasis} 
+                            onChange={e => setRewardForm({...rewardForm, calculationBasis: e.target.value})} 
+                            className="w-full border p-1 rounded text-xs bg-yellow-50"
+                          >
+                            <option value="transaction">單筆回饋</option>
+                            <option value="statement">帳單總額</option>
+                          </select>
+                        </div>
+                      ) : (
+                        <>
+                          <div>{methodText}</div>
+                          <div className="text-[11px] text-purple-700 border border-purple-200 rounded px-1 inline-block">{basisText}</div>
+                        </>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-sm align-top">
                       {formatQuotaInfo(
@@ -266,10 +313,61 @@ export default function QuotaManagement() {
                       )}
                     </td>
                     <td className="px-4 py-3 text-sm align-top">
-                      {q.refreshTimes?.[rIdx] || '-'}
+                      {isEditingR ? (
+                        <div className="space-y-2">
+                          <select 
+                            value={rewardForm.refreshType} 
+                            onChange={e => setRewardForm({...rewardForm, refreshType: e.target.value, refreshValue: '', refreshDate: ''})} 
+                            className="w-full border p-1 rounded text-xs"
+                          >
+                            <option value="">不刷新</option>
+                            <option value="monthly">每月OO號</option>
+                            <option value="date">指定日期</option>
+                            <option value="activity">活動結束</option>
+                          </select>
+                          {rewardForm.refreshType === 'monthly' && (
+                            <input 
+                              type="number" 
+                              min="1" 
+                              max="28" 
+                              value={rewardForm.refreshValue} 
+                              onChange={e => {
+                                const val = e.target.value;
+                                const num = parseInt(val);
+                                if (val === '' || (num >= 1 && num <= 28)) {
+                                  setRewardForm({...rewardForm, refreshValue: val});
+                                }
+                              }} 
+                              className="w-full border p-1 rounded text-xs" 
+                              placeholder="1-28號" 
+                            />
+                          )}
+                          {rewardForm.refreshType === 'date' && (
+                            <input 
+                              type="date" 
+                              value={rewardForm.refreshDate} 
+                              onChange={e => setRewardForm({...rewardForm, refreshDate: e.target.value})} 
+                              className="w-full border p-1 rounded text-xs" 
+                            />
+                          )}
+                          <input 
+                            value={rewardForm.limit} 
+                            onChange={e => setRewardForm({...rewardForm, limit: e.target.value})} 
+                            className="w-full border p-1 rounded text-xs" 
+                            placeholder="上限" 
+                          />
+                        </div>
+                      ) : (
+                        <div>{q.refreshTimes?.[rIdx] || '-'}</div>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-sm align-top">
-                      {!isEditingQ && !isEditingR && (
+                      {isEditingR ? (
+                        <div className="flex flex-col gap-1">
+                          <button onClick={handleRewardSave} className="bg-blue-500 text-white px-2 py-1 rounded text-xs">儲存</button>
+                          <button onClick={() => setEditingReward(null)} className="bg-gray-300 px-2 py-1 rounded text-xs">取消</button>
+                        </div>
+                      ) : !isEditingQ && (
                         <div className="flex flex-col gap-1">
                           <button onClick={() => { setEditingQuota({ idx: q.__index, rIdx, group: groupKey }); setQuotaAdjust(''); }} className="text-yellow-600 text-xs border border-yellow-600 rounded px-1 hover:bg-yellow-50">調額</button>
                           <button onClick={() => handleRewardEdit(q.__index, rIdx, groupKey)} className="text-purple-600 text-xs border border-purple-600 rounded px-1 hover:bg-purple-50">設定</button>
