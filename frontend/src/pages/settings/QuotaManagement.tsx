@@ -542,7 +542,7 @@ export default function QuotaManagement() {
                 取消
               </button>
                   <button
-                    onClick={() => handleBindShared(selectedSharedGroup)}
+                    onClick={() => handleBindShared(selectedSharedGroups)}
                     className="px-3 py-1 bg-blue-600 text-white rounded text-sm"
                   >
                     確認
