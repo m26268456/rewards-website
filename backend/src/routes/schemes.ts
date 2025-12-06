@@ -387,7 +387,7 @@ router.put('/:id/batch', async (req: Request, res: Response, next: NextFunction)
 
       await setSharedRewardGroupMapping(id, sharedRewardGroupId || null, client);
 
-      // 2. 批量更新通路設定
+      // 2. 批量更新通路設定（保留輸入順序）
       await client.query('DELETE FROM scheme_channel_applications WHERE scheme_id = $1', [id]);
 
       if (applications && Array.isArray(applications) && applications.length > 0) {
@@ -395,11 +395,11 @@ router.put('/:id/batch', async (req: Request, res: Response, next: NextFunction)
         if (validApps.length > 0) {
           for (let i = 0; i < validApps.length; i++) {
             const app = validApps[i];
-            const params = [id, app.channelId, app.note || null];
+            const params = [id, app.channelId, app.note || null, i];
             await client.query(
-              `INSERT INTO scheme_channel_applications (scheme_id, channel_id, note)
-               VALUES ($1::uuid, $2::uuid, $3::text)
-               ON CONFLICT (scheme_id, channel_id) DO UPDATE SET note = EXCLUDED.note`,
+              `INSERT INTO scheme_channel_applications (scheme_id, channel_id, note, display_order)
+               VALUES ($1::uuid, $2::uuid, $3::text, $4::integer)
+               ON CONFLICT (scheme_id, channel_id) DO UPDATE SET note = EXCLUDED.note, display_order = EXCLUDED.display_order`,
               params
             );
           }
@@ -501,7 +501,7 @@ router.get('/:id/details', async (req: Request, res: Response, next: NextFunctio
        FROM scheme_channel_applications sca
        JOIN channels c ON sca.channel_id = c.id
        WHERE sca.scheme_id = $1
-       ORDER BY sca.created_at`,
+       ORDER BY sca.display_order NULLS LAST, sca.created_at`,
       [id]
     );
 

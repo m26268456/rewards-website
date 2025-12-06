@@ -121,6 +121,7 @@ CREATE TABLE scheme_channel_applications (
     scheme_id UUID NOT NULL REFERENCES card_schemes(id) ON DELETE CASCADE,
     channel_id UUID NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
     note TEXT, -- 該通路在此方案下的備註
+    display_order INTEGER, -- 顯示順序
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(scheme_id, channel_id)

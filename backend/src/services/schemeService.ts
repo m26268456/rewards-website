@@ -71,7 +71,7 @@ export async function getAllCardsWithSchemes(): Promise<
       LEFT JOIN quota_trackings qt ON cs.id = qt.scheme_id 
         AND sr.id = qt.reward_id 
         AND qt.payment_method_id IS NULL
-      ORDER BY c.display_order, c.created_at, cs.display_order, cs.created_at, sr.display_order, sca.created_at
+      ORDER BY c.display_order, c.created_at, cs.display_order, cs.created_at, sr.display_order, sca.display_order NULLS LAST, sca.created_at
     `);
 
     // 組織資料結構
