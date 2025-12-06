@@ -55,6 +55,37 @@ export default function QuotaManagement() {
     return () => clearInterval(timer);
   }, []);
 
+  // 處理 ESC 鍵和手機返回鍵關閉綁定視窗
+  useEffect(() => {
+    if (!bindingTarget) return;
+
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setBindingTarget(null);
+        setSelectedSharedGroups([]);
+      }
+    };
+
+    const handlePopState = () => {
+      setBindingTarget(null);
+      setSelectedSharedGroups([]);
+    };
+
+    window.addEventListener('keydown', handleEscape);
+    window.addEventListener('popstate', handlePopState);
+    
+    // 添加歷史記錄以便手機返回鍵可以關閉
+    window.history.pushState({ modal: true }, '');
+
+    return () => {
+      window.removeEventListener('keydown', handleEscape);
+      window.removeEventListener('popstate', handlePopState);
+      if (window.history.state?.modal) {
+        window.history.back();
+      }
+    };
+  }, [bindingTarget]);
+
   const loadQuotas = async () => {
     try {
       const res = await api.get('/quota');
@@ -492,16 +523,22 @@ export default function QuotaManagement() {
                                   setBindingTarget({ idx: primary.__index, group: groupKey }); 
                                   const current = quotas.find(q => q.__index === primary.__index);
                                   
-                                  // 如果有現有綁定，預設選中其他群組成員（排除自己）；否則預設為不綁定
+                                  // 如果有現有綁定，預設選中 root 方案和所有其他群組成員（排除自己）；否則預設為不綁定
                                   const preset = current?.sharedRewardGroupId
-                                    ? quotas
-                                        .filter(x => 
-                                          (x.sharedRewardGroupId === current.sharedRewardGroupId || 
-                                           x.schemeId === current.sharedRewardGroupId) && 
-                                          x.schemeId &&
-                                          x.schemeId !== current.schemeId // 排除當前方案自己
-                                        )
-                                        .map(x => x.schemeId)
+                                    ? (() => {
+                                        const rootId = current.sharedRewardGroupId;
+                                        const groupMembers = quotas
+                                          .filter(x => 
+                                            (x.sharedRewardGroupId === rootId || 
+                                             x.schemeId === rootId) && 
+                                            x.schemeId &&
+                                            x.schemeId !== current.schemeId // 排除當前方案自己
+                                          )
+                                          .map(x => x.schemeId);
+                                        // 如果 root 方案在候選列表中，也要加入
+                                        const rootInCandidates = sharedGroupOptions.some(opt => opt.id === rootId);
+                                        return rootInCandidates ? [rootId, ...groupMembers] : groupMembers;
+                                      })()
                                     : []; // 沒有綁定時，預設為空陣列（不綁定）
                                   
                                   setSelectedSharedGroups(preset);
@@ -577,8 +614,20 @@ export default function QuotaManagement() {
       )}
 
       {bindingTarget && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-lg p-4 w-96 max-h-[80vh] overflow-y-auto">
+        <div 
+          className="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
+          onClick={(e) => {
+            // 點擊空白處關閉視窗
+            if (e.target === e.currentTarget) {
+              setBindingTarget(null);
+              setSelectedSharedGroups([]);
+            }
+          }}
+        >
+          <div 
+            className="bg-white rounded-lg shadow-lg p-4 w-96 max-h-[80vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h4 className="font-semibold mb-3 text-gray-800">回饋綁定</h4>
             {(() => {
               const current = quotas[bindingTarget.idx];
