@@ -3,6 +3,7 @@ import { pool } from '../config/database';
 import { calculateMarginalReward, calculateReward } from '../utils/rewardCalculation';
 import { calculateNextRefreshTime } from '../utils/quotaRefresh';
 import { CalculationMethod, QuotaCalculationBasis } from '../utils/types';
+import { resolveSharedRewardTargetSchemeId } from '../services/sharedRewardMapping';
 import { logger } from '../utils/logger';
 import { validate } from '../middleware/validate';
 import { createTransactionSchema } from '../utils/validators';
@@ -116,13 +117,15 @@ router.post('/', validate(createTransactionSchema), async (req: Request, res: Re
 
         // 取得 Scheme Rewards (如果有)
         let schemeRewards: any[] = [];
+        let targetSchemeId: string | null = null;
         if (validSchemeId) {
+          targetSchemeId = await resolveSharedRewardTargetSchemeId(validSchemeId, client);
           const res = await client.query(
             `SELECT id, reward_percentage, calculation_method, quota_limit, 
                     quota_calculation_basis
              FROM scheme_rewards 
              WHERE scheme_id = $1 ORDER BY display_order`,
-            [validSchemeId]
+            [targetSchemeId]
           );
           schemeRewards = res.rows.map(r => ({ ...r, type: 'scheme' }));
         }
@@ -160,7 +163,7 @@ router.post('/', validate(createTransactionSchema), async (req: Request, res: Re
               WHERE scheme_id = $1 AND reward_id = $2 
               AND (payment_method_id = $3 OR (payment_method_id IS NULL AND $3 IS NULL))
               AND payment_reward_id IS NULL`;
-            quotaParams = [validSchemeId, reward.id, validPaymentMethodId];
+            quotaParams = [targetSchemeId, reward.id, validPaymentMethodId];
           } else {
             // Payment reward
             quotaQuery = `
@@ -379,7 +382,11 @@ router.delete('/:id', async (req: Request, res: Response, next: NextFunction) =>
           quotaParams = [paymentMethodId, reward.id];
         }
 
-        const quotaResult = await client.query(quotaQuery, quotaParams);
+        // 只計算未過期的追蹤；若過期則當作沒有記錄
+        const quotaResult = await client.query(
+          `${quotaQuery} AND (next_refresh_at IS NULL OR next_refresh_at >= NOW())`,
+          quotaParams
+        );
         if (quotaResult.rows.length === 0) {
           // 沒有追蹤記錄，直接跳過
           continue;
