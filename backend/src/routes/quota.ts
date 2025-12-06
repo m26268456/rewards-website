@@ -183,6 +183,7 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
 
     const processRow = (row: QuotaDbRow) => {
       const key = `${row.scheme_id || 'null'}_${row.payment_method_id || 'null'}`;
+      const rootSchemeId = row.shared_reward_group_id || row.scheme_id || null;
       const percentage = Number(row.reward_percentage);
       const usedQuota = row.used_quota ? Number(row.used_quota) : 0;
       const currentAmount = row.current_amount ? Number(row.current_amount) : 0;
@@ -202,6 +203,7 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
           paymentMethodName: row.payment_method_name || null,
           schemeName: row.scheme_name || null,
           sharedRewardGroupId: row.shared_reward_group_id || null,
+        rewardSourceSchemeId: row.scheme_id ? rootSchemeId : null,
           rewards: [],
         });
       }
@@ -283,6 +285,7 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
         paymentMethodName: quota.paymentMethodName,
         schemeName: quota.schemeName,
         sharedRewardGroupId: quota.sharedRewardGroupId,
+        rewardSourceSchemeId: quota.rewardSourceSchemeId || null,
         rewardComposition: quota.rewards.map((r: any) => `${r.percentage}%`).join('/'),
         calculationMethods: quota.rewards.map((r: any) => r.calculationMethod),
         quotaLimits: quota.rewards.map((r: any) => r.quotaLimit),

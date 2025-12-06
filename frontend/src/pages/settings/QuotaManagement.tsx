@@ -85,6 +85,7 @@ export default function QuotaManagement() {
   const handleQuotaSave = async () => {
     if (!editingQuota) return;
     const q = quotas[editingQuota.idx];
+    const targetSchemeId = q.rewardSourceSchemeId || q.sharedRewardGroupId || q.schemeId;
     const rewardId = q.rewardIds[editingQuota.rIdx];
     
     let adjustment = 0;
@@ -99,7 +100,7 @@ export default function QuotaManagement() {
     const newRemaining = limit !== null ? Math.max(0, limit - newUsed) : null;
 
     try {
-      await api.put(`/quota/${q.schemeId || 'null'}`, {
+      await api.put(`/quota/${targetSchemeId || 'null'}`, {
         paymentMethodId: q.paymentMethodId,
         rewardId,
         usedQuota: newUsed,
@@ -135,9 +136,10 @@ export default function QuotaManagement() {
   const handleRewardSave = async () => {
     if (!editingReward) return;
     const q = quotas[editingReward.idx];
+    const targetSchemeId = q.rewardSourceSchemeId || q.sharedRewardGroupId || q.schemeId;
     const rewardId = q.rewardIds[editingReward.rIdx];
     const endpoint = q.schemeId 
-      ? `/schemes/${q.schemeId}/rewards/${rewardId}`
+      ? `/schemes/${targetSchemeId}/rewards/${rewardId}`
       : `/payment-methods/${q.paymentMethodId}/rewards/${rewardId}`;
 
     try {
@@ -175,9 +177,13 @@ export default function QuotaManagement() {
       return;
     }
 
-    // 確保包含當前方案
-    const toBind = ids.includes(currentSchemeId) ? ids : [currentSchemeId, ...ids];
-    const rootId = toBind[0];
+    // 確保包含當前方案與既有 root，根據 sharedRewardGroupId 決定 root
+    const preferredRoot = current.sharedRewardGroupId || ids[0] || currentSchemeId;
+    const toBindSet = new Set(ids);
+    toBindSet.add(currentSchemeId);
+    toBindSet.add(preferredRoot);
+    const toBind = Array.from(toBindSet);
+    const rootId = preferredRoot;
 
     try {
       await Promise.all(
@@ -402,6 +408,11 @@ export default function QuotaManagement() {
                     <td className="px-4 py-3 text-sm align-top">
                       {isEditingR ? (
                         <div className="flex flex-col gap-1">
+                          {sharedBound && (
+                            <div className="text-[11px] text-blue-700 bg-blue-50 border border-blue-100 rounded px-2 py-1">
+                              共用回饋：此變更會影響同組方案
+                            </div>
+                          )}
                           <button onClick={handleRewardSave} className="bg-blue-500 text-white px-2 py-1 rounded text-xs">儲存</button>
                           <button onClick={() => setEditingReward(null)} className="bg-gray-300 px-2 py-1 rounded text-xs">取消</button>
                         </div>
@@ -422,9 +433,13 @@ export default function QuotaManagement() {
                               onClick={() => { 
                                 setBindingTarget({ idx: primary.__index, group: groupKey }); 
                                 const current = quotas.find(q => q.__index === primary.__index);
-                                const preset = current?.sharedRewardGroupId
+                                const rootId = current?.sharedRewardGroupId || current?.rewardSourceSchemeId || current?.schemeId;
+                                const groupMembers = current?.sharedRewardGroupId
                                   ? quotas.filter(x => x.sharedRewardGroupId === current.sharedRewardGroupId && x.schemeId).map(x => x.schemeId)
                                   : (current?.schemeId ? [current.schemeId] : []);
+                                const preset = rootId
+                                  ? Array.from(new Set([rootId, ...groupMembers]))
+                                  : groupMembers;
                                 setSelectedSharedGroups(preset);
                               }}
                               className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
