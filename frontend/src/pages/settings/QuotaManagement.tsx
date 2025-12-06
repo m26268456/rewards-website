@@ -160,11 +160,29 @@ export default function QuotaManagement() {
   // 綁定共同回饋群組（多選）
   const handleBindShared = async (overrideIds?: string[]) => {
     if (!bindingTarget) return;
-    const q = quotas[bindingTarget.idx];
-    if (!q.schemeId) return alert('僅信用卡方案可綁定共同回饋');
-    const bindIds = overrideIds !== undefined ? overrideIds : selectedSharedGroups;
+    const current = quotas[bindingTarget.idx];
+    const currentSchemeId = current.schemeId;
+    if (!currentSchemeId) return alert('僅信用卡方案可綁定共同回饋');
+
+    const ids = overrideIds !== undefined ? overrideIds : selectedSharedGroups;
+    // 若沒選任何，僅解除當前方案
+    if (!ids || ids.length === 0) {
+      await api.put(`/schemes/${currentSchemeId}/shared-reward`, { sharedRewardGroupId: null });
+      setBindingTarget(null);
+      setSelectedSharedGroups([]);
+      await loadQuotas();
+      alert('共同回饋已解除');
+      return;
+    }
+
+    // 確保包含當前方案
+    const toBind = ids.includes(currentSchemeId) ? ids : [currentSchemeId, ...ids];
+    const rootId = toBind[0];
+
     try {
-      await api.put(`/schemes/${q.schemeId}/shared-reward`, { sharedRewardGroupIds: bindIds });
+      await Promise.all(
+        toBind.map(id => api.put(`/schemes/${id}/shared-reward`, { sharedRewardGroupId: id === rootId ? null : rootId }))
+      );
       alert('共同回饋綁定已更新');
       setBindingTarget(null);
       setSelectedSharedGroups([]);
@@ -395,18 +413,21 @@ export default function QuotaManagement() {
                               setEditingQuota({ idx: primary.__index, rIdx, group: groupKey });
                               setQuotaAdjust('');
                             }} 
-                            className="px-2 py-1 text-xs border border-blue-600 text-blue-600 rounded hover:bg-blue-50"
+                            className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
                           >
-                            設定/調額
+                            編輯
                           </button>
                           {isCardScheme && (
                             <button
                               onClick={() => { 
                                 setBindingTarget({ idx: primary.__index, group: groupKey }); 
-                                const preset = primary.sharedRewardGroupId ? [primary.sharedRewardGroupId] : [];
+                                const current = quotas.find(q => q.__index === primary.__index);
+                                const preset = current?.sharedRewardGroupId
+                                  ? quotas.filter(x => x.sharedRewardGroupId === current.sharedRewardGroupId && x.schemeId).map(x => x.schemeId)
+                                  : (current?.schemeId ? [current.schemeId] : []);
                                 setSelectedSharedGroups(preset);
                               }}
-                              className="px-2 py-1 text-xs border border-blue-600 text-blue-600 rounded hover:bg-blue-50"
+                              className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
                             >
                               回饋綁定
                             </button>
@@ -521,7 +542,7 @@ export default function QuotaManagement() {
                 取消
               </button>
                   <button
-                    onClick={() => handleBindShared(selectedSharedGroups)}
+                    onClick={() => handleBindShared(selectedSharedGroup)}
                     className="px-3 py-1 bg-blue-600 text-white rounded text-sm"
                   >
                     確認
