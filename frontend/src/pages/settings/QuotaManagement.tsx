@@ -169,7 +169,13 @@ export default function QuotaManagement() {
     const ids = overrideIds !== undefined ? overrideIds : selectedSharedGroups;
     // 若沒選任何，僅解除當前方案
     if (!ids || ids.length === 0) {
-      await api.put(`/schemes/${currentSchemeId}/shared-reward`, { sharedRewardGroupId: null });
+      const groupRootId = current.sharedRewardGroupId || current.schemeId;
+      const groupMembers = quotas
+        .filter(q => q.schemeId && (q.sharedRewardGroupId === groupRootId || q.schemeId === groupRootId))
+        .map(q => q.schemeId);
+      await Promise.all(
+        groupMembers.map(id => api.put(`/schemes/${id}/shared-reward`, { sharedRewardGroupId: null }))
+      );
       setBindingTarget(null);
       setSelectedSharedGroups([]);
       await loadQuotas();
@@ -178,16 +184,24 @@ export default function QuotaManagement() {
     }
 
     // 確保包含當前方案與既有 root，根據 sharedRewardGroupId 決定 root
+    const currentGroupRoot = current.sharedRewardGroupId || current.schemeId;
     const preferredRoot = current.sharedRewardGroupId || ids[0] || currentSchemeId;
     const toBindSet = new Set(ids);
     toBindSet.add(currentSchemeId);
     toBindSet.add(preferredRoot);
     const toBind = Array.from(toBindSet);
     const rootId = preferredRoot;
+    const existingGroupMembers = quotas
+      .filter(q => q.schemeId && (q.sharedRewardGroupId === currentGroupRoot || q.schemeId === currentGroupRoot))
+      .map(q => q.schemeId);
+    const toRemove = existingGroupMembers.filter(id => !toBindSet.has(id));
 
     try {
       await Promise.all(
-        toBind.map(id => api.put(`/schemes/${id}/shared-reward`, { sharedRewardGroupId: id === rootId ? null : rootId }))
+        [
+          ...toRemove.map(id => api.put(`/schemes/${id}/shared-reward`, { sharedRewardGroupId: null })),
+          ...toBind.map(id => api.put(`/schemes/${id}/shared-reward`, { sharedRewardGroupId: id === rootId ? null : rootId })),
+        ]
       );
       alert('共同回饋綁定已更新');
       setBindingTarget(null);
@@ -265,6 +279,7 @@ export default function QuotaManagement() {
                 const isEditingR = editingReward?.idx === primary.__index && editingReward?.rIdx === rIdx;
                 const isCardScheme = primary.schemeId && !primary.paymentMethodId;
                 const sharedBound = primary.sharedRewardGroupId && primary.sharedRewardGroupId !== primary.schemeId ? primary.sharedRewardGroupId : null;
+                const isSharedChild = !!sharedBound;
 
                 const methodRaw = primary.calculationMethods[rIdx];
                 const methodText =
@@ -418,34 +433,42 @@ export default function QuotaManagement() {
                         </div>
                       ) : !isEditingQ && (
                         <div className="flex flex-col gap-1">
-                          <button
-                            onClick={() => { 
-                              setEditingReward({ idx: primary.__index, rIdx, group: groupKey }); 
-                              setEditingQuota({ idx: primary.__index, rIdx, group: groupKey });
-                              setQuotaAdjust('');
-                            }} 
-                            className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
-                          >
-                            編輯
-                          </button>
-                          {isCardScheme && (
-                            <button
-                              onClick={() => { 
-                                setBindingTarget({ idx: primary.__index, group: groupKey }); 
-                                const current = quotas.find(q => q.__index === primary.__index);
-                                const rootId = current?.sharedRewardGroupId || current?.rewardSourceSchemeId || current?.schemeId;
-                                const groupMembers = current?.sharedRewardGroupId
-                                  ? quotas.filter(x => x.sharedRewardGroupId === current.sharedRewardGroupId && x.schemeId).map(x => x.schemeId)
-                                  : (current?.schemeId ? [current.schemeId] : []);
-                                const preset = rootId
-                                  ? Array.from(new Set([rootId, ...groupMembers]))
-                                  : groupMembers;
-                                setSelectedSharedGroups(preset);
-                              }}
-                              className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
-                            >
-                              回饋綁定
-                            </button>
+                          {!isSharedChild ? (
+                            <>
+                              <button
+                                onClick={() => { 
+                                  setEditingReward({ idx: primary.__index, rIdx, group: groupKey }); 
+                                  setEditingQuota({ idx: primary.__index, rIdx, group: groupKey });
+                                  setQuotaAdjust('');
+                                }} 
+                                className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                              >
+                                編輯
+                              </button>
+                              {isCardScheme && (
+                                <button
+                                  onClick={() => { 
+                                    setBindingTarget({ idx: primary.__index, group: groupKey }); 
+                                    const current = quotas.find(q => q.__index === primary.__index);
+                                    const rootId = current?.sharedRewardGroupId || current?.rewardSourceSchemeId || current?.schemeId;
+                                    const groupMembers = current?.sharedRewardGroupId
+                                      ? quotas.filter(x => x.sharedRewardGroupId === current.sharedRewardGroupId || x.schemeId === current.sharedRewardGroupId).map(x => x.schemeId)
+                                      : (current?.schemeId ? [current.schemeId] : []);
+                                    const preset = rootId
+                                      ? Array.from(new Set([rootId, ...groupMembers]))
+                                      : groupMembers;
+                                    setSelectedSharedGroups(preset);
+                                  }}
+                                  className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                                >
+                                  回饋綁定
+                                </button>
+                              )}
+                            </>
+                          ) : (
+                            <div className="text-xs text-blue-600 bg-blue-50 border border-blue-100 rounded px-2 py-1">
+                              共用回饋（由主方案管理）
+                            </div>
                           )}
                         </div>
                       )}
