@@ -107,6 +107,14 @@ export default function Transactions() {
       return;
     }
 
+    // 金額可留空；若填寫則允許正負整數
+    const amountNum =
+      formData.amount === '' ? null : parseInt(formData.amount, 10);
+    if (formData.amount !== '' && Number.isNaN(amountNum)) {
+      alert('請輸入有效的金額（可輸入正負整數，或留空）');
+      return;
+    }
+
     try {
       const selectedScheme = schemes.find(s => s.id === formData.schemeId);
       let submitSchemeId: string | undefined;
@@ -125,6 +133,7 @@ export default function Transactions() {
 
       await api.post('/transactions', {
         ...formData,
+        amount: amountNum,
         schemeId: submitSchemeId,
         paymentMethodId: submitPaymentMethodId,
       });

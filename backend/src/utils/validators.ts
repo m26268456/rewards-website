@@ -66,7 +66,8 @@ export const updatePaymentMethodSchema = createPaymentMethodSchema.partial().ext
 export const createTransactionSchema = z.object({
   transactionDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   reason: z.string().min(1).max(200),
-  amount: z.number().min(0),
+  // 金額可空，允許正負整數；使用 coerce 以容忍前端字串
+  amount: z.coerce.number().int().optional().nullable(),
   typeId: z.string().uuid(),
   note: z.string().max(500).optional().nullable(),
   schemeId: z.string().uuid().optional().nullable(),
