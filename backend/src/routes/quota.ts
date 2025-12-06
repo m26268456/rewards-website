@@ -253,16 +253,22 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
       const rootId = row.shared_reward_group_id || row.scheme_id || '';
       const sourceRows = rootRowsMap.get(rootId);
       if (sourceRows && sourceRows.length > 0) {
-        sourceRows.forEach((src) => {
+        // 以 root 行為基底（若找不到 root 行則取第一筆）供整組共享
+        const rootSource =
+          sourceRows.find((s) => s.scheme_id === rootId) ||
+          sourceRows.find((s) => s.shared_reward_group_id === null) ||
+          sourceRows[0];
+
+        sourceRows.forEach((member) => {
           expandedSchemeRows.push({
-            ...src,
-            scheme_id: row.scheme_id,               // 保留當前方案 id 以供前端顯示
-            scheme_name: row.scheme_name,
-            name: row.name,
-            card_id: row.card_id,
-            card_name: row.card_name,
-            // 只有真的綁定時才帶出 shared_reward_group_id，避免所有方案都被當成共用
-            shared_reward_group_id: row.shared_reward_group_id || null,
+            ...rootSource,
+            scheme_id: member.scheme_id, // 前端顯示用：各自方案 id
+            scheme_name: member.scheme_name,
+            name: member.name,
+            card_id: member.card_id,
+            card_name: member.card_name,
+            // 只有綁定時帶出 root；未綁定保持 null
+            shared_reward_group_id: member.shared_reward_group_id || null,
           });
         });
       } else {
