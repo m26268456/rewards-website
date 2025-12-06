@@ -222,34 +222,46 @@ export default function QuotaManagement() {
           <tbody className="bg-white divide-y divide-gray-200">
             {groupByShared(list).map(({ key: sharedKey, items }) => {
               const isSharedGroup = !sharedKey.startsWith('solo-');
-              return items.map((q) => {
-              const rewardIndices = q.rewardIds.map((_: any, i: number) => i);
+              const primary = items[0];
+              const rewardIndices = primary.rewardIds.map((_: any, i: number) => i);
+              const rowBgBase = isSharedGroup ? ['bg-blue-50', 'bg-blue-100'] : ['bg-white', 'bg-gray-50'];
+              const rowBorder = isSharedGroup ? 'border-blue-300' : 'border-blue-100';
+              const schemeNames = items.map((it: any) => {
+                const nm = it.schemeName || it.name || '';
+                const parts = nm.split('-');
+                return parts.length > 1 ? parts[parts.length - 1] : nm;
+              });
+
               return rewardIndices.map((rIdx: number) => {
                 const isFirst = rIdx === 0;
-                const isEditingQ = editingQuota?.idx === q.__index && editingQuota?.rIdx === rIdx;
-                const isEditingR = editingReward?.idx === q.__index && editingReward?.rIdx === rIdx;
-                const isCardScheme = q.schemeId && !q.paymentMethodId;
-                const sharedBound = q.sharedRewardGroupId || null;
+                const isEditingQ = editingQuota?.idx === primary.__index && editingQuota?.rIdx === rIdx;
+                const isEditingR = editingReward?.idx === primary.__index && editingReward?.rIdx === rIdx;
+                const isCardScheme = primary.schemeId && !primary.paymentMethodId;
+                const sharedBound = primary.sharedRewardGroupId || null;
 
-                const methodText = q.calculationMethods[rIdx];
-                const basis = q.quotaCalculationBases?.[rIdx] || 'transaction';
+                const methodRaw = primary.calculationMethods[rIdx];
+                const methodText =
+                  methodRaw === 'round' ? '四捨五入' :
+                  methodRaw === 'floor' ? '無條件捨去' :
+                  methodRaw === 'ceil' ? '無條件進位' : (methodRaw || '四捨五入');
+                const basis = primary.quotaCalculationBases?.[rIdx] || 'transaction';
                 const basisText = basis === 'statement' ? '帳單總額' : '單筆回饋';
 
-                // 共同回饋群組使用特殊底色
-                const rowBgColor = isSharedGroup 
-                  ? (rIdx % 2 === 0 ? 'bg-blue-50' : 'bg-blue-100')
-                  : (rIdx % 2 === 0 ? 'bg-white' : 'bg-gray-50');
-                const rowBorderColor = isSharedGroup ? 'border-blue-300' : 'border-blue-100';
+                const rowBgColor = rowBgBase[rIdx % 2];
 
                 return (
                   <tr
-                    key={`${sharedKey}-${q.__index}-${rIdx}`}
-                    className={`${rowBgColor} border-l-4 ${rowBorderColor} hover:bg-blue-50 transition-colors`}
+                    key={`${sharedKey}-${primary.__index}-${rIdx}`}
+                    className={`${rowBgColor} border-l-4 ${rowBorder} hover:bg-blue-50 transition-colors`}
                   >
                     {isFirst && (
                       <td rowSpan={rewardIndices.length} className={`px-4 py-3 text-sm font-medium sticky left-0 ${rowBgColor} z-10 border-r border-gray-200 align-top`}>
                         <div className="space-y-1">
-                          <div>{q.name}</div>
+                          <div className="space-y-0.5">
+                            {schemeNames.map((nm: string, i: number) => (
+                              <div key={i}>{nm || primary.name}</div>
+                            ))}
+                          </div>
                           {sharedBound && (
                             <div className="text-[11px] text-blue-700 bg-blue-50 border border-blue-100 rounded px-2 py-1 inline-block">
                               共用回饋
@@ -269,7 +281,7 @@ export default function QuotaManagement() {
                           />
                         </div>
                       ) : (
-                        <span className="bg-orange-100 px-1 rounded font-bold">{q.rewardComposition.split('/')[rIdx]}</span>
+                        <span className="bg-orange-100 px-1 rounded font-bold">{primary.rewardComposition.split('/')[rIdx]}</span>
                       )}
                     </td>
                     <td className="px-4 py-3 text-xs align-top space-y-1 text-gray-700">
@@ -302,7 +314,7 @@ export default function QuotaManagement() {
                     </td>
                     <td className="px-4 py-3 text-sm align-top">
                       {formatQuotaInfo(
-                        q.usedQuotas[rIdx], q.remainingQuotas[rIdx], q.quotaLimits[rIdx],
+                        primary.usedQuotas[rIdx], primary.remainingQuotas[rIdx], primary.quotaLimits[rIdx],
                         isEditingQ, quotaAdjust, setQuotaAdjust
                       )}
                       {isEditingQ && (
@@ -358,7 +370,7 @@ export default function QuotaManagement() {
                           />
                         </div>
                       ) : (
-                        <div>{q.refreshTimes?.[rIdx] || '-'}</div>
+                        <div>{primary.refreshTimes?.[rIdx] || '-'}</div>
                       )}
                     </td>
                     <td className="px-4 py-3 text-sm align-top">
@@ -369,11 +381,11 @@ export default function QuotaManagement() {
                         </div>
                       ) : !isEditingQ && (
                         <div className="flex flex-col gap-1">
-                          <button onClick={() => { setEditingQuota({ idx: q.__index, rIdx, group: groupKey }); setQuotaAdjust(''); }} className="text-yellow-600 text-xs border border-yellow-600 rounded px-1 hover:bg-yellow-50">調額</button>
-                          <button onClick={() => handleRewardEdit(q.__index, rIdx, groupKey)} className="text-purple-600 text-xs border border-purple-600 rounded px-1 hover:bg-purple-50">設定</button>
+                          <button onClick={() => { setEditingQuota({ idx: primary.__index, rIdx, group: groupKey }); setQuotaAdjust(''); }} className="text-yellow-600 text-xs border border-yellow-600 rounded px-1 hover:bg-yellow-50">調額</button>
+                          <button onClick={() => handleRewardEdit(primary.__index, rIdx, groupKey)} className="text-purple-600 text-xs border border-purple-600 rounded px-1 hover:bg-purple-50">設定</button>
                           {isCardScheme && (
                             <button
-                              onClick={() => { setBindingTarget({ idx: q.__index, group: groupKey }); setSelectedSharedGroup(sharedBound || ''); }}
+                              onClick={() => { setBindingTarget({ idx: primary.__index, group: groupKey }); setSelectedSharedGroup(sharedBound || ''); }}
                               className="text-blue-600 text-xs border border-blue-600 rounded px-1 hover:bg-blue-50"
                             >
                               {sharedBound ? '變更共用' : '綁定共用'}
@@ -384,7 +396,6 @@ export default function QuotaManagement() {
                     </td>
                   </tr>
                 );
-              });
               });
             })}
           </tbody>
@@ -441,6 +452,38 @@ export default function QuotaManagement() {
               {expandedPayments.has(id) && renderTable(list, `payment-${id}`)}
             </div>
           ))}
+        </div>
+      )}
+
+      {bindingTarget && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-lg p-4 w-80">
+            <h4 className="font-semibold mb-2 text-gray-800">選擇共同回饋群組</h4>
+            <select
+              value={selectedSharedGroup}
+              onChange={e => setSelectedSharedGroup(e.target.value)}
+              className="w-full border p-2 rounded text-sm mb-3"
+            >
+              <option value="">不綁定</option>
+              {sharedGroupOptions.map(opt => (
+                <option key={opt.id} value={opt.id}>{opt.name}</option>
+              ))}
+            </select>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => { setBindingTarget(null); setSelectedSharedGroup(''); }}
+                className="px-3 py-1 bg-gray-300 text-gray-800 rounded text-sm"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleBindShared}
+                className="px-3 py-1 bg-blue-600 text-white rounded text-sm"
+              >
+                確認
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

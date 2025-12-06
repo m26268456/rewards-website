@@ -165,56 +165,63 @@ export default function QuotaQuery() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {sortedGroups.map(([sharedKey, quotas]) => {
                   const isSharedGroup = !sharedKey.startsWith('solo-');
-                  return quotas.map((quota, quotaIndex) => {
+                  const colorIndex = colorIndexMap.get(sharedKey) || 0;
+                  const primary = quotas[0];
                   let validRewardIndices: number[] = [];
-                  
-                  if (quota.rewardIds && quota.rewardIds.length > 0) {
-                    quota.rewardIds.forEach((id, index) => {
-                      validRewardIndices.push(index);
-                    });
-                  } else if (quota.rewardComposition && quota.rewardComposition.trim() !== '') {
-                    const count = quota.rewardComposition.split('/').length;
+                  if (primary.rewardIds && primary.rewardIds.length > 0) {
+                    primary.rewardIds.forEach((_, index) => validRewardIndices.push(index));
+                  } else if (primary.rewardComposition && primary.rewardComposition.trim() !== '') {
+                    const count = primary.rewardComposition.split('/').length;
                     validRewardIndices = Array.from({ length: count }, (_, i) => i);
                   } else {
                     validRewardIndices = [0];
                   }
-                  
-                  const rewardCount = validRewardIndices.length;
-                  const bgColor = isSharedGroup 
-                    ? (quotaIndex % 2 === 0 ? 'bg-blue-50' : 'bg-blue-100')
-                    : (quotaIndex % 2 === 0 ? 'bg-white' : 'bg-blue-50');
-                  const borderColor = isSharedGroup ? 'border-blue-300' : (quotaIndex % 2 === 0 ? 'border-gray-200' : 'border-blue-200');
-                  
+
+                  const bgPairShared = [['bg-blue-50', 'bg-blue-100'], ['bg-blue-100', 'bg-blue-50']];
+                  const bgPairSolo = [['bg-white', 'bg-gray-50'], ['bg-gray-50', 'bg-white']];
+                  const colorPair = isSharedGroup ? bgPairShared[colorIndex % 2] : bgPairSolo[colorIndex % 2];
+                  const borderColor = isSharedGroup ? 'border-blue-300' : (colorIndex % 2 === 0 ? 'border-gray-200' : 'border-blue-200');
+
+                  const schemeNames = quotas.map((q) => {
+                    const nm = q.schemeName || q.name || '';
+                    const parts = nm.split('-');
+                    return parts.length > 1 ? parts[parts.length - 1] : nm;
+                  });
+
                   return validRewardIndices.map((originalIndex, displayIndex) => {
                     const isFirstRow = displayIndex === 0;
-                    const rewardPercentage = quota.rewardComposition?.split('/')[originalIndex]?.replace('%', '') || '';
-                    const calculationMethod = quota.calculationMethods?.[originalIndex] || 'round';
+                    const rewardPercentage = primary.rewardComposition?.split('/')[originalIndex]?.replace('%', '') || '';
+                    const calculationMethod = primary.calculationMethods?.[originalIndex] || 'round';
                     const calculationMethodText = 
                       calculationMethod === 'round' ? '四捨五入' :
                       calculationMethod === 'floor' ? '無條件捨去' :
                       calculationMethod === 'ceil' ? '無條件進位' : '四捨五入';
-                    const basis = (quota as any).calculationBases?.[originalIndex] || 'transaction';
+                    const basis = (primary as any).calculationBases?.[originalIndex] || 'transaction';
                     const basisText = basis === 'statement' ? '帳單總額' : '單筆回饋';
                     
-                    const usedQuota = quota.usedQuotas?.[originalIndex] || 0;
-                    const remainingQuota = quota.remainingQuotas?.[originalIndex] ?? null;
-                    const quotaLimit = quota.quotaLimits?.[originalIndex] ?? null;
-                    const currentAmount = quota.currentAmounts?.[originalIndex] || 0;
-                    const referenceAmount = quota.referenceAmounts?.[originalIndex] ?? null;
+                    const usedQuota = primary.usedQuotas?.[originalIndex] || 0;
+                    const remainingQuota = primary.remainingQuotas?.[originalIndex] ?? null;
+                    const quotaLimit = primary.quotaLimits?.[originalIndex] ?? null;
+                    const currentAmount = primary.currentAmounts?.[originalIndex] || 0;
+                    const referenceAmount = primary.referenceAmounts?.[originalIndex] ?? null;
+
+                    const bgColor = colorPair[displayIndex % 2];
                     
                     return (
-                      <tr key={`${sharedKey}-${quotaIndex}-${originalIndex}`} className={`${bgColor} ${borderColor} border-l-4 hover:bg-blue-100 transition-colors`}>
+                      <tr key={`${sharedKey}-${primary.schemeId || primary.paymentMethodId || 'q'}-${originalIndex}`} className={`${bgColor} ${borderColor} border-l-4 hover:bg-blue-100 transition-colors`}>
                         {isFirstRow && (
                           <td
                             className={`px-4 py-3 text-sm font-medium sticky left-0 ${bgColor} z-10 border-r border-gray-200`}
-                            rowSpan={rewardCount}
+                            rowSpan={validRewardIndices.length}
                           >
-                            <div className="font-semibold text-gray-900">{quota.name}</div>
-                            {quota.sharedRewardGroupId && (
-                              <div className="text-[11px] text-blue-700 bg-blue-50 border border-blue-100 rounded px-2 py-1 inline-block mt-1">
-                                共用回饋
-                              </div>
-                            )}
+                            <div className="font-semibold text-gray-900 space-y-1">
+                              {schemeNames.map((nm, idx) => <div key={idx}>{nm}</div>)}
+                              {primary.sharedRewardGroupId && (
+                                <div className="text-[11px] text-blue-700 bg-blue-50 border border-blue-100 rounded px-2 py-1 inline-block mt-1">
+                                  共用回饋
+                                </div>
+                              )}
+                            </div>
                           </td>
                         )}
                         <td className="px-4 py-3 text-sm">
@@ -236,14 +243,13 @@ export default function QuotaQuery() {
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
                           <div className="text-xs">
-                            {quota.refreshTimes?.[originalIndex] || '-'}
+                            {primary.refreshTimes?.[originalIndex] || '-'}
                           </div>
                         </td>
                       </tr>
                     );
                   });
-                  });
-                })}
+                }).flat()}
               </tbody>
             </table>
           </div>
@@ -253,20 +259,16 @@ export default function QuotaQuery() {
   };
 
   const toggleCard = (cardId: string) => {
-    const newExpanded = new Set(expandedCards);
-    if (newExpanded.has(cardId)) {
-      newExpanded.delete(cardId);
-    } else {
+    const newExpanded = new Set<string>();
+    if (!expandedCards.has(cardId)) {
       newExpanded.add(cardId);
     }
     setExpandedCards(newExpanded);
   };
 
   const togglePayment = (paymentId: string) => {
-    const newExpanded = new Set(expandedPayments);
-    if (newExpanded.has(paymentId)) {
-      newExpanded.delete(paymentId);
-    } else {
+    const newExpanded = new Set<string>();
+    if (!expandedPayments.has(paymentId)) {
       newExpanded.add(paymentId);
     }
     setExpandedPayments(newExpanded);
