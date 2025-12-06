@@ -527,17 +527,23 @@ export default function QuotaManagement() {
                                   const preset = current?.sharedRewardGroupId
                                     ? (() => {
                                         const rootId = current.sharedRewardGroupId;
-                                        const groupMembers = quotas
+                                        // 找出所有綁定到同一個 root 的方案（包括 root 方案本身）
+                                        const allGroupMembers = quotas
                                           .filter(x => 
                                             (x.sharedRewardGroupId === rootId || 
                                              x.schemeId === rootId) && 
                                             x.schemeId &&
                                             x.schemeId !== current.schemeId // 排除當前方案自己
                                           )
-                                          .map(x => x.schemeId);
-                                        // 如果 root 方案在候選列表中，也要加入
-                                        const rootInCandidates = sharedGroupOptions.some(opt => opt.id === rootId);
-                                        return rootInCandidates ? [rootId, ...groupMembers] : groupMembers;
+                                          .map(x => x.schemeId)
+                                          .filter(id => id); // 確保不是 null/undefined
+                                        
+                                        // 過濾出在候選列表中的方案
+                                        const validMembers = allGroupMembers.filter(id => 
+                                          sharedGroupOptions.some(opt => opt.id === id)
+                                        );
+                                        
+                                        return validMembers;
                                       })()
                                     : []; // 沒有綁定時，預設為空陣列（不綁定）
                                   

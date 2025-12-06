@@ -112,23 +112,54 @@ export default function QuotaQuery() {
   const renderQuotaTable = (quotaList: QuotaInfo[]) => {
     if (quotaList.length === 0) return null;
     
-    // 將共同回饋群組置頂
-    const groupedQuotas = quotaList.reduce((acc, quota) => {
-      const key = quota.sharedRewardGroupId || `solo-${quota.schemeId || quota.paymentMethodId}`;
-      if (!acc.has(key)) acc.set(key, []);
-      acc.get(key)!.push(quota);
-      return acc;
-    }, new Map<string, QuotaInfo[]>());
+    // 將同一共同回饋群組的方案聚在一起（與 QuotaManagement 相同的邏輯）
+    const groupByShared = (items: QuotaInfo[]) => {
+      const order: string[] = [];
+      const map = new Map<string, QuotaInfo[]>();
+      
+      // 先找出所有被綁定的 root schemeId（即其他方案的 sharedRewardGroupId）
+      const rootSchemeIds = new Set<string>();
+      items.forEach((item) => {
+        if (item.sharedRewardGroupId) {
+          rootSchemeIds.add(item.sharedRewardGroupId);
+        }
+      });
+      
+      items.forEach((item) => {
+        let key: string;
+        if (item.sharedRewardGroupId) {
+          // 被綁定的方案：使用 sharedRewardGroupId 作為 key
+          key = item.sharedRewardGroupId;
+        } else if (item.schemeId && rootSchemeIds.has(item.schemeId)) {
+          // Root 方案（被其他方案綁定）：使用自己的 schemeId 作為 key
+          key = item.schemeId;
+        } else {
+          // 獨立方案：使用 solo-${id} 作為 key
+          key = `solo-${item.schemeId || item.paymentMethodId || 'unknown'}`;
+        }
+        
+        if (!map.has(key)) {
+          map.set(key, []);
+          order.push(key);
+        }
+        map.get(key)!.push(item);
+      });
+      
+      // 將有共同回饋的群組置頂
+      const sorted = order.sort((a, b) => {
+        const aIsShared = a.startsWith('solo-') ? 1 : 0;
+        const bIsShared = b.startsWith('solo-') ? 1 : 0;
+        return aIsShared - bIsShared; // 共同回饋群組 (0) 排在前面，單獨項目 (1) 排在後面
+      });
+      
+      return sorted.map(k => ({ key: k, items: map.get(k)! }));
+    };
+    
+    const groupedQuotas = groupByShared(quotaList);
 
-    const sortedGroups = Array.from(groupedQuotas.entries()).sort(([a], [b]) => {
-      const aIsShared = a.startsWith('solo-') ? 1 : 0;
-      const bIsShared = b.startsWith('solo-') ? 1 : 0;
-      return aIsShared - bIsShared;
-    });
-
-    // 為每個群組分配顏色索引（避免 colorIndexMap 未定義導致渲染錯誤）
+    // 為每個群組分配顏色索引
     const colorIndexMap = new Map<string, number>();
-    sortedGroups.forEach(([key], idx) => colorIndexMap.set(key, idx));
+    groupedQuotas.forEach(({ key }, idx) => colorIndexMap.set(key, idx));
     
     return (
       <div className="mb-4">
@@ -149,15 +180,6 @@ export default function QuotaQuery() {
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">
                     額度狀態
-                    <div className="text-[10px] font-normal text-gray-500 mt-1">
-                      已用/剩餘/上限
-                    </div>
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">
-                    消費資訊
-                    <div className="text-[10px] font-normal text-gray-500 mt-1">
-                      消費/參考餘額
-                    </div>
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">
                     刷新時間
@@ -165,10 +187,21 @@ export default function QuotaQuery() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {sortedGroups.map(([sharedKey, quotas]) => {
+                {groupedQuotas.map(({ key: sharedKey, items: quotas }) => {
                   const isSharedGroup = !sharedKey.startsWith('solo-');
                   const colorIndex = colorIndexMap.get(sharedKey) || 0;
-                  const primary = quotas[0];
+                  
+                  // 排序：root 方案在前，被綁定方案在後
+                  const sortedItems = quotas.slice().sort((a, b) => {
+                    const rootA = a.sharedRewardGroupId || a.schemeId;
+                    const rootB = b.sharedRewardGroupId || b.schemeId;
+                    const isRootA = !a.sharedRewardGroupId || a.sharedRewardGroupId === a.schemeId;
+                    const isRootB = !b.sharedRewardGroupId || b.sharedRewardGroupId === b.schemeId;
+                    if (isRootA !== isRootB) return isRootA ? -1 : 1;
+                    return 0;
+                  });
+                  
+                  const primary = sortedItems[0];
                   let validRewardIndices: number[] = [];
                   if (primary.rewardIds && primary.rewardIds.length > 0) {
                     primary.rewardIds.forEach((_, index) => validRewardIndices.push(index));
@@ -179,46 +212,64 @@ export default function QuotaQuery() {
                     validRewardIndices = [0];
                   }
 
+                  // 共享群組只渲染第一個回饋組成，非共享群組渲染所有回饋組成
+                  const rowsToRender = isSharedGroup ? [0] : validRewardIndices;
+
                   const bgPairShared = [['bg-blue-50', 'bg-blue-100'], ['bg-blue-100', 'bg-blue-50']];
                   const bgPairSolo = [['bg-white', 'bg-gray-50'], ['bg-gray-50', 'bg-white']];
                   const colorPair = isSharedGroup ? bgPairShared[colorIndex % 2] : bgPairSolo[colorIndex % 2];
-                  const borderColor = isSharedGroup ? 'border-blue-300' : (colorIndex % 2 === 0 ? 'border-gray-200' : 'border-blue-200');
+                  const borderColor = isSharedGroup ? 'border-blue-300' : 'border-gray-200';
 
-                  const schemeNames = quotas.map((q) => {
-                    const nm = q.schemeName || q.name || '';
-                    const parts = nm.split('-');
-                    return parts.length > 1 ? parts[parts.length - 1] : nm;
-                  });
+                  // 找出 root 方案名稱和被綁定方案名稱
+                  const rootId = primary.sharedRewardGroupId || primary.schemeId;
+                  const rootScheme = sortedItems.find((it) => !it.sharedRewardGroupId || it.sharedRewardGroupId === it.schemeId) || primary;
+                  const rootName = rootScheme.schemeName || rootScheme.name || '';
+                  const rootNameParts = rootName.split('-');
+                  const rootNameDisplay = rootNameParts.length > 1 ? rootNameParts[rootNameParts.length - 1] : rootName;
+                  
+                  const childNames = sortedItems
+                    .filter((it) => it.schemeId !== rootId)
+                    .map((it) => {
+                      const nm = it.schemeName || it.name || '';
+                      const parts = nm.split('-');
+                      return parts.length > 1 ? parts[parts.length - 1] : nm;
+                    })
+                    .filter(Boolean);
 
-                  return validRewardIndices.map((originalIndex, displayIndex) => {
-                    const isFirstRow = displayIndex === 0;
-                    const rewardPercentage = primary.rewardComposition?.split('/')[originalIndex]?.replace('%', '') || '';
-                    const calculationMethod = primary.calculationMethods?.[originalIndex] || 'round';
+                  return rowsToRender.map((rIdx: number) => {
+                    const isFirst = rIdx === 0;
+                    const rewardPercentage = primary.rewardComposition?.split('/')[rIdx]?.replace('%', '') || '';
+                    const calculationMethod = primary.calculationMethods?.[rIdx] || 'round';
                     const calculationMethodText = 
                       calculationMethod === 'round' ? '四捨五入' :
                       calculationMethod === 'floor' ? '無條件捨去' :
                       calculationMethod === 'ceil' ? '無條件進位' : '四捨五入';
-                    const basis = (primary as any).calculationBases?.[originalIndex] || 'transaction';
+                    const basis = (primary as any).quotaCalculationBases?.[rIdx] || 'transaction';
                     const basisText = basis === 'statement' ? '帳單總額' : '單筆回饋';
                     
-                    const usedQuota = primary.usedQuotas?.[originalIndex] || 0;
-                    const remainingQuota = primary.remainingQuotas?.[originalIndex] ?? null;
-                    const quotaLimit = primary.quotaLimits?.[originalIndex] ?? null;
-                    const currentAmount = primary.currentAmounts?.[originalIndex] || 0;
-                    const referenceAmount = primary.referenceAmounts?.[originalIndex] ?? null;
+                    const usedQuota = primary.usedQuotas?.[rIdx] || 0;
+                    const remainingQuota = primary.remainingQuotas?.[rIdx] ?? null;
+                    const quotaLimit = primary.quotaLimits?.[rIdx] ?? null;
+                    const currentAmount = primary.currentAmounts?.[rIdx] || 0;
+                    const referenceAmount = primary.referenceAmounts?.[rIdx] ?? null;
 
-                    const bgColor = colorPair[displayIndex % 2];
+                    // 共享群組只顯示一行，使用第一個顏色；非共享群組使用交替顏色
+                    const bgColor = isSharedGroup ? colorPair[0] : colorPair[rIdx % 2];
                     
                     return (
-                      <tr key={`${sharedKey}-${primary.schemeId || primary.paymentMethodId || 'q'}-${originalIndex}`} className={`${bgColor} ${borderColor} border-l-4 hover:bg-blue-100 transition-colors`}>
-                        {isFirstRow && (
-                          <td
-                            className={`px-4 py-3 text-sm font-medium sticky left-0 ${bgColor} z-10 border-r border-gray-200`}
-                            rowSpan={validRewardIndices.length}
-                          >
-                            <div className="font-semibold text-gray-900 space-y-1">
-                              {schemeNames.map((nm, idx) => <div key={idx}>{nm}</div>)}
-                              {primary.sharedRewardGroupId && (
+                      <tr key={`${sharedKey}-${primary.schemeId || primary.paymentMethodId || 'q'}-${rIdx}`} className={`${bgColor} border-l-4 ${borderColor} hover:bg-blue-100 transition-colors`}>
+                        {isFirst && (
+                          <td className={`px-4 py-3 text-sm font-medium sticky left-0 ${bgColor} z-10 border-r border-gray-200 align-top`}>
+                            <div className="space-y-1">
+                              <div className="font-semibold">{rootNameDisplay}</div>
+                              {childNames.length > 0 && (
+                                <div className="text-xs text-gray-600 space-y-0.5">
+                                  {childNames.map((nm: string, i: number) => (
+                                    <div key={i}>{nm}</div>
+                                  ))}
+                                </div>
+                              )}
+                              {isSharedGroup && (
                                 <div className="text-[11px] text-blue-700 bg-blue-50 border border-blue-100 rounded px-2 py-1 inline-block mt-1">
                                   共用回饋
                                 </div>
@@ -226,10 +277,8 @@ export default function QuotaQuery() {
                             </div>
                           </td>
                         )}
-                        <td className="px-4 py-3 text-sm">
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-                            {rewardPercentage || '-'}%
-                          </span>
+                        <td className="px-4 py-3 text-sm align-top">
+                          <span className="bg-orange-100 px-1 rounded font-bold">{rewardPercentage ? `${rewardPercentage}%` : '-'}</span>
                         </td>
                         <td className="px-4 py-3 text-xs text-gray-700 space-y-1">
                           <div>{calculationMethodText}</div>
@@ -237,16 +286,11 @@ export default function QuotaQuery() {
                             {basisText}
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-sm">
+                        <td className="px-4 py-3 text-sm align-top">
                           {formatQuotaInfo(usedQuota, remainingQuota, quotaLimit)}
                         </td>
-                        <td className="px-4 py-3 text-sm">
-                          {formatConsumptionInfo(currentAmount, referenceAmount)}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
-                          <div className="text-xs">
-                            {primary.refreshTimes?.[originalIndex] || '-'}
-                          </div>
+                        <td className="px-4 py-3 text-sm align-top">
+                          <div>{primary.refreshTimes?.[rIdx] || '-'}</div>
                         </td>
                       </tr>
                     );
