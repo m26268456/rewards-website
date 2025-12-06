@@ -180,6 +180,15 @@ export default function QuotaQuery() {
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">
                     額度狀態
+                    <div className="text-[10px] font-normal text-gray-500 mt-1">
+                      已用/剩餘/上限
+                    </div>
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">
+                    消費資訊
+                    <div className="text-[10px] font-normal text-gray-500 mt-1">
+                      消費/參考餘額
+                    </div>
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">
                     刷新時間
@@ -193,8 +202,6 @@ export default function QuotaQuery() {
                   
                   // 排序：root 方案在前，被綁定方案在後
                   const sortedItems = quotas.slice().sort((a, b) => {
-                    const rootA = a.sharedRewardGroupId || a.schemeId;
-                    const rootB = b.sharedRewardGroupId || b.schemeId;
                     const isRootA = !a.sharedRewardGroupId || a.sharedRewardGroupId === a.schemeId;
                     const isRootB = !b.sharedRewardGroupId || b.sharedRewardGroupId === b.schemeId;
                     if (isRootA !== isRootB) return isRootA ? -1 : 1;
@@ -288,6 +295,9 @@ export default function QuotaQuery() {
                         </td>
                         <td className="px-4 py-3 text-sm align-top">
                           {formatQuotaInfo(usedQuota, remainingQuota, quotaLimit)}
+                        </td>
+                        <td className="px-4 py-3 text-sm align-top">
+                          {formatConsumptionInfo(currentAmount, referenceAmount)}
                         </td>
                         <td className="px-4 py-3 text-sm align-top">
                           <div>{primary.refreshTimes?.[rIdx] || '-'}</div>
