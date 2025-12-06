@@ -47,6 +47,7 @@ export default function QuotaManagement() {
   const [sharedGroupOptions, setSharedGroupOptions] = useState<Array<{ id: string; name: string; cardId?: string }>>([]);
   const [bindingTarget, setBindingTarget] = useState<{ idx: number; group: string } | null>(null);
   const [selectedSharedGroups, setSelectedSharedGroups] = useState<string[]>([]);
+  const [selectedRootSchemeId, setSelectedRootSchemeId] = useState<string>('');
 
   useEffect(() => {
     loadQuotas();

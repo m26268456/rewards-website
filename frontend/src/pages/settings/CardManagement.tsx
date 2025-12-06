@@ -191,6 +191,7 @@ function CardItem({ card, onEdit, onDelete, onReload }: { card: Card; onEdit: ()
   const [isReorderingSchemes, setIsReorderingSchemes] = useState(false);
   const [reorderedSchemes, setReorderedSchemes] = useState<Scheme[]>([]);
   const itemRef = useRef<HTMLDivElement | null>(null);
+  const itemRef = useRef<HTMLDivElement | null>(null);
 
   const [appsText, setAppsText] = useState('');
   const [excsText, setExcsText] = useState('');
@@ -550,6 +551,7 @@ export default function CardManagement() {
   const [isReordering, setIsReordering] = useState(false);
   const [reorderedCards, setReorderedCards] = useState<Card[]>([]);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => { loadCards(); }, []);
   // ESC / 點擊空白收合編輯
@@ -693,9 +695,9 @@ export default function CardManagement() {
         </div>
       )}
 
-      <div className="space-y-2">
+      <div className="space-y-4">
         {(isReordering ? reorderedCards : cards).map((card, idx) => (
-              <div key={card.id} className="flex items-start gap-2">
+          <div key={card.id} className="space-y-2">
             <div className="flex-1">
               <CardItem 
                 card={card} 
@@ -705,7 +707,7 @@ export default function CardManagement() {
               />
             </div>
             {isReordering && (
-              <div className="flex flex-col gap-1">
+              <div className="flex flex-wrap gap-2">
                 <button onClick={() => moveCard(idx, 'top')} className="px-2 py-1 bg-gray-600 text-white rounded text-xs disabled:opacity-40" disabled={idx === 0}>⏫ 置頂</button>
                 <button onClick={() => moveCard(idx, 'up')} className="px-2 py-1 bg-blue-600 text-white rounded text-xs disabled:opacity-40" disabled={idx === 0}>▲ 上移</button>
                 <button onClick={() => moveCard(idx, 'down')} className="px-2 py-1 bg-blue-600 text-white rounded text-xs disabled:opacity-40" disabled={idx === (isReordering ? reorderedCards.length - 1 : cards.length - 1)}>▼ 下移</button>
