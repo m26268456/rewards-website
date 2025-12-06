@@ -107,11 +107,9 @@ export default function Transactions() {
       return;
     }
 
-    // 金額可留空；若填寫則允許正負整數
-    const amountNum =
-      formData.amount === '' ? null : parseInt(formData.amount, 10);
-    if (formData.amount !== '' && Number.isNaN(amountNum)) {
-      alert('請輸入有效的金額（可輸入正負整數，或留空）');
+    const amountNum = parseFloat(formData.amount || '');
+    if (Number.isNaN(amountNum) || amountNum < 0) {
+      alert('請輸入有效的金額（需為數字且不小於 0）');
       return;
     }
 
