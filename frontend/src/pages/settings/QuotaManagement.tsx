@@ -265,13 +265,22 @@ export default function QuotaManagement() {
           <tbody className="bg-white divide-y divide-gray-200">
             {groupByShared(list).map(({ key: sharedKey, items, colorIndexMap }) => {
               const isSharedGroup = !sharedKey.startsWith('solo-');
-              const primary = items[0];
-              const rewardIndices = primary.rewardIds.map((_: any, i: number) => i);
-              const schemeNames = items.map((it: any) => {
-                const nm = it.schemeName || it.name || '';
-                const parts = nm.split('-');
-                return parts.length > 1 ? parts[parts.length - 1] : nm;
+              const sortedItems = items.slice().sort((a: any, b: any) => {
+                const rootA = a.sharedRewardGroupId || a.schemeId;
+                const rootB = b.sharedRewardGroupId || b.schemeId;
+                const isRootA = !a.sharedRewardGroupId || a.sharedRewardGroupId === a.schemeId;
+                const isRootB = !b.sharedRewardGroupId || b.sharedRewardGroupId === b.schemeId;
+                if (isRootA !== isRootB) return isRootA ? -1 : 1;
+                return (a.displayOrder || 0) - (b.displayOrder || 0);
               });
+              const primary = sortedItems[0];
+              const rewardIndices = primary.rewardIds.map((_: any, i: number) => i);
+              const rootId = primary.sharedRewardGroupId || primary.schemeId;
+              const rootName = sortedItems.find((it: any) => (!it.sharedRewardGroupId || it.sharedRewardGroupId === it.schemeId) && (it.schemeId === rootId || !it.sharedRewardGroupId))?.schemeName || primary.schemeName || primary.name;
+              const childNames = sortedItems
+                .filter((it: any) => it.schemeId !== rootId)
+                .map((it: any) => it.schemeName || it.name || '')
+                .filter(Boolean);
 
               return rewardIndices.map((rIdx: number) => {
                 const isFirst = rIdx === 0;
@@ -304,11 +313,14 @@ export default function QuotaManagement() {
                     {isFirst && (
                       <td rowSpan={rewardIndices.length} className={`px-4 py-3 text-sm font-medium sticky left-0 ${rowBgColor} z-10 border-r border-gray-200 align-top`}>
                         <div className="space-y-1">
-                          <div className="space-y-0.5">
-                            {schemeNames.map((nm: string, i: number) => (
-                              <div key={i}>{nm || primary.name}</div>
-                            ))}
-                          </div>
+                          <div className="font-semibold">{rootName}</div>
+                          {childNames.length > 0 && (
+                            <div className="text-xs text-gray-600 space-y-0.5">
+                              {childNames.map((nm: string, i: number) => (
+                                <div key={i}>↳ {nm}</div>
+                              ))}
+                            </div>
+                          )}
                           {sharedBound && (
                             <div className="text-[11px] text-blue-700 bg-blue-50 border border-blue-100 rounded px-2 py-1 inline-block">
                               共用回饋
@@ -420,59 +432,57 @@ export default function QuotaManagement() {
                         <div>{primary.refreshTimes?.[rIdx] || '-'}</div>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-sm align-top">
-                      {isEditingR ? (
-                        <div className="flex flex-col gap-1">
-                          {sharedBound && (
-                            <div className="text-[11px] text-blue-700 bg-blue-50 border border-blue-100 rounded px-2 py-1">
-                              共用回饋：此變更會影響同組方案
-                            </div>
-                          )}
-                          <button onClick={handleRewardSave} className="bg-blue-500 text-white px-2 py-1 rounded text-xs">儲存</button>
-                          <button onClick={() => setEditingReward(null)} className="bg-gray-300 px-2 py-1 rounded text-xs">取消</button>
-                        </div>
-                      ) : !isEditingQ && (
-                        <div className="flex flex-col gap-1">
-                          {!isSharedChild ? (
-                            <>
+                    {isFirst && (
+                      <td rowSpan={rewardIndices.length} className="px-4 py-3 text-sm align-top">
+                        {isSharedChild ? (
+                          <div className="text-xs text-blue-600 bg-blue-50 border border-blue-100 rounded px-2 py-1">
+                            共用回饋（由主方案管理）
+                          </div>
+                        ) : isEditingR ? (
+                          <div className="flex flex-col gap-1">
+                            {sharedBound && (
+                              <div className="text-[11px] text-blue-700 bg-blue-50 border border-blue-100 rounded px-2 py-1">
+                                共用回饋：此變更會影響同組方案
+                              </div>
+                            )}
+                            <button onClick={handleRewardSave} className="bg-blue-500 text-white px-2 py-1 rounded text-xs">儲存</button>
+                            <button onClick={() => setEditingReward(null)} className="bg-gray-300 px-2 py-1 rounded text-xs">取消</button>
+                          </div>
+                        ) : !isEditingQ && (
+                          <div className="flex flex-col gap-1">
+                            <button
+                              onClick={() => { 
+                                setEditingReward({ idx: primary.__index, rIdx, group: groupKey }); 
+                                setEditingQuota({ idx: primary.__index, rIdx, group: groupKey });
+                                setQuotaAdjust('');
+                              }} 
+                              className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                            >
+                              編輯
+                            </button>
+                            {isCardScheme && (
                               <button
                                 onClick={() => { 
-                                  setEditingReward({ idx: primary.__index, rIdx, group: groupKey }); 
-                                  setEditingQuota({ idx: primary.__index, rIdx, group: groupKey });
-                                  setQuotaAdjust('');
-                                }} 
+                                  setBindingTarget({ idx: primary.__index, group: groupKey }); 
+                                  const current = quotas.find(q => q.__index === primary.__index);
+                                  const rootId = current?.sharedRewardGroupId || current?.rewardSourceSchemeId || current?.schemeId;
+                                  const groupMembers = current?.sharedRewardGroupId
+                                    ? quotas.filter(x => x.sharedRewardGroupId === current.sharedRewardGroupId || x.schemeId === current.sharedRewardGroupId).map(x => x.schemeId)
+                                    : (current?.schemeId ? [current.schemeId] : []);
+                                  const preset = rootId
+                                    ? Array.from(new Set([rootId, ...groupMembers]))
+                                    : groupMembers;
+                                  setSelectedSharedGroups(preset);
+                                }}
                                 className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
                               >
-                                編輯
+                                回饋綁定
                               </button>
-                              {isCardScheme && (
-                                <button
-                                  onClick={() => { 
-                                    setBindingTarget({ idx: primary.__index, group: groupKey }); 
-                                    const current = quotas.find(q => q.__index === primary.__index);
-                                    const rootId = current?.sharedRewardGroupId || current?.rewardSourceSchemeId || current?.schemeId;
-                                    const groupMembers = current?.sharedRewardGroupId
-                                      ? quotas.filter(x => x.sharedRewardGroupId === current.sharedRewardGroupId || x.schemeId === current.sharedRewardGroupId).map(x => x.schemeId)
-                                      : (current?.schemeId ? [current.schemeId] : []);
-                                    const preset = rootId
-                                      ? Array.from(new Set([rootId, ...groupMembers]))
-                                      : groupMembers;
-                                    setSelectedSharedGroups(preset);
-                                  }}
-                                  className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
-                                >
-                                  回饋綁定
-                                </button>
-                              )}
-                            </>
-                          ) : (
-                            <div className="text-xs text-blue-600 bg-blue-50 border border-blue-100 rounded px-2 py-1">
-                              共用回饋（由主方案管理）
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </td>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 );
               });
