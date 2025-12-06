@@ -139,7 +139,7 @@ export async function getAllCardsWithSchemes(): Promise<
         if (row.reward_percentage !== null && row.reward_percentage !== undefined && row.reward_id) {
           const rewardExists = scheme.rewards.some(r => 
             r.percentage === parseFloat(row.reward_percentage) &&
-            r.calculationMethod === (row.calculation_method || 'round'))
+            r.calculationMethod === (row.calculation_method || 'round')
           );
           if (!rewardExists) {
             scheme.rewards.push({
