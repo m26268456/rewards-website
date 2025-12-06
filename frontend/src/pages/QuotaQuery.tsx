@@ -115,9 +115,7 @@ export default function QuotaQuery() {
     // 將共同回饋群組置頂
     const groupedQuotas = quotaList.reduce((acc, quota) => {
       const key = quota.sharedRewardGroupId || `solo-${quota.schemeId || quota.paymentMethodId}`;
-      if (!acc.has(key)) {
-        acc.set(key, []);
-      }
+      if (!acc.has(key)) acc.set(key, []);
       acc.get(key)!.push(quota);
       return acc;
     }, new Map<string, QuotaInfo[]>());
@@ -126,6 +124,14 @@ export default function QuotaQuery() {
       const aIsShared = a.startsWith('solo-') ? 1 : 0;
       const bIsShared = b.startsWith('solo-') ? 1 : 0;
       return aIsShared - bIsShared;
+    });
+
+    // 為每個群組分配顏色索引（避免 colorIndexMap 未定義導致渲染錯誤）
+    const colorIndexMap = new Map<string, number>();
+    let colorIdx = 0;
+    sortedGroups.forEach(([key]) => {
+      colorIndexMap.set(key, colorIdx % 2);
+      colorIdx += 1;
     });
     
     return (

@@ -44,7 +44,7 @@ export default function QuotaManagement() {
     calculationBasis: 'transaction' 
   });
   // 共同回饋綁定
-  const [sharedGroupOptions, setSharedGroupOptions] = useState<Array<{ id: string; name: string }>>([]);
+  const [sharedGroupOptions, setSharedGroupOptions] = useState<Array<{ id: string; name: string; cardId?: string }>>([]);
   const [bindingTarget, setBindingTarget] = useState<{ idx: number; group: string } | null>(null);
   const [selectedSharedGroup, setSelectedSharedGroup] = useState<string>('');
 
@@ -70,10 +70,10 @@ export default function QuotaManagement() {
       // 從方案總覽取得所有方案，將名稱用於下拉（僅示意：共用回饋根方案列表）
       const res = await api.get('/schemes/overview');
       const data = res.data.data || [];
-      const options: Array<{ id: string; name: string }> = [];
+      const options: Array<{ id: string; name: string; cardId?: string }> = [];
       data.forEach((card: any) => {
         card.schemes?.forEach((s: any) => {
-          options.push({ id: s.id, name: `${card.name}-${s.name}` });
+          options.push({ id: s.id, name: `${card.name}-${s.name}`, cardId: card.id });
         });
       });
       setSharedGroupOptions(options);
@@ -388,7 +388,7 @@ export default function QuotaManagement() {
                               onClick={() => { setBindingTarget({ idx: primary.__index, group: groupKey }); setSelectedSharedGroup(sharedBound || ''); }}
                               className="text-blue-600 text-xs border border-blue-600 rounded px-1 hover:bg-blue-50"
                             >
-                              {sharedBound ? '變更共用' : '綁定共用'}
+                              共同回饋管理
                             </button>
                           )}
                         </div>
@@ -457,19 +457,39 @@ export default function QuotaManagement() {
 
       {bindingTarget && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-lg p-4 w-80">
-            <h4 className="font-semibold mb-2 text-gray-800">選擇共同回饋群組</h4>
-            <select
-              value={selectedSharedGroup}
-              onChange={e => setSelectedSharedGroup(e.target.value)}
-              className="w-full border p-2 rounded text-sm mb-3"
-            >
-              <option value="">不綁定</option>
-              {sharedGroupOptions.map(opt => (
-                <option key={opt.id} value={opt.id}>{opt.name}</option>
-              ))}
-            </select>
-            <div className="flex justify-end gap-2">
+          <div className="bg-white rounded-lg shadow-lg p-4 w-96 max-h-[80vh] overflow-y-auto">
+            <h4 className="font-semibold mb-3 text-gray-800">共同回饋管理</h4>
+            {(() => {
+              const current = quotas[bindingTarget.idx];
+              const currentCardId = current?.cardId;
+              const candidates = sharedGroupOptions.filter(opt => !currentCardId || opt.cardId === currentCardId);
+              return (
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={selectedSharedGroup === ''}
+                      onChange={() => setSelectedSharedGroup('')}
+                    />
+                    不綁定
+                  </label>
+                  {candidates.map(opt => (
+                    <label key={opt.id} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={selectedSharedGroup === opt.id}
+                        onChange={() => setSelectedSharedGroup(selectedSharedGroup === opt.id ? '' : opt.id)}
+                      />
+                      <span>{opt.name}</span>
+                    </label>
+                  ))}
+                  {candidates.length === 0 && (
+                    <div className="text-xs text-gray-500">此卡片無可綁定的其他方案</div>
+                  )}
+                </div>
+              );
+            })()}
+            <div className="flex justify-end gap-2 mt-4">
               <button
                 onClick={() => { setBindingTarget(null); setSelectedSharedGroup(''); }}
                 className="px-3 py-1 bg-gray-300 text-gray-800 rounded text-sm"

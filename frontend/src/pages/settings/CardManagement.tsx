@@ -190,6 +190,7 @@ function CardItem({ card, onEdit, onDelete, onReload }: { card: Card; onEdit: ()
   const [expandedSchemeId, setExpandedSchemeId] = useState<string | null>(null);
   const [isReorderingSchemes, setIsReorderingSchemes] = useState(false);
   const [reorderedSchemes, setReorderedSchemes] = useState<Scheme[]>([]);
+  const itemRef = useRef<HTMLDivElement | null>(null);
 
   const [appsText, setAppsText] = useState('');
   const [excsText, setExcsText] = useState('');
@@ -198,6 +199,40 @@ function CardItem({ card, onEdit, onDelete, onReload }: { card: Card; onEdit: ()
     activityStartDate: '', activityEndDate: '', displayOrder: 0,
     sharedRewardGroupId: '',
   });
+
+  // ESC / 點擊空白收合或取消編輯
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (showSchemeForm || editingScheme) {
+          setShowSchemeForm(false);
+          setEditingScheme(null);
+        } else if (expandedSchemeId) {
+          setExpandedSchemeId(null);
+        } else if (showSchemes) {
+          setShowSchemes(false);
+        }
+      }
+    };
+    const onClickOutside = (e: MouseEvent) => {
+      if (itemRef.current && !itemRef.current.contains(e.target as Node)) {
+        if (showSchemeForm || editingScheme) {
+          setShowSchemeForm(false);
+          setEditingScheme(null);
+        } else if (expandedSchemeId) {
+          setExpandedSchemeId(null);
+        } else if (showSchemes) {
+          setShowSchemes(false);
+        }
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('mousedown', onClickOutside);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('mousedown', onClickOutside);
+    };
+  }, [showSchemeForm, editingScheme, expandedSchemeId, showSchemes]);
 
   const loadSchemes = async () => {
     try {
@@ -333,7 +368,7 @@ function CardItem({ card, onEdit, onDelete, onReload }: { card: Card; onEdit: ()
   };
 
   return (
-    <div className="p-3 bg-gray-50 rounded border">
+    <div className="p-3 bg-gray-50 rounded border" ref={itemRef}>
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2">
         <div className="flex-1 min-w-0">
           <div className="font-medium">{card.name}</div>
@@ -458,8 +493,34 @@ export default function CardManagement() {
   const [showCardForm, setShowCardForm] = useState(false);
   const [isReordering, setIsReordering] = useState(false);
   const [reorderedCards, setReorderedCards] = useState<Card[]>([]);
+  const rootRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => { loadCards(); }, []);
+  // ESC / 點擊空白收合編輯
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (editingCard || showCardForm) {
+          setEditingCard(null);
+          setShowCardForm(false);
+        }
+      }
+    };
+    const onClickOutside = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+        if (editingCard || showCardForm) {
+          setEditingCard(null);
+          setShowCardForm(false);
+        }
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('mousedown', onClickOutside);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('mousedown', onClickOutside);
+    };
+  }, [editingCard, showCardForm]);
 
   const loadCards = async () => {
     try {
@@ -518,7 +579,7 @@ export default function CardManagement() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" ref={rootRef}>
       <div className="flex justify-between items-center">
         <h4 className="font-medium">卡片列表</h4>
         <div className="flex gap-2">

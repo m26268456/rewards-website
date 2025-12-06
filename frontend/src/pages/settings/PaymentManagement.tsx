@@ -34,19 +34,16 @@ function PaymentMethodItem({ payment, onEdit, onDelete, onReload }: any) {
 
   useEffect(() => {
     if (showDetails) loadDetails();
-  }, [showDetails]);
+  }, [showDetails, payment.id]);
 
   const loadDetails = async () => {
     try {
-      const [chRes, rwRes, lsRes] = await Promise.all([
+      const [chRes, rwRes] = await Promise.all([
         api.get(`/payment-methods/${payment.id}/channels`),
-        api.get(`/payment-methods/${payment.id}/rewards`),
-        api.get(`/payment-methods/${payment.id}/linked-schemes`) // 假設有此 API 或直接用 payment.linked_schemes
+        api.get(`/payment-methods/${payment.id}/rewards`)
       ]);
       setChannels(chRes.data.data);
       setRewards(rwRes.data.data);
-      // setLinkedSchemes(lsRes.data.data); // 視後端實作而定
-      
       setChannelText(chRes.data.data.map((c: any) => c.note ? `${c.name} (${c.note})` : c.name).join('\n'));
     } catch (e) { console.error(e); }
   };
@@ -292,8 +289,33 @@ export default function PaymentManagement() {
   const [editingPayment, setEditingPayment] = useState<any>(null);
   const [isReordering, setIsReordering] = useState(false);
   const [reorderedPayments, setReorderedPayments] = useState<any[]>([]);
+  const rootRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => { loadPayments(); }, []);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (editingPayment || showForm) {
+          setEditingPayment(null);
+          setShowForm(false);
+        }
+      }
+    };
+    const onClickOutside = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+        if (editingPayment || showForm) {
+          setEditingPayment(null);
+          setShowForm(false);
+        }
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('mousedown', onClickOutside);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('mousedown', onClickOutside);
+    };
+  }, [editingPayment, showForm]);
 
   const loadPayments = async () => {
     const res = await api.get('/payment-methods');
@@ -352,7 +374,7 @@ export default function PaymentManagement() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" ref={rootRef}>
       <div className="flex justify-between items-center">
         <h4 className="font-medium">支付方式列表</h4>
         <div className="flex gap-2">
