@@ -261,7 +261,8 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
             name: row.name,
             card_id: row.card_id,
             card_name: row.card_name,
-            shared_reward_group_id: rootId,         // 群組 id 統一為 root
+            // 只有真的綁定時才帶出 shared_reward_group_id，避免所有方案都被當成共用
+            shared_reward_group_id: row.shared_reward_group_id || null,
           });
         });
       } else {
