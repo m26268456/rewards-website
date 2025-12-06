@@ -178,7 +178,7 @@ router.get('/:id/channels', async (req: Request, res: Response, next: NextFuncti
        FROM payment_channel_applications pca
        JOIN channels c ON pca.channel_id = c.id
        WHERE pca.payment_method_id = $1
-       ORDER BY COALESCE(pca.display_order, 999999), pca.created_at`,
+       ORDER BY pca.created_at`,
       [id]
     );
 

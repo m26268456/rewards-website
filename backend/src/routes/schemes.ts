@@ -501,7 +501,7 @@ router.get('/:id/details', async (req: Request, res: Response, next: NextFunctio
        FROM scheme_channel_applications sca
        JOIN channels c ON sca.channel_id = c.id
        WHERE sca.scheme_id = $1
-       ORDER BY COALESCE(sca.display_order, 999999), sca.created_at`,
+       ORDER BY sca.created_at`,
       [id]
     );
 
