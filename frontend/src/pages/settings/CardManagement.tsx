@@ -191,7 +191,6 @@ function CardItem({ card, onEdit, onDelete, onReload }: { card: Card; onEdit: ()
   const [isReorderingSchemes, setIsReorderingSchemes] = useState(false);
   const [reorderedSchemes, setReorderedSchemes] = useState<Scheme[]>([]);
   const itemRef = useRef<HTMLDivElement | null>(null);
-  const itemRef = useRef<HTMLDivElement | null>(null);
 
   const [appsText, setAppsText] = useState('');
   const [excsText, setExcsText] = useState('');
@@ -550,7 +549,6 @@ export default function CardManagement() {
   const [showCardForm, setShowCardForm] = useState(false);
   const [isReordering, setIsReordering] = useState(false);
   const [reorderedCards, setReorderedCards] = useState<Card[]>([]);
-  const rootRef = useRef<HTMLDivElement | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => { loadCards(); }, []);
