@@ -46,7 +46,7 @@ export default function QuotaManagement() {
   // 共同回饋綁定
   const [sharedGroupOptions, setSharedGroupOptions] = useState<Array<{ id: string; name: string; cardId?: string }>>([]);
   const [bindingTarget, setBindingTarget] = useState<{ idx: number; group: string } | null>(null);
-  const [selectedSharedGroup, setSelectedSharedGroup] = useState<string>('');
+  const [selectedSharedGroups, setSelectedSharedGroups] = useState<string[]>([]);
 
   useEffect(() => {
     loadQuotas();
@@ -157,15 +157,17 @@ export default function QuotaManagement() {
   };
 
   // 綁定共同回饋群組（只對信用卡方案）
-  const handleBindShared = async () => {
+  // 綁定共同回饋群組（多選）
+  const handleBindShared = async (overrideIds?: string[]) => {
     if (!bindingTarget) return;
     const q = quotas[bindingTarget.idx];
     if (!q.schemeId) return alert('僅信用卡方案可綁定共同回饋');
+    const bindIds = overrideIds !== undefined ? overrideIds : selectedSharedGroups;
     try {
-      await api.put(`/schemes/${q.schemeId}/shared-reward`, { sharedRewardGroupId: selectedSharedGroup || null });
+      await api.put(`/schemes/${q.schemeId}/shared-reward`, { sharedRewardGroupIds: bindIds });
       alert('共同回饋綁定已更新');
       setBindingTarget(null);
-      setSelectedSharedGroup('');
+      setSelectedSharedGroups([]);
       loadQuotas();
     } catch (e: any) {
       alert(e.response?.data?.error || '更新失敗');
@@ -197,12 +199,15 @@ export default function QuotaManagement() {
       }
       map.get(key)!.push(item);
     });
-    // 將有共同回饋的群組置頂
-    return order.sort((a, b) => {
+    // 將有共同回饋的群組置頂，並給群組分配顏色索引
+    const sorted = order.sort((a, b) => {
       const aIsShared = a.startsWith('solo-') ? 1 : 0;
       const bIsShared = b.startsWith('solo-') ? 1 : 0;
       return aIsShared - bIsShared; // 共同回饋群組 (0) 排在前面，單獨項目 (1) 排在後面
-    }).map(k => ({ key: k, items: map.get(k)! }));
+    });
+    const colorIndexMap = new Map<string, number>();
+    sorted.forEach((k, idx) => colorIndexMap.set(k, idx));
+    return sorted.map(k => ({ key: k, items: map.get(k)!, colorIndexMap }));
   };
 
   const renderTable = (list: any[], groupKey: string) => (
@@ -220,12 +225,10 @@ export default function QuotaManagement() {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {groupByShared(list).map(({ key: sharedKey, items }) => {
+            {groupByShared(list).map(({ key: sharedKey, items, colorIndexMap }) => {
               const isSharedGroup = !sharedKey.startsWith('solo-');
               const primary = items[0];
               const rewardIndices = primary.rewardIds.map((_: any, i: number) => i);
-              const rowBgBase = isSharedGroup ? ['bg-blue-50', 'bg-blue-100'] : ['bg-white', 'bg-gray-50'];
-              const rowBorder = isSharedGroup ? 'border-blue-300' : 'border-blue-100';
               const schemeNames = items.map((it: any) => {
                 const nm = it.schemeName || it.name || '';
                 const parts = nm.split('-');
@@ -247,7 +250,12 @@ export default function QuotaManagement() {
                 const basis = primary.quotaCalculationBases?.[rIdx] || 'transaction';
                 const basisText = basis === 'statement' ? '帳單總額' : '單筆回饋';
 
-                const rowBgColor = rowBgBase[rIdx % 2];
+                const groupColorIdx = colorIndexMap?.get(sharedKey) || 0;
+                const sharedPairs = [['bg-blue-50','bg-blue-100'], ['bg-blue-100','bg-blue-50']];
+                const soloPairs = [['bg-white','bg-gray-50'], ['bg-gray-50','bg-white']];
+                const colorPair = isSharedGroup ? sharedPairs[groupColorIdx % 2] : soloPairs[groupColorIdx % 2];
+                const rowBgColor = colorPair[rIdx % 2];
+                const rowBorder = isSharedGroup ? 'border-blue-300' : 'border-gray-200';
 
                 return (
                   <tr
@@ -381,14 +389,26 @@ export default function QuotaManagement() {
                         </div>
                       ) : !isEditingQ && (
                         <div className="flex flex-col gap-1">
-                          <button onClick={() => { setEditingQuota({ idx: primary.__index, rIdx, group: groupKey }); setQuotaAdjust(''); }} className="text-yellow-600 text-xs border border-yellow-600 rounded px-1 hover:bg-yellow-50">調額</button>
-                          <button onClick={() => handleRewardEdit(primary.__index, rIdx, groupKey)} className="text-purple-600 text-xs border border-purple-600 rounded px-1 hover:bg-purple-50">設定</button>
+                          <button
+                            onClick={() => { 
+                              setEditingReward({ idx: primary.__index, rIdx, group: groupKey }); 
+                              setEditingQuota({ idx: primary.__index, rIdx, group: groupKey });
+                              setQuotaAdjust('');
+                            }} 
+                            className="px-2 py-1 text-xs border border-blue-600 text-blue-600 rounded hover:bg-blue-50"
+                          >
+                            設定/調額
+                          </button>
                           {isCardScheme && (
                             <button
-                              onClick={() => { setBindingTarget({ idx: primary.__index, group: groupKey }); setSelectedSharedGroup(sharedBound || ''); }}
-                              className="text-blue-600 text-xs border border-blue-600 rounded px-1 hover:bg-blue-50"
+                              onClick={() => { 
+                                setBindingTarget({ idx: primary.__index, group: groupKey }); 
+                                const preset = primary.sharedRewardGroupId ? [primary.sharedRewardGroupId] : [];
+                                setSelectedSharedGroups(preset);
+                              }}
+                              className="px-2 py-1 text-xs border border-blue-600 text-blue-600 rounded hover:bg-blue-50"
                             >
-                              共同回饋管理
+                              回饋綁定
                             </button>
                           )}
                         </div>
@@ -458,7 +478,7 @@ export default function QuotaManagement() {
       {bindingTarget && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-lg p-4 w-96 max-h-[80vh] overflow-y-auto">
-            <h4 className="font-semibold mb-3 text-gray-800">共同回饋管理</h4>
+            <h4 className="font-semibold mb-3 text-gray-800">回饋綁定</h4>
             {(() => {
               const current = quotas[bindingTarget.idx];
               const currentCardId = current?.cardId;
@@ -468,8 +488,8 @@ export default function QuotaManagement() {
                   <label className="flex items-center gap-2 text-sm">
                     <input
                       type="checkbox"
-                      checked={selectedSharedGroup === ''}
-                      onChange={() => setSelectedSharedGroup('')}
+                      checked={selectedSharedGroups.length === 0}
+                      onChange={() => setSelectedSharedGroups([])}
                     />
                     不綁定
                   </label>
@@ -477,8 +497,12 @@ export default function QuotaManagement() {
                     <label key={opt.id} className="flex items-center gap-2 text-sm">
                       <input
                         type="checkbox"
-                        checked={selectedSharedGroup === opt.id}
-                        onChange={() => setSelectedSharedGroup(selectedSharedGroup === opt.id ? '' : opt.id)}
+                        checked={selectedSharedGroups.includes(opt.id)}
+                        onChange={() => {
+                          setSelectedSharedGroups(prev =>
+                            prev.includes(opt.id) ? prev.filter(id => id !== opt.id) : [...prev, opt.id]
+                          );
+                        }}
                       />
                       <span>{opt.name}</span>
                     </label>
@@ -491,17 +515,17 @@ export default function QuotaManagement() {
             })()}
             <div className="flex justify-end gap-2 mt-4">
               <button
-                onClick={() => { setBindingTarget(null); setSelectedSharedGroup(''); }}
+                onClick={() => { setBindingTarget(null); setSelectedSharedGroups([]); }}
                 className="px-3 py-1 bg-gray-300 text-gray-800 rounded text-sm"
               >
                 取消
               </button>
-              <button
-                onClick={handleBindShared}
-                className="px-3 py-1 bg-blue-600 text-white rounded text-sm"
-              >
-                確認
-              </button>
+                  <button
+                    onClick={() => handleBindShared(selectedSharedGroups)}
+                    className="px-3 py-1 bg-blue-600 text-white rounded text-sm"
+                  >
+                    確認
+                  </button>
             </div>
           </div>
         </div>

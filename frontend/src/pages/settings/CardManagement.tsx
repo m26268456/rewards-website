@@ -191,6 +191,7 @@ function CardItem({ card, onEdit, onDelete, onReload }: { card: Card; onEdit: ()
   const [isReorderingSchemes, setIsReorderingSchemes] = useState(false);
   const [reorderedSchemes, setReorderedSchemes] = useState<Scheme[]>([]);
   const itemRef = useRef<HTMLDivElement | null>(null);
+  const itemRef = useRef<HTMLDivElement | null>(null);
 
   const [appsText, setAppsText] = useState('');
   const [excsText, setExcsText] = useState('');
@@ -199,6 +200,40 @@ function CardItem({ card, onEdit, onDelete, onReload }: { card: Card; onEdit: ()
     activityStartDate: '', activityEndDate: '', displayOrder: 0,
     sharedRewardGroupId: '',
   });
+
+  // ESC / 點擊空白收合或取消編輯
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (showSchemeForm || editingScheme) {
+          setShowSchemeForm(false);
+          setEditingScheme(null);
+        } else if (expandedSchemeId) {
+          setExpandedSchemeId(null);
+        } else if (showSchemes) {
+          setShowSchemes(false);
+        }
+      }
+    };
+    const onClickOutside = (e: MouseEvent) => {
+      if (itemRef.current && !itemRef.current.contains(e.target as Node)) {
+        if (showSchemeForm || editingScheme) {
+          setShowSchemeForm(false);
+          setEditingScheme(null);
+        } else if (expandedSchemeId) {
+          setExpandedSchemeId(null);
+        } else if (showSchemes) {
+          setShowSchemes(false);
+        }
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('mousedown', onClickOutside);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('mousedown', onClickOutside);
+    };
+  }, [showSchemeForm, editingScheme, expandedSchemeId, showSchemes]);
 
   // ESC / 點擊空白收合或取消編輯
   useEffect(() => {
@@ -415,7 +450,7 @@ function CardItem({ card, onEdit, onDelete, onReload }: { card: Card; onEdit: ()
           </div>
 
           {showSchemeForm && (
-            <div className="mb-4 p-3 bg-white rounded border">
+            <div className="mb-4 p-3 bg-white rounded border shadow-sm">
               <h4 className="font-medium mb-2">{editingScheme ? '編輯方案' : '新增方案'}</h4>
               <form onSubmit={handleSchemeSubmit} className="space-y-3">
                 <input 
@@ -458,24 +493,69 @@ function CardItem({ card, onEdit, onDelete, onReload }: { card: Card; onEdit: ()
             </div>
           )}
 
-          <div className="space-y-2">
+          <div className="space-y-3">
             {(isReorderingSchemes ? reorderedSchemes : schemes).map((s, idx) => (
-              <div key={s.id} className="flex gap-2 items-start">
-                <div className="flex-1">
-                  <SchemeDetailManager 
-                    scheme={s} 
-                    isExpanded={expandedSchemeId === s.id}
-                    onExpand={() => !isReorderingSchemes && setExpandedSchemeId(expandedSchemeId === s.id ? null : s.id)}
-                    onEdit={() => !isReorderingSchemes && handleEditScheme(s)}
-                    onDelete={() => !isReorderingSchemes && handleSchemeDelete(s.id)}
-                  />
+              <div key={s.id} className="space-y-2">
+                <div className="flex gap-2 items-start flex-wrap">
+                  <div className="flex-1">
+                    <SchemeDetailManager 
+                      scheme={s} 
+                      isExpanded={expandedSchemeId === s.id}
+                      onExpand={() => !isReorderingSchemes && setExpandedSchemeId(expandedSchemeId === s.id ? null : s.id)}
+                      onEdit={() => !isReorderingSchemes && handleEditScheme(s)}
+                      onDelete={() => !isReorderingSchemes && handleSchemeDelete(s.id)}
+                    />
+                  </div>
+                  {isReorderingSchemes && (
+                    <div className="flex flex-col gap-1">
+                      <button onClick={() => moveScheme(idx, 'top')} className="px-2 py-1 bg-gray-600 text-white rounded text-xs disabled:opacity-40" disabled={idx === 0}>⏫ 置頂</button>
+                      <button onClick={() => moveScheme(idx, 'up')} className="px-2 py-1 bg-blue-600 text-white rounded text-xs disabled:opacity-40" disabled={idx === 0}>▲ 上移</button>
+                      <button onClick={() => moveScheme(idx, 'down')} className="px-2 py-1 bg-blue-600 text-white rounded text-xs disabled:opacity-40" disabled={idx === (isReorderingSchemes ? reorderedSchemes.length - 1 : schemes.length - 1)}>▼ 下移</button>
+                      <button onClick={() => moveScheme(idx, 'bottom')} className="px-2 py-1 bg-gray-600 text-white rounded text-xs disabled:opacity-40" disabled={idx === (isReorderingSchemes ? reorderedSchemes.length - 1 : schemes.length - 1)}>⏬ 置底</button>
+                    </div>
+                  )}
                 </div>
-                {isReorderingSchemes && (
-                  <div className="flex flex-col gap-1">
-                    <button onClick={() => moveScheme(idx, 'top')} className="px-2 py-1 bg-gray-600 text-white rounded text-xs disabled:opacity-40" disabled={idx === 0}>⏫ 置頂</button>
-                    <button onClick={() => moveScheme(idx, 'up')} className="px-2 py-1 bg-blue-600 text-white rounded text-xs disabled:opacity-40" disabled={idx === 0}>▲ 上移</button>
-                    <button onClick={() => moveScheme(idx, 'down')} className="px-2 py-1 bg-blue-600 text-white rounded text-xs disabled:opacity-40" disabled={idx === (isReorderingSchemes ? reorderedSchemes.length - 1 : schemes.length - 1)}>▼ 下移</button>
-                    <button onClick={() => moveScheme(idx, 'bottom')} className="px-2 py-1 bg-gray-600 text-white rounded text-xs disabled:opacity-40" disabled={idx === (isReorderingSchemes ? reorderedSchemes.length - 1 : schemes.length - 1)}>⏬ 置底</button>
+
+                {!isReorderingSchemes && editingScheme?.id === s.id && showSchemeForm && (
+                  <div className="p-3 bg-white rounded border shadow-sm">
+                    <form onSubmit={handleSchemeSubmit} className="space-y-3">
+                      <input 
+                        placeholder="方案名稱" 
+                        value={schemeForm.name} 
+                        onChange={e => setSchemeForm({...schemeForm, name: e.target.value})} 
+                        className="w-full border p-1 rounded text-sm" required 
+                      />
+                      <input 
+                        placeholder="備註" 
+                        value={schemeForm.note} 
+                        onChange={e => setSchemeForm({...schemeForm, note: e.target.value})} 
+                        className="w-full border p-1 rounded text-sm" 
+                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <input type="date" value={schemeForm.activityStartDate} onChange={e => setSchemeForm({...schemeForm, activityStartDate: e.target.value})} className="border p-1 rounded text-sm" />
+                        <input type="date" value={schemeForm.activityEndDate} onChange={e => setSchemeForm({...schemeForm, activityEndDate: e.target.value})} className="border p-1 rounded text-sm" />
+                      </div>
+                      <select 
+                        value={schemeForm.sharedRewardGroupId} 
+                        onChange={e => setSchemeForm({...schemeForm, sharedRewardGroupId: e.target.value})}
+                        className="w-full border p-1 rounded text-sm"
+                      >
+                        <option value="">不綁定共同回饋</option>
+                        {schemes.filter(s2 => s2.id !== editingScheme?.id).map(s2 => (
+                          <option key={s2.id} value={s2.id}>{s2.name}</option>
+                        ))}
+                      </select>
+                      <textarea placeholder="適用通路 (每行一個)" value={appsText} onChange={e => setAppsText(e.target.value)} className="w-full border p-1 rounded text-sm" rows={3} />
+                      <textarea placeholder="排除通路 (每行一個)" value={excsText} onChange={e => setExcsText(e.target.value)} className="w-full border p-1 rounded text-sm" rows={3} />
+                      <label className="flex items-center gap-2 text-sm">
+                        <input type="checkbox" checked={schemeForm.requiresSwitch} onChange={e => setSchemeForm({...schemeForm, requiresSwitch: e.target.checked})} />
+                        需切換
+                      </label>
+                      <div className="flex gap-2">
+                        <button type="submit" className="px-3 py-1 bg-blue-600 text-white rounded text-xs">儲存</button>
+                        <button type="button" onClick={() => { setShowSchemeForm(false); setEditingScheme(null); }} className="px-3 py-1 bg-gray-400 text-white rounded text-xs">取消</button>
+                      </div>
+                    </form>
                   </div>
                 )}
               </div>
@@ -493,6 +573,7 @@ export default function CardManagement() {
   const [showCardForm, setShowCardForm] = useState(false);
   const [isReordering, setIsReordering] = useState(false);
   const [reorderedCards, setReorderedCards] = useState<Card[]>([]);
+  const rootRef = useRef<HTMLDivElement | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => { loadCards(); }, []);
@@ -577,6 +658,32 @@ export default function CardManagement() {
     }
     setReorderedCards(newArr);
   };
+
+  // ESC / 點擊空白 收合/取消卡片編輯
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (editingCard || showCardForm) {
+          setEditingCard(null);
+          setShowCardForm(false);
+        }
+      }
+    };
+    const onClickOutside = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+        if (editingCard || showCardForm) {
+          setEditingCard(null);
+          setShowCardForm(false);
+        }
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('mousedown', onClickOutside);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('mousedown', onClickOutside);
+    };
+  }, [editingCard, showCardForm]);
 
   return (
     <div className="space-y-4" ref={rootRef}>

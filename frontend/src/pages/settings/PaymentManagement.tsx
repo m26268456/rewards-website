@@ -290,6 +290,7 @@ export default function PaymentManagement() {
   const [isReordering, setIsReordering] = useState(false);
   const [reorderedPayments, setReorderedPayments] = useState<any[]>([]);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => { loadPayments(); }, []);
   useEffect(() => {
@@ -409,37 +410,39 @@ export default function PaymentManagement() {
         </div>
       )}
 
-      <div className="space-y-2">
+      <div className="space-y-3">
         {(isReordering ? reorderedPayments : payments).map((pm, idx) => (
-          <div key={pm.id} className="flex items-start gap-2">
-            <div className="flex-1">
-              <PaymentMethodItem 
-                payment={pm} 
-                onEdit={() => { if (!isReordering) { setEditingPayment(pm); setShowForm(true); }}}
-                onDelete={() => !isReordering && handleDelete(pm.id)}
-                onReload={loadPayments}
-              />
-              {!isReordering && editingPayment?.id === pm.id && showForm && (
-                <div className="p-3 bg-gray-50 border rounded mt-2">
-                  <form onSubmit={handleSubmit} className="space-y-3">
-                    <input name="name" defaultValue={editingPayment?.name} placeholder="名稱" required className="w-full border p-2 rounded text-sm" />
-                    <input name="note" defaultValue={editingPayment?.note} placeholder="備註" className="w-full border p-2 rounded text-sm" />
-                    <div className="flex gap-2">
-                      <button type="submit" className="px-3 py-1 bg-blue-600 text-white rounded text-xs">儲存</button>
-                      <button type="button" onClick={() => { setShowForm(false); setEditingPayment(null); }} className="px-3 py-1 bg-gray-400 text-white rounded text-xs">取消</button>
-                    </div>
-                  </form>
+          <div key={pm.id} className="space-y-2">
+            <div className="flex flex-col sm:flex-row sm:items-start gap-2">
+              <div className="flex-1">
+                <PaymentMethodItem 
+                  payment={pm} 
+                  onEdit={() => { if (!isReordering) { setEditingPayment(pm); setShowForm(true); }}}
+                  onDelete={() => !isReordering && handleDelete(pm.id)}
+                  onReload={loadPayments}
+                />
+                {!isReordering && editingPayment?.id === pm.id && showForm && (
+                  <div className="p-3 bg-white border rounded shadow-sm mt-2">
+                    <form onSubmit={handleSubmit} className="space-y-3">
+                      <input name="name" defaultValue={editingPayment?.name} placeholder="名稱" required className="w-full border p-2 rounded text-sm" />
+                      <input name="note" defaultValue={editingPayment?.note} placeholder="備註" className="w-full border p-2 rounded text-sm" />
+                      <div className="flex gap-2">
+                        <button type="submit" className="px-3 py-1 bg-blue-600 text-white rounded text-xs">儲存</button>
+                        <button type="button" onClick={() => { setShowForm(false); setEditingPayment(null); }} className="px-3 py-1 bg-gray-400 text-white rounded text-xs">取消</button>
+                      </div>
+                    </form>
+                  </div>
+                )}
+              </div>
+              {isReordering && (
+                <div className="flex flex-col gap-1">
+                  <button onClick={() => movePayment(idx, 'top')} className="px-2 py-1 bg-gray-600 text-white rounded text-xs disabled:opacity-40" disabled={idx === 0}>⏫ 置頂</button>
+                  <button onClick={() => movePayment(idx, 'up')} className="px-2 py-1 bg-blue-600 text-white rounded text-xs disabled:opacity-40" disabled={idx === 0}>▲ 上移</button>
+                  <button onClick={() => movePayment(idx, 'down')} className="px-2 py-1 bg-blue-600 text-white rounded text-xs disabled:opacity-40" disabled={idx === (isReordering ? reorderedPayments.length - 1 : payments.length - 1)}>▼ 下移</button>
+                  <button onClick={() => movePayment(idx, 'bottom')} className="px-2 py-1 bg-gray-600 text-white rounded text-xs disabled:opacity-40" disabled={idx === (isReordering ? reorderedPayments.length - 1 : payments.length - 1)}>⏬ 置底</button>
                 </div>
               )}
             </div>
-                {isReordering && (
-                  <div className="flex flex-col gap-1">
-                    <button onClick={() => movePayment(idx, 'top')} className="px-2 py-1 bg-gray-600 text-white rounded text-xs disabled:opacity-40" disabled={idx === 0}>⏫ 置頂</button>
-                    <button onClick={() => movePayment(idx, 'up')} className="px-2 py-1 bg-blue-600 text-white rounded text-xs disabled:opacity-40" disabled={idx === 0}>▲ 上移</button>
-                    <button onClick={() => movePayment(idx, 'down')} className="px-2 py-1 bg-blue-600 text-white rounded text-xs disabled:opacity-40" disabled={idx === (isReordering ? reorderedPayments.length - 1 : payments.length - 1)}>▼ 下移</button>
-                    <button onClick={() => movePayment(idx, 'bottom')} className="px-2 py-1 bg-gray-600 text-white rounded text-xs disabled:opacity-40" disabled={idx === (isReordering ? reorderedPayments.length - 1 : payments.length - 1)}>⏬ 置底</button>
-                  </div>
-                )}
           </div>
         ))}
       </div>

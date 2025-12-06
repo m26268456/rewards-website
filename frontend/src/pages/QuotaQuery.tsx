@@ -128,11 +128,7 @@ export default function QuotaQuery() {
 
     // 為每個群組分配顏色索引（避免 colorIndexMap 未定義導致渲染錯誤）
     const colorIndexMap = new Map<string, number>();
-    let colorIdx = 0;
-    sortedGroups.forEach(([key]) => {
-      colorIndexMap.set(key, colorIdx % 2);
-      colorIdx += 1;
-    });
+    sortedGroups.forEach(([key], idx) => colorIndexMap.set(key, idx));
     
     return (
       <div className="mb-4">
