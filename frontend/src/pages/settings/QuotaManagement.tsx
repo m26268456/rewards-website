@@ -275,14 +275,18 @@ export default function QuotaManagement() {
               });
               const primary = sortedItems[0];
               const rewardIndices = primary.rewardIds.map((_: any, i: number) => i);
-              const rootId = primary.sharedRewardGroupId || primary.schemeId;
-              const rootName = sortedItems.find((it: any) => (!it.sharedRewardGroupId || it.sharedRewardGroupId === it.schemeId) && (it.schemeId === rootId || !it.sharedRewardGroupId))?.schemeName || primary.schemeName || primary.name;
+              // 找出 root 方案：sharedRewardGroupId 為 null 或等於自身 schemeId
+              const rootScheme = sortedItems.find((it: any) => !it.sharedRewardGroupId || it.sharedRewardGroupId === it.schemeId) || primary;
+              const rootId = rootScheme.schemeId;
+              const rootName = rootScheme.schemeName || rootScheme.name || '';
               const childNames = sortedItems
                 .filter((it: any) => it.schemeId !== rootId)
                 .map((it: any) => it.schemeName || it.name || '')
                 .filter(Boolean);
 
-              return rewardIndices.map((rIdx: number) => {
+              // 共享群組只渲染第一個回饋組成，非共享群組渲染所有回饋組成
+              const rowsToRender = isSharedGroup ? [0] : rewardIndices;
+              return rowsToRender.map((rIdx: number) => {
                 const isFirst = rIdx === 0;
                 const isEditingQ = editingQuota?.idx === primary.__index && editingQuota?.rIdx === rIdx;
                 const isEditingR = editingReward?.idx === primary.__index && editingReward?.rIdx === rIdx;
@@ -302,7 +306,8 @@ export default function QuotaManagement() {
                 const sharedPairs = [['bg-blue-50','bg-blue-100'], ['bg-blue-100','bg-blue-50']];
                 const soloPairs = [['bg-white','bg-gray-50'], ['bg-gray-50','bg-white']];
                 const colorPair = isSharedGroup ? sharedPairs[groupColorIdx % 2] : soloPairs[groupColorIdx % 2];
-                const rowBgColor = colorPair[rIdx % 2];
+                // 共享群組只顯示一行，使用第一個顏色；非共享群組使用交替顏色
+                const rowBgColor = isSharedGroup ? colorPair[0] : colorPair[rIdx % 2];
                 const rowBorder = isSharedGroup ? 'border-blue-300' : 'border-gray-200';
 
                 return (
@@ -311,18 +316,18 @@ export default function QuotaManagement() {
                     className={`${rowBgColor} border-l-4 ${rowBorder} hover:bg-blue-50 transition-colors`}
                   >
                     {isFirst && (
-                      <td rowSpan={rewardIndices.length} className={`px-4 py-3 text-sm font-medium sticky left-0 ${rowBgColor} z-10 border-r border-gray-200 align-top`}>
+                      <td className={`px-4 py-3 text-sm font-medium sticky left-0 ${rowBgColor} z-10 border-r border-gray-200 align-top`}>
                         <div className="space-y-1">
                           <div className="font-semibold">{rootName}</div>
                           {childNames.length > 0 && (
                             <div className="text-xs text-gray-600 space-y-0.5">
                               {childNames.map((nm: string, i: number) => (
-                                <div key={i}>↳ {nm}</div>
+                                <div key={i}>{nm}</div>
                               ))}
                             </div>
                           )}
-                          {sharedBound && (
-                            <div className="text-[11px] text-blue-700 bg-blue-50 border border-blue-100 rounded px-2 py-1 inline-block">
+                          {isSharedGroup && (
+                            <div className="text-[11px] text-blue-700 bg-blue-50 border border-blue-100 rounded px-2 py-1 inline-block mt-1">
                               共用回饋
                             </div>
                           )}
@@ -433,14 +438,14 @@ export default function QuotaManagement() {
                       )}
                     </td>
                     {isFirst && (
-                      <td rowSpan={rewardIndices.length} className="px-4 py-3 text-sm align-top">
+                      <td className="px-4 py-3 text-sm align-top">
                         {isSharedChild ? (
                           <div className="text-xs text-blue-600 bg-blue-50 border border-blue-100 rounded px-2 py-1">
                             共用回饋（由主方案管理）
                           </div>
                         ) : isEditingR ? (
                           <div className="flex flex-col gap-1">
-                            {sharedBound && (
+                            {isSharedGroup && (
                               <div className="text-[11px] text-blue-700 bg-blue-50 border border-blue-100 rounded px-2 py-1">
                                 共用回饋：此變更會影響同組方案
                               </div>
