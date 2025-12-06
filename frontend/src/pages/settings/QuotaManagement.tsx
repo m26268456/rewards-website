@@ -368,9 +368,16 @@ export default function QuotaManagement() {
                 const basisText = basis === 'statement' ? '帳單總額' : '單筆回饋';
 
                 const groupColorIdx = colorIndexMap?.get(sharedKey) || 0;
-                const sharedPairs = [['bg-blue-50','bg-blue-100'], ['bg-blue-100','bg-blue-50']];
+                const sharedPairs = [
+                  ['bg-blue-50','bg-blue-100'],
+                  ['bg-red-50','bg-red-100'],
+                  ['bg-green-50','bg-green-100'],
+                  ['bg-yellow-50','bg-yellow-100'],
+                  ['bg-purple-50','bg-purple-100'],
+                  ['bg-pink-50','bg-pink-100'],
+                ];
                 const soloPairs = [['bg-white','bg-gray-50'], ['bg-gray-50','bg-white']];
-                const colorPair = isSharedGroup ? sharedPairs[groupColorIdx % 2] : soloPairs[groupColorIdx % 2];
+                const colorPair = isSharedGroup ? sharedPairs[groupColorIdx % sharedPairs.length] : soloPairs[groupColorIdx % 2];
                 // 共享群組只顯示一行，使用第一個顏色；非共享群組使用交替顏色
                 const rowBgColor = isSharedGroup ? colorPair[0] : colorPair[rIdx % 2];
                 const rowBorder = isSharedGroup ? 'border-blue-300' : 'border-gray-200';
@@ -504,48 +511,9 @@ export default function QuotaManagement() {
                     </td>
                     {isFirst && (
                       <td className="px-4 py-3 text-sm align-top">
-                        {isSharedChild ? (
-                          <div className="flex flex-col gap-1">
-                            <div className="text-xs text-blue-600 bg-blue-50 border border-blue-100 rounded px-2 py-1">
-                              共用回饋（由主方案管理）
-                            </div>
-                            {isCardScheme && (
-                              <button
-                                onClick={() => { 
-                                  setBindingTarget({ idx: primary.__index, group: groupKey }); 
-                                  const current = quotas.find(q => q.__index === primary.__index);
-                                  
-                                  // 如果有現有綁定，預設選中 root 方案和所有其他群組成員（排除自己）；否則預設為不綁定
-                                  const preset = current?.sharedRewardGroupId
-                                    ? (() => {
-                                        const rootId = current.sharedRewardGroupId;
-                                        const groupMembers = quotas
-                                          .filter(x => 
-                                            (x.sharedRewardGroupId === rootId || 
-                                             x.schemeId === rootId) && 
-                                            x.schemeId &&
-                                            x.schemeId !== current.schemeId // 排除當前方案自己
-                                          )
-                                          .map(x => x.schemeId);
-                                        // 如果 root 方案在候選列表中，也要加入
-                                        const rootInCandidates = sharedGroupOptions.some(opt => opt.id === rootId);
-                                        return rootInCandidates ? [rootId, ...groupMembers] : groupMembers;
-                                      })()
-                                    : []; // 沒有綁定時，預設為空陣列（不綁定）
-                                  
-                                  setSelectedSharedGroups(preset);
-                                  // 如果有現有綁定，預設主方案為 root
-                                  if (current?.sharedRewardGroupId) {
-                                    setSelectedRootSchemeId(current.sharedRewardGroupId);
-                                  } else {
-                                    setSelectedRootSchemeId('');
-                                  }
-                                }}
-                                className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
-                              >
-                                回饋綁定
-                              </button>
-                            )}
+                {isSharedChild ? (
+                          <div className="text-xs text-blue-600 bg-blue-50 border border-blue-100 rounded px-2 py-1">
+                            共用回饋（由主方案管理）
                           </div>
                         ) : isEditingR ? (
                           <div className="flex flex-col gap-1">
@@ -575,26 +543,24 @@ export default function QuotaManagement() {
                                   setBindingTarget({ idx: primary.__index, group: groupKey }); 
                                   const current = quotas.find(q => q.__index === primary.__index);
                                   
-                                  // 如果有現有綁定，預設選中 root 方案和所有其他群組成員（排除自己）；否則預設為不綁定
+                                  // 如果有現有綁定，預設選中所有被綁定方案（排除主方案與當前方案）；否則預設為不綁定
                                   const preset = current?.sharedRewardGroupId
                                     ? (() => {
                                         const rootId = current.sharedRewardGroupId;
                                         const groupMembers = quotas
                                           .filter(x => 
-                                            (x.sharedRewardGroupId === rootId || 
-                                             x.schemeId === rootId) && 
+                                            x.sharedRewardGroupId === rootId && // 只選被綁定的方案
                                             x.schemeId &&
-                                            x.schemeId !== current.schemeId // 排除當前方案自己
+                                            x.schemeId !== rootId &&           // 排除主方案
+                                            x.schemeId !== current.schemeId     // 排除當前方案
                                           )
                                           .map(x => x.schemeId);
-                                        // 如果 root 方案在候選列表中，也要加入
-                                        const rootInCandidates = sharedGroupOptions.some(opt => opt.id === rootId);
-                                        return rootInCandidates ? [rootId, ...groupMembers] : groupMembers;
+                                        return groupMembers;
                                       })()
                                     : []; // 沒有綁定時，預設為空陣列（不綁定）
                                   
                                   setSelectedSharedGroups(preset);
-                                  // 如果有現有綁定，預設主方案為 root
+                                  // 如果有現有綁定，預設主方案為 root；否則清空
                                   if (current?.sharedRewardGroupId) {
                                     setSelectedRootSchemeId(current.sharedRewardGroupId);
                                   } else {
@@ -724,8 +690,8 @@ export default function QuotaManagement() {
                     <div className="text-xs text-gray-500">此卡片無可綁定的其他方案</div>
                   )}
                   
-                  {/* 當選擇多個方案時，顯示主方案選擇 */}
-                  {selectedSharedGroups.length > 1 && (
+                  {/* 當為共同回饋組時顯示主方案選擇：已有綁定或選擇多個方案 */}
+                  {selectedSharedGroups.length > 0 && (current?.sharedRewardGroupId || selectedSharedGroups.length > 1) && (
                     <div className="mt-4 pt-4 border-t">
                       <div className="text-sm font-medium mb-2 text-gray-700">選擇主方案：</div>
                       <div className="space-y-2">
