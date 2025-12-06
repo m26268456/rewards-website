@@ -336,13 +336,13 @@ export default function Transactions() {
                       ? formatTz(utcToZonedTime(new Date(transaction.transaction_date), TIMEZONE), 'yyyy/MM/dd', { timeZone: TIMEZONE })
                       : '-'}
                   </td>
-                  <td className="px-4 py-3 text-sm min-w-[150px]">{transaction.reason}</td>
+                  <td className="px-4 py-3 text-sm whitespace-nowrap">{transaction.reason}</td>
                   <td className="px-4 py-3 text-sm whitespace-nowrap">
                     {transaction.amount ? transaction.amount.toLocaleString() : '-'}
                   </td>
                   <td className="px-4 py-3 text-sm whitespace-nowrap">{transaction.type_name}</td>
-                  <td className="px-4 py-3 text-sm min-w-[120px]">{transaction.scheme_name || '-'}</td>
-                  <td className="px-4 py-3 text-sm min-w-[100px] whitespace-pre-wrap">{transaction.note || '-'}</td>
+                  <td className="px-4 py-3 text-sm whitespace-nowrap">{transaction.scheme_name || '-'}</td>
+                  <td className="px-4 py-3 text-sm whitespace-pre-wrap break-words">{transaction.note || '-'}</td>
                   <td className="px-4 py-3 text-sm whitespace-nowrap">
                     <button
                       onClick={() => handleDelete(transaction.id)}

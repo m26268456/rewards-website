@@ -7,17 +7,18 @@ import {
   resolveSharedRewardTargetSchemeId,
   setSharedRewardGroupMapping,
 } from '../services/sharedRewardMapping';
+import { bulkInsertRewards } from '../utils/rewardBatchUpdate';
 
 const router = Router();
 
 // 取得所有卡片及其方案（方案總覽）
-router.get('/overview', async (req: Request, res: Response, next: NextFunction) => {
+router.get('/overview', async (_req: Request, res: Response, next: NextFunction) => {
   try {
     const data = await getAllCardsWithSchemes();
-    res.json({ success: true, data });
+    return res.json({ success: true, data });
   } catch (error) {
     logger.error('取得方案總覽錯誤:', error);
-    next(error);
+    return next(error);
   }
 });
 
@@ -29,8 +30,7 @@ router.post('/query-channels', async (req: Request, res: Response, next: NextFun
     // 如果提供關鍵字，使用關鍵字查詢
     if (keywords && Array.isArray(keywords) && keywords.length > 0) {
       const results = await queryChannelRewardsByKeywords(keywords);
-      res.json({ success: true, data: results });
-      return;
+      return res.json({ success: true, data: results });
     }
 
     // 否則使用通路ID查詢
@@ -42,10 +42,10 @@ router.post('/query-channels', async (req: Request, res: Response, next: NextFun
     }
 
     const results = await queryChannelRewards(channelIds);
-    res.json({ success: true, data: results });
+    return res.json({ success: true, data: results });
   } catch (error) {
     logger.error('查詢通路回饋錯誤:', error);
-    next(error);
+    return next(error);
   }
 });
 
@@ -69,10 +69,10 @@ router.get('/card/:cardId', async (req: Request, res: Response, next: NextFuncti
       [cardId]
     );
 
-    res.json({ success: true, data: result.rows });
+    return res.json({ success: true, data: result.rows });
   } catch (error) {
     logger.error(`取得卡片方案錯誤 CardID ${req.params.cardId}:`, error);
-    next(error);
+    return next(error);
   }
 });
 
@@ -159,7 +159,7 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
 
       await client.query('COMMIT');
       logger.info(`新增方案成功 ID ${schemeId}`);
-      res.json({ success: true, data: { id: schemeId } });
+      return res.json({ success: true, data: { id: schemeId } });
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
@@ -168,7 +168,7 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
     }
   } catch (error) {
     logger.error('新增方案失敗:', error);
-    next(error);
+    return next(error);
   }
 });
 
@@ -248,10 +248,10 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
     await setSharedRewardGroupMapping(id, sharedRewardGroupId || null);
 
     logger.info(`更新方案成功 ID ${id}`);
-    res.json({ success: true, data: result.rows[0] });
+    return res.json({ success: true, data: result.rows[0] });
   } catch (error) {
     logger.error(`更新方案失敗 ID ${req.params.id}:`, error);
-    next(error);
+    return next(error);
   }
 });
 
@@ -291,13 +291,13 @@ router.put('/:id/shared-reward', async (req: Request, res: Response, next: NextF
 
     await setSharedRewardGroupMapping(id, targetGroupId);
 
-    res.json({
+    return res.json({
       success: true,
       data: { id, sharedRewardGroupId: targetGroupId },
     });
   } catch (error) {
     logger.error(`更新共同回饋失敗 SchemeID ${id}:`, error);
-    next(error);
+    return next(error);
   }
 });
 
@@ -423,7 +423,7 @@ router.put('/:id/batch', async (req: Request, res: Response, next: NextFunction)
 
       await client.query('COMMIT');
       logger.info(`批量更新方案成功 ID ${id}`);
-      res.json({ success: true, message: '方案已更新' });
+      return res.json({ success: true, message: '方案已更新' });
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
@@ -432,7 +432,7 @@ router.put('/:id/batch', async (req: Request, res: Response, next: NextFunction)
     }
   } catch (error) {
     logger.error(`批量更新方案失敗 ID ${req.params.id}:`, error);
-    next(error);
+    return next(error);
   }
 });
 
@@ -451,10 +451,10 @@ router.delete('/:id', async (req: Request, res: Response, next: NextFunction) =>
     }
 
     logger.info(`刪除方案成功 ID ${id}`);
-    res.json({ success: true, message: '方案已刪除' });
+    return res.json({ success: true, message: '方案已刪除' });
   } catch (error) {
     logger.error(`刪除方案失敗 ID ${req.params.id}:`, error);
-    next(error);
+    return next(error);
   }
 });
 
@@ -501,7 +501,7 @@ router.get('/:id/details', async (req: Request, res: Response, next: NextFunctio
        FROM scheme_channel_applications sca
        JOIN channels c ON sca.channel_id = c.id
        WHERE sca.scheme_id = $1
-       ORDER BY sca.created_at`,
+       ORDER BY COALESCE(sca.display_order, 999999), sca.created_at`,
       [id]
     );
 
@@ -513,7 +513,7 @@ router.get('/:id/details', async (req: Request, res: Response, next: NextFunctio
       [id]
     );
 
-    res.json({
+    return res.json({
       success: true,
       data: {
         ...scheme,
@@ -524,7 +524,7 @@ router.get('/:id/details', async (req: Request, res: Response, next: NextFunctio
     });
   } catch (error) {
     logger.error(`取得方案詳情失敗 ID ${req.params.id}:`, error);
-    next(error);
+    return next(error);
   }
 });
 
@@ -542,15 +542,30 @@ router.put('/:id/channels', async (req: Request, res: Response, next: NextFuncti
 
       if (Array.isArray(applications) && applications.length > 0) {
         const validApps = applications.filter((app: any) => app && app.channelId);
+        // 按前端傳遞的順序插入，使用索引作為display_order
         for (let i = 0; i < validApps.length; i++) {
           const app = validApps[i];
-          const params = [id, app.channelId, app.note || null];
-          await client.query(
-            `INSERT INTO scheme_channel_applications (scheme_id, channel_id, note)
-             VALUES ($1::uuid, $2::uuid, $3::text)
-             ON CONFLICT (scheme_id, channel_id) DO UPDATE SET note = EXCLUDED.note`,
-            params
-          );
+          // 嘗試添加display_order，如果表沒有此欄位則忽略
+          try {
+            await client.query(
+              `INSERT INTO scheme_channel_applications (scheme_id, channel_id, note, display_order)
+               VALUES ($1::uuid, $2::uuid, $3::text, $4::integer)
+               ON CONFLICT (scheme_id, channel_id) DO UPDATE SET note = EXCLUDED.note, display_order = EXCLUDED.display_order`,
+              [id, app.channelId, app.note || null, i]
+            );
+          } catch (error: any) {
+            // 如果表沒有display_order欄位，使用舊的方式
+            if (error.code === '42703') {
+              await client.query(
+                `INSERT INTO scheme_channel_applications (scheme_id, channel_id, note)
+                 VALUES ($1::uuid, $2::uuid, $3::text)
+                 ON CONFLICT (scheme_id, channel_id) DO UPDATE SET note = EXCLUDED.note`,
+                [id, app.channelId, app.note || null]
+              );
+            } else {
+              throw error;
+            }
+          }
         }
       }
 
@@ -571,7 +586,7 @@ router.put('/:id/channels', async (req: Request, res: Response, next: NextFuncti
 
       await client.query('COMMIT');
       logger.info(`更新方案通路成功 ID ${id}`);
-      res.json({ success: true, message: '通路設定已更新' });
+      return res.json({ success: true, message: '通路設定已更新' });
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
@@ -580,7 +595,7 @@ router.put('/:id/channels', async (req: Request, res: Response, next: NextFuncti
     }
   } catch (error) {
     logger.error(`更新方案通路失敗 ID ${req.params.id}:`, error);
-    next(error);
+    return next(error);
   }
 });
 
@@ -613,10 +628,10 @@ router.post('/:id/rewards', async (req: Request, res: Response, next: NextFuncti
       ]
     );
 
-    res.json({ success: true, data: result.rows[0] });
+    return res.json({ success: true, data: result.rows[0] });
   } catch (error) {
     logger.error('新增方案回饋失敗:', error);
-    next(error);
+    return next(error);
   }
 });
 
@@ -644,42 +659,17 @@ router.put('/:id/rewards', async (req: Request, res: Response, next: NextFunctio
 
       await client.query('DELETE FROM scheme_rewards WHERE scheme_id = $1', [targetSchemeId]);
 
-      if (rewards.length > 0) {
-        const validRewards = rewards.filter((r: any) => r.percentage !== undefined);
-        if (validRewards.length > 0) {
-          const percentages = validRewards.map((r: any) => parseFloat(r.percentage) || 0);
-          const calculationMethods = validRewards.map((r: any) => String(r.calculationMethod || 'round'));
-          const quotaLimits = validRewards.map((r: any) => (r.quotaLimit !== null && r.quotaLimit !== undefined) ? parseFloat(r.quotaLimit) : null);
-          const quotaRefreshTypes = validRewards.map((r: any) => (r.quotaRefreshType ? String(r.quotaRefreshType) : null));
-          const quotaRefreshValues = validRewards.map((r: any) => (r.quotaRefreshValue !== null && r.quotaRefreshValue !== undefined) ? parseInt(String(r.quotaRefreshValue)) : null);
-          const quotaRefreshDates = validRewards.map((r: any) => (r.quotaRefreshDate ? String(r.quotaRefreshDate) : null));
-          const quotaCalculationBases = validRewards.map((r: any) => String(r.quotaCalculationBasis || 'transaction'));
-          const displayOrders = validRewards.map((r: any, idx: number) => (r.displayOrder !== undefined && r.displayOrder !== null) ? parseInt(String(r.displayOrder)) : idx);
-
-          await client.query(
-            `INSERT INTO scheme_rewards 
-             (scheme_id, reward_percentage, calculation_method, quota_limit, 
-              quota_refresh_type, quota_refresh_value, quota_refresh_date, quota_calculation_basis, display_order)
-             SELECT $1::uuid, unnest($2::numeric[]), unnest($3::text[]), unnest($4::numeric[]),
-                    unnest($5::text[]), unnest($6::integer[]), unnest($7::date[]), unnest($8::text[]), unnest($9::integer[])`,
-            [
-              targetSchemeId,
-              percentages,
-              calculationMethods,
-              quotaLimits,
-              quotaRefreshTypes,
-              quotaRefreshValues,
-              quotaRefreshDates,
-              quotaCalculationBases,
-              displayOrders,
-            ]
-          );
-        }
-      }
+      await bulkInsertRewards(
+        client,
+        'scheme_rewards',
+        'scheme_id',
+        targetSchemeId,
+        rewards
+      );
 
       await client.query('COMMIT');
       logger.info(`批量更新方案回饋成功 ID ${id}`);
-      res.json({ success: true, message: '回饋組成已更新' });
+      return res.json({ success: true, message: '回饋組成已更新' });
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
@@ -688,7 +678,7 @@ router.put('/:id/rewards', async (req: Request, res: Response, next: NextFunctio
     }
   } catch (error) {
     logger.error(`批量更新方案回饋失敗 ID ${req.params.id}:`, error);
-    next(error);
+    return next(error);
   }
 });
 
@@ -729,10 +719,10 @@ router.put('/:id/rewards/:rewardId', async (req: Request, res: Response, next: N
       return res.status(404).json({ success: false, error: '回饋組成不存在' });
     }
 
-    res.json({ success: true, data: result.rows[0] });
+    return res.json({ success: true, data: result.rows[0] });
   } catch (error) {
     logger.error('更新單一回饋失敗:', error);
-    next(error);
+    return next(error);
   }
 });
 
@@ -758,7 +748,7 @@ router.put('/card/:cardId/order', async (req: Request, res: Response, next: Next
       }
 
       await client.query('COMMIT');
-      res.json({ success: true, message: '順序已更新' });
+      return res.json({ success: true, message: '順序已更新' });
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
@@ -767,7 +757,7 @@ router.put('/card/:cardId/order', async (req: Request, res: Response, next: Next
     }
   } catch (error) {
     logger.error('更新方案順序失敗:', error);
-    next(error);
+    return next(error);
   }
 });
 

@@ -25,14 +25,22 @@ dotenv.config();
 const app = express();
 app.set('trust proxy', 1); // ensure rate limiter can read X-Forwarded-For behind proxy
 
+// CORS 設定：支援白名單，多個來源以逗號分隔
+const allowedOrigins = env.CORS_ORIGINS
+  ? env.CORS_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean)
+  : [];
+
 // 中間件
-app.use(cors());
+app.use(cors({
+  origin: allowedOrigins.length > 0 ? allowedOrigins : true,
+  credentials: true,
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/api/', apiLimiter);
 
 // 根路徑
-app.get('/', (req, res) => {
+app.get('/', (_req, res) => {
   res.json({
     message: 'Rewards API Server',
     version: '1.0.0',
@@ -52,7 +60,7 @@ app.get('/', (req, res) => {
 });
 
 // 健康檢查
-app.get('/health', async (req, res) => {
+app.get('/health', async (_req, res) => {
   try {
     await pool.query('SELECT 1');
     res.json({ status: 'ok', database: 'connected' });
@@ -86,8 +94,9 @@ const startServer = async () => {
 
   // 啟動伺服器
   // Railway 和其他雲端平台需要監聽 0.0.0.0 而不是 localhost
-  const server = app.listen(env.PORT, env.HOST, () => {
-    console.log(`🚀 後端服務運行於 http://${env.HOST}:${env.PORT}`);
+  const port = parseInt(env.PORT, 10);
+  const server = app.listen(port, env.HOST, () => {
+    console.log(`🚀 後端服務運行於 http://${env.HOST}:${port}`);
     
     // 啟動額度刷新定時任務
     startQuotaRefreshScheduler();

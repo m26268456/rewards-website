@@ -16,7 +16,7 @@ export const errorHandler = (
   err: Error | AppError,
   req: Request,
   res: Response,
-  next: NextFunction
+  _next: NextFunction
 ) => {
   // 記錄錯誤日誌 (包含請求路徑與方法)
   logger.error(`Error processing ${req.method} ${req.url}:`, err.message);
@@ -42,7 +42,7 @@ export const errorHandler = (
   const message = 'Internal Server Error';
 
   // 在開發環境回傳詳細錯誤堆疊 (Stack Trace)
-  res.status(statusCode).json({
+  return res.status(statusCode).json({
     status: 'error',
     message: message,
     stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,

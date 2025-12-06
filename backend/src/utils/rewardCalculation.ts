@@ -1,4 +1,4 @@
-import { CalculationMethod, QuotaCalculationBasis } from './types';
+import { CalculationMethod } from './types';
 
 /**
  * 計算單次回饋金額 (基礎邏輯)

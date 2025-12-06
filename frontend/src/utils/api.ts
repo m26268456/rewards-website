@@ -10,32 +10,10 @@ const api = axios.create({
   },
 });
 
-// Request 攔截器：自動帶入 Token
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
-
-// Response 攔截器：統一錯誤處理
+// Response 攔截器：統一錯誤處理（目前未啟用認證）
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    // 統一處理 401 Unauthorized (例如 Token 過期)
-    if (error.response && error.response.status === 401) {
-      console.warn('Authentication expired. Redirecting to login...');
-      localStorage.removeItem('token');
-      // 建議：這裡可以使用 window.location.href 跳轉，或依賴 React Router 的重導機制
-      // window.location.href = '/login'; 
-    }
-    
     // 開發環境下印出詳細錯誤，生產環境可移除
     if (import.meta.env.DEV) {
       console.error('API Error:', error.response?.data || error.message);

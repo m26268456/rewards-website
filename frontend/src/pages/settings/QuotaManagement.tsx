@@ -124,8 +124,8 @@ export default function QuotaManagement() {
         calculationMethod: rewardForm.method,
         quotaLimit: rewardForm.limit ? parseFloat(rewardForm.limit) : null,
         quotaRefreshType: rewardForm.refreshType || null,
-        quotaRefreshValue: rewardForm.refreshValue || null,
-        quotaRefreshDate: rewardForm.refreshDate || null,
+        quotaRefreshValue: rewardForm.refreshType === 'monthly' && rewardForm.refreshValue ? parseInt(rewardForm.refreshValue) : (rewardForm.refreshType === 'monthly' ? null : null),
+        quotaRefreshDate: rewardForm.refreshType === 'date' ? rewardForm.refreshDate : null,
         quotaCalculationBasis: rewardForm.calculationBasis
       });
       alert('設定已更新');
@@ -173,7 +173,7 @@ export default function QuotaManagement() {
                   {isFirst && <td rowSpan={rewardIndices.length} className="px-4 py-2 text-sm font-medium border-r align-top">{q.name}</td>}
                   <td className="px-4 py-2 text-sm align-top">
                     {isEditingR ? (
-                      <div className="space-y-2 min-w-[200px]">
+                      <div className="space-y-2">
                         <div className="flex gap-2">
                           <input value={rewardForm.percentage} onChange={e => setRewardForm({...rewardForm, percentage: e.target.value})} className="w-1/3 border p-1 rounded text-xs" placeholder="%" />
                           <select value={rewardForm.method} onChange={e => setRewardForm({...rewardForm, method: e.target.value})} className="w-2/3 border p-1 rounded text-xs">
@@ -190,6 +190,40 @@ export default function QuotaManagement() {
                           </select>
                         </div>
                         <input value={rewardForm.limit} onChange={e => setRewardForm({...rewardForm, limit: e.target.value})} className="w-full border p-1 rounded text-xs" placeholder="上限" />
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[10px] text-gray-500">刷新設定</label>
+                          <select value={rewardForm.refreshType} onChange={e => setRewardForm({...rewardForm, refreshType: e.target.value, refreshValue: '', refreshDate: ''})} className="w-full border p-1 rounded text-xs">
+                            <option value="">不刷新</option>
+                            <option value="monthly">每月OO號</option>
+                            <option value="date">指定日期</option>
+                            <option value="activity">活動結束</option>
+                          </select>
+                          {rewardForm.refreshType === 'monthly' && (
+                            <input 
+                              type="number" 
+                              min="1" 
+                              max="28" 
+                              value={rewardForm.refreshValue} 
+                              onChange={e => {
+                                const val = e.target.value;
+                                const num = parseInt(val);
+                                if (val === '' || (num >= 1 && num <= 28)) {
+                                  setRewardForm({...rewardForm, refreshValue: val});
+                                }
+                              }} 
+                              className="w-full border p-1 rounded text-xs" 
+                              placeholder="1-28號" 
+                            />
+                          )}
+                          {rewardForm.refreshType === 'date' && (
+                            <input 
+                              type="date" 
+                              value={rewardForm.refreshDate} 
+                              onChange={e => setRewardForm({...rewardForm, refreshDate: e.target.value})} 
+                              className="w-full border p-1 rounded text-xs" 
+                            />
+                          )}
+                        </div>
                         <div className="flex gap-1">
                           <button onClick={handleRewardSave} className="bg-blue-500 text-white px-2 py-1 rounded text-xs">儲存</button>
                           <button onClick={() => setEditingReward(null)} className="bg-gray-300 px-2 py-1 rounded text-xs">取消</button>

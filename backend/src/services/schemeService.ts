@@ -1,6 +1,7 @@
 import { pool } from '../config/database';
-import { SchemeInfo, RewardComposition } from '../utils/types';
+import { RewardComposition } from '../utils/types';
 import { parseChannelName, matchesChannelName } from '../utils/channelUtils';
+import { logger } from '../utils/logger';
 
 /**
  * 取得所有卡片及其方案（用於方案總覽）
@@ -30,6 +31,7 @@ export async function getAllCardsWithSchemes(): Promise<
 > {
   try {
     // 優化：使用 JOIN 一次性獲取所有資料，避免 N+1 查詢
+    // 添加額度資訊查詢
     const result = await pool.query(`
       SELECT 
         c.id as card_id,
@@ -43,6 +45,7 @@ export async function getAllCardsWithSchemes(): Promise<
         cs.activity_start_date,
         cs.activity_end_date,
         cs.display_order as scheme_display_order,
+        sr.id as reward_id,
         sr.reward_percentage,
         sr.calculation_method,
         sr.quota_limit,
@@ -55,7 +58,9 @@ export async function getAllCardsWithSchemes(): Promise<
         excl_ch.name as exclusion_channel_name,
         app_ch.id as application_channel_id,
         app_ch.name as application_channel_name,
-        sca.note as application_note
+        sca.note as application_note,
+        qt.used_quota,
+        qt.remaining_quota
       FROM cards c
       LEFT JOIN card_schemes cs ON c.id = cs.card_id
       LEFT JOIN scheme_rewards sr ON cs.id = sr.scheme_id
@@ -63,7 +68,10 @@ export async function getAllCardsWithSchemes(): Promise<
       LEFT JOIN channels excl_ch ON sce.channel_id = excl_ch.id
       LEFT JOIN scheme_channel_applications sca ON cs.id = sca.scheme_id
       LEFT JOIN channels app_ch ON sca.channel_id = app_ch.id
-      ORDER BY c.display_order, c.created_at, cs.display_order, cs.created_at, sr.display_order
+      LEFT JOIN quota_trackings qt ON cs.id = qt.scheme_id 
+        AND sr.id = qt.reward_id 
+        AND qt.payment_method_id IS NULL
+      ORDER BY c.display_order, c.created_at, cs.display_order, cs.created_at, sr.display_order, COALESCE(sca.display_order, 999999), sca.created_at
     `);
 
     // 組織資料結構
@@ -128,10 +136,10 @@ export async function getAllCardsWithSchemes(): Promise<
 
       if (scheme) {
         // 處理回饋組成
-        if (row.reward_percentage !== null && row.reward_percentage !== undefined) {
+        if (row.reward_percentage !== null && row.reward_percentage !== undefined && row.reward_id) {
           const rewardExists = scheme.rewards.some(r => 
             r.percentage === parseFloat(row.reward_percentage) &&
-            r.calculationMethod === (row.calculation_method || 'round')
+            r.calculationMethod === (row.calculation_method || 'round'))
           );
           if (!rewardExists) {
             scheme.rewards.push({
@@ -146,6 +154,9 @@ export async function getAllCardsWithSchemes(): Promise<
                     : String(row.quota_refresh_date).split('T')[0])
                 : null,
               quotaCalculationBasis: row.quota_calculation_basis || 'transaction',
+              // 添加額度資訊
+              usedQuota: row.used_quota ? parseFloat(row.used_quota) : 0,
+              remainingQuota: row.remaining_quota ? parseFloat(row.remaining_quota) : (row.quota_limit ? parseFloat(row.quota_limit) : null),
             });
           }
         }
@@ -181,7 +192,7 @@ export async function getAllCardsWithSchemes(): Promise<
         requiresSwitch: scheme.requiresSwitch,
         activityStartDate: scheme.activityStartDate,
         activityEndDate: scheme.activityEndDate,
-        rewards: scheme.rewards.sort((a, b) => {
+        rewards: scheme.rewards.sort((_a, _b) => {
           // 按原始順序排序（如果有 display_order）
           return 0;
         }),
@@ -190,7 +201,7 @@ export async function getAllCardsWithSchemes(): Promise<
       })),
     }));
   } catch (error) {
-    console.error('getAllCardsWithSchemes 錯誤:', error);
+    logger.error('getAllCardsWithSchemes 錯誤:', error);
     throw error;
   }
 }
@@ -198,21 +209,26 @@ export async function getAllCardsWithSchemes(): Promise<
 
 /**
  * 根據關鍵字查詢通路回饋（支持關鍵字匹配和別稱）
+ * 重構：按關鍵字分組，顯示方案中的通路名稱
  */
 export async function queryChannelRewardsByKeywords(
   keywords: string[]
 ): Promise<
   Array<{
-    channelId: string;
-    channelName: string;
-    results: Array<{
-      isExcluded: boolean;
-      excludedSchemeName?: string;
-      totalRewardPercentage: number;
-      rewardBreakdown: string;
-      schemeInfo: string;
-      requiresSwitch: boolean;
-      note?: string;
+    keyword: string;
+    channels: Array<{
+      channelId: string;
+      channelName: string; // 方案中使用的通路名稱
+      results: Array<{
+        isExcluded: boolean;
+        excludedSchemeName?: string;
+        totalRewardPercentage: number;
+        rewardBreakdown: string;
+        schemeInfo: string;
+        requiresSwitch: boolean;
+        note?: string;
+        schemeChannelName?: string; // 方案中記錄的通路名稱
+      }>;
     }>;
   }>
 > {
@@ -251,44 +267,84 @@ export async function queryChannelRewardsByKeywords(
       // 如果沒有找到匹配的通路，返回空結果但顯示關鍵字
       if (matches.length === 0) {
         return {
-          channelId: '',
-          channelName: keyword,
-          results: [],
+          keyword,
+          channels: [{
+            channelId: '',
+            channelName: keyword,
+            results: [],
+          }],
         };
       }
 
-      // 返回所有匹配的通路（支持部分匹配時返回多個結果）
-      // 例如："NET" 可以匹配 "NET" 和 "NETFLIX"，分別返回兩個結果
+      // 為每個匹配的通路查詢回饋，並獲取方案中使用的通路名稱
       const channelRewardsList = [];
       for (const match of matches) {
+        // 查詢此通路的所有方案應用，獲取方案中記錄的通路名稱
+        const schemeAppsResult = await pool.query(
+          `SELECT sca.scheme_id, sca.note, c.name as channel_name, cs.name as scheme_name, c2.name as card_name
+           FROM scheme_channel_applications sca
+           JOIN channels c ON sca.channel_id = c.id
+           JOIN card_schemes cs ON sca.scheme_id = cs.id
+           JOIN cards c2 ON cs.card_id = c2.id
+           WHERE sca.channel_id = $1`,
+          [match.id]
+        );
+
+        // 查詢此通路的回饋結果
         const channelRewards = await queryChannelRewards([match.id]);
         if (channelRewards.length > 0) {
+          // 獲取方案中使用的通路名稱（如果有note則使用note，否則使用通路名稱）
+          const schemeChannelNames = new Map<string, string>();
+          for (const app of schemeAppsResult.rows) {
+            const schemeKey = `${app.card_name}-${app.scheme_name}`;
+            // 方案中記錄的名稱：如果有note則使用note，否則使用通路名稱
+            const schemeChannelName = app.note || app.channel_name;
+            if (!schemeChannelNames.has(schemeKey)) {
+              schemeChannelNames.set(schemeKey, schemeChannelName);
+            }
+          }
+
+          // 為每個結果添加方案中的通路名稱
+          const enrichedResults = channelRewards[0].results.map((result: any) => {
+            // 從schemeInfo中提取方案名稱來匹配
+            const schemeChannelName = schemeChannelNames.get(result.schemeInfo) || match.name;
+            return {
+              ...result,
+              schemeChannelName,
+            };
+          });
+
+          // 使用通路名稱作為顯示名稱（方案中使用的名稱）
           const { baseName } = parseChannelName(match.name);
           channelRewardsList.push({
             channelId: match.id,
-            channelName: baseName,
-            results: channelRewards[0].results,
+            channelName: baseName, // 通路名稱
+            results: enrichedResults,
           });
         }
       }
       
       // 如果找到匹配的通路，返回所有結果
       if (channelRewardsList.length > 0) {
-        return channelRewardsList;
+        return {
+          keyword,
+          channels: channelRewardsList,
+        };
       }
 
       // 沒有找到結果
-      return [{
-        channelId: '',
-        channelName: keyword,
-        results: [],
-      }];
+      return {
+        keyword,
+        channels: [{
+          channelId: '',
+          channelName: keyword,
+          results: [],
+        }],
+      };
     })
   );
 
-  // 將結果展平（因為每個關鍵字可能返回多個匹配）
-  const flattened = results.flat().filter((r) => r !== null);
-  return flattened;
+  return results.filter((r) => r !== null);
 }
 
 /**
@@ -308,6 +364,7 @@ export async function queryChannelRewards(
       schemeInfo: string;
       requiresSwitch: boolean;
       note?: string;
+      schemeChannelName?: string; // 方案中記錄的通路名稱
     }>;
   }>
 > {
@@ -342,6 +399,7 @@ export async function queryChannelRewards(
       // 2. 找出適用此通路的卡片方案
       const schemeApplicationsResult = await pool.query(
         `SELECT cs.id, cs.name, cs.requires_switch, cs.activity_end_date, c.name as card_name, sca.note,
+                ch.name as channel_name,
                 (SELECT json_agg(
                   json_build_object(
                     'percentage', reward_percentage,
@@ -353,6 +411,7 @@ export async function queryChannelRewards(
          FROM scheme_channel_applications sca
          JOIN card_schemes cs ON sca.scheme_id = cs.id
          JOIN cards c ON cs.card_id = c.id
+         JOIN channels ch ON sca.channel_id = ch.id
          WHERE sca.channel_id = $1
          AND cs.id NOT IN (SELECT scheme_id FROM scheme_channel_exclusions WHERE channel_id = $1)`,
         [channelId]
@@ -409,6 +468,9 @@ export async function queryChannelRewards(
           .map((r: any) => `${r.percentage}%`)
           .join('+');
 
+        // 方案中記錄的通路名稱：如果有note則使用note，否則使用通路名稱
+        const schemeChannelName = row.note || row.channel_name;
+
         return {
           isExcluded: false,
           totalRewardPercentage: totalPercentage,
@@ -417,6 +479,7 @@ export async function queryChannelRewards(
           requiresSwitch: row.requires_switch,
           note: row.note || undefined,
           activityEndDate: row.activity_end_date || undefined,
+          schemeChannelName,
         };
       });
 

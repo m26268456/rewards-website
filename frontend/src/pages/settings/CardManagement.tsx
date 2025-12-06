@@ -336,10 +336,15 @@ function CardItem({ card, onEdit, onDelete, onReload }: { card: Card; onEdit: ()
         <div className="flex gap-2 flex-wrap">
           <button 
             onClick={(e) => { 
+              e.preventDefault();
               e.stopPropagation(); 
               setShowSchemes(!showSchemes); 
               if (!showSchemes) loadSchemes(); 
-            }} 
+            }}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
             className="px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
           >
             {showSchemes ? '隱藏方案' : '管理方案'}

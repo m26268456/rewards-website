@@ -37,17 +37,21 @@ interface Channel {
 }
 
 interface QueryResult {
-  channelId: string;
-  channelName: string;
-  results: Array<{
-    isExcluded: boolean;
-    excludedSchemeName?: string;
-    totalRewardPercentage: number;
-    rewardBreakdown: string;
-    schemeInfo: string;
-    requiresSwitch: boolean;
-    note?: string;
-    activityEndDate?: string;
+  keyword: string;
+  channels: Array<{
+    channelId: string;
+    channelName: string;
+    results: Array<{
+      isExcluded: boolean;
+      excludedSchemeName?: string;
+      totalRewardPercentage: number;
+      rewardBreakdown: string;
+      schemeInfo: string;
+      requiresSwitch: boolean;
+      note?: string;
+      activityEndDate?: string;
+      schemeChannelName?: string; // 方案中記錄的通路名稱
+    }>;
   }>;
 }
 
@@ -339,35 +343,50 @@ export default function QueryRewards() {
             {lastAction === 'query' && queryResults.length > 0 && (
               <>
                 <h3 className="text-lg font-semibold mb-4 text-green-800">查詢結果</h3>
-                <div className="space-y-4">
-                  {queryResults.map((result) => (
-                    <div key={result.channelId} className="border rounded p-4 bg-white shadow-sm">
-                      <h4 className="font-semibold mb-3 text-lg border-b pb-2">{result.channelName}</h4>
-                      <div className="space-y-2">
-                        {result.results.map((item, idx) => (
-                          <div key={idx} className={`p-3 rounded-lg ${item.isExcluded ? 'bg-red-50 border-l-4 border-red-500' : 'bg-green-50 border-l-4 border-green-500'}`}>
-                            {item.isExcluded ? (
-                              <div className="text-sm">
-                                <span className="badge-danger font-medium">排除</span> <span className="font-semibold">{item.excludedSchemeName}</span>
-                              </div>
-                            ) : (
-                              <div className="text-sm">
-                                <div className="flex flex-wrap items-center gap-2 mb-1">
-                                  <span className="text-xl font-bold text-green-600">{item.totalRewardPercentage}%</span>
-                                  <span className="font-semibold text-gray-800">{item.schemeInfo}</span>
-                                  <span className={`badge ${item.requiresSwitch ? 'badge-warning' : 'badge-success'}`}>{item.requiresSwitch ? '需切換' : '免切換'}</span>
-                                  {/* [修正項目 6] 顯示方案中的通路名稱 */}
-                                  <span className="text-gray-500 text-xs bg-gray-100 px-2 py-0.5 rounded-full">
-                                    適用: {result.channelName} 
-                                  </span>
+                <div className="space-y-6">
+                  {/* 按關鍵字分組顯示 */}
+                  {queryResults.map((keywordGroup, keywordIdx) => (
+                    <div key={keywordIdx} className="border-2 border-blue-200 rounded-lg p-4 bg-white shadow-sm">
+                      <h4 className="font-bold mb-4 text-xl border-b-2 border-blue-300 pb-2 text-blue-700">
+                        {keywordGroup.keyword}
+                      </h4>
+                      <div className="space-y-4">
+                        {/* 每個關鍵字下的通路 */}
+                        {keywordGroup.channels.map((channel, channelIdx) => (
+                          <div key={channelIdx} className="border rounded p-3 bg-gray-50">
+                            <h5 className="font-semibold mb-2 text-base text-gray-700">
+                              {channel.channelName}
+                            </h5>
+                            <div className="space-y-2">
+                              {channel.results.map((item, idx) => (
+                                <div key={idx} className={`p-3 rounded-lg ${item.isExcluded ? 'bg-red-50 border-l-4 border-red-500' : 'bg-green-50 border-l-4 border-green-500'}`}>
+                                  {item.isExcluded ? (
+                                    <div className="text-sm">
+                                      <span className="badge-danger font-medium">排除</span> <span className="font-semibold">{item.excludedSchemeName}</span>
+                                    </div>
+                                  ) : (
+                                    <div className="text-sm">
+                                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                                        <span className="text-xl font-bold text-green-600">{item.totalRewardPercentage}%</span>
+                                        <span className="font-semibold text-gray-800">{item.schemeInfo}</span>
+                                        <span className={`badge ${item.requiresSwitch ? 'badge-warning' : 'badge-success'}`}>{item.requiresSwitch ? '需切換' : '免切換'}</span>
+                                        {/* 顯示方案中的通路名稱 */}
+                                        {item.schemeChannelName && (
+                                          <span className="text-gray-500 text-xs bg-gray-100 px-2 py-0.5 rounded-full">
+                                            通路: {item.schemeChannelName}
+                                          </span>
+                                        )}
+                                      </div>
+                                      {item.note && <div className="text-xs text-gray-600 bg-white/50 px-2 py-1 rounded">💡 {item.note}</div>}
+                                      <div className="text-xs text-gray-500 mt-1">
+                                        {item.rewardBreakdown && <span>📊 組成：{item.rewardBreakdown}</span>}
+                                        {item.activityEndDate && <span className="ml-2">📅 期限：{new Date(item.activityEndDate).toLocaleDateString()}</span>}
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
-                                {item.note && <div className="text-xs text-gray-600 bg-white/50 px-2 py-1 rounded">💡 {item.note}</div>}
-                                <div className="text-xs text-gray-500 mt-1">
-                                  {item.rewardBreakdown && <span>📊 組成：{item.rewardBreakdown}</span>}
-                                  {item.activityEndDate && <span className="ml-2">📅 期限：{new Date(item.activityEndDate).toLocaleDateString()}</span>}
-                                </div>
-                              </div>
-                            )}
+                              ))}
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -427,6 +446,12 @@ export default function QueryRewards() {
                                     <span>|</span>
                                     <span>{formatRefreshRule(r)}</span>
                                   </div>
+                                  {/* 顯示額度資訊 */}
+                                  {r.quotaLimit !== null && (
+                                    <div className="mt-1 text-xs text-blue-600">
+                                      額度: {r.usedQuota || 0} / {r.remainingQuota !== null ? r.remainingQuota : r.quotaLimit} / {r.quotaLimit}
+                                    </div>
+                                  )}
                                 </li>
                               ))}
                               {!scheme.rewards?.length && <li>無回饋設定</li>}

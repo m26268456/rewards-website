@@ -16,6 +16,9 @@ export interface RewardComposition {
   quotaRefreshDate: string | null;
   // 新增欄位
   quotaCalculationBasis?: QuotaCalculationBasis;
+  // 額度資訊
+  usedQuota?: number;
+  remainingQuota?: number | null;
 }
 
 export interface SchemeInfo {

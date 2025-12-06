@@ -128,13 +128,13 @@ export default function QuotaQuery() {
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">
                     計算方式
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider min-w-[140px] whitespace-nowrap">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">
                     額度狀態
                     <div className="text-[10px] font-normal text-gray-500 mt-1">
                       已用/剩餘/上限
                     </div>
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider min-w-[120px] whitespace-nowrap">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">
                     消費資訊
                     <div className="text-[10px] font-normal text-gray-500 mt-1">
                       消費/參考餘額

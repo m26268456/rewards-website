@@ -3,11 +3,14 @@ import pool from '../config/database';
 import { logger } from '../utils/logger';
 // 確保您有此檔案，若無可暫時註解，或改用 SQL 實作
 import { getAllPaymentMethods } from '../services/paymentService';
+import { validate } from '../middleware/validate';
+import { createPaymentMethodSchema } from '../utils/validators';
+import { bulkInsertRewards } from '../utils/rewardBatchUpdate';
 
 const router = Router();
 
 // 取得所有支付方式（用於管理）
-router.get('/', async (req: Request, res: Response, next: NextFunction) => {
+router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
   try {
     const result = await pool.query(
       `SELECT pm.id, pm.name, pm.note, pm.own_reward_percentage, pm.display_order,
@@ -26,26 +29,26 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
        ORDER BY pm.display_order, pm.created_at`
     );
 
-    res.json({ success: true, data: result.rows });
+    return res.json({ success: true, data: result.rows });
   } catch (error) {
     logger.error('取得支付方式列表失敗:', error);
-    next(error);
+    return next(error);
   }
 });
 
 // 取得所有支付方式（用於方案總覽）
-router.get('/overview', async (req: Request, res: Response, next: NextFunction) => {
+router.get('/overview', async (_req: Request, res: Response, next: NextFunction) => {
   try {
     const data = await getAllPaymentMethods();
-    res.json({ success: true, data });
+    return res.json({ success: true, data });
   } catch (error) {
     logger.error('取得支付方式總覽錯誤:', error);
-    next(error);
+    return next(error);
   }
 });
 
 // 新增支付方式
-router.post('/', async (req: Request, res: Response, next: NextFunction) => {
+router.post('/', validate(createPaymentMethodSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { name, note, displayOrder } = req.body;
 
@@ -61,15 +64,15 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
     );
 
     logger.info(`新增支付方式: ${name}`);
-    res.json({ success: true, data: result.rows[0] });
+    return res.json({ success: true, data: result.rows[0] });
   } catch (error) {
     logger.error('新增支付方式失敗:', error);
-    next(error);
+    return next(error);
   }
 });
 
 // 更新支付方式
-router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
+router.put('/:id', validate(createPaymentMethodSchema.partial()), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
     const { name, note, displayOrder } = req.body;
@@ -88,10 +91,10 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
     }
 
     logger.info(`更新支付方式 ID ${id}`);
-    res.json({ success: true, data: result.rows[0] });
+    return res.json({ success: true, data: result.rows[0] });
   } catch (error) {
     logger.error(`更新支付方式失敗 ID ${req.params.id}:`, error);
-    next(error);
+    return next(error);
   }
 });
 
@@ -110,10 +113,10 @@ router.delete('/:id', async (req: Request, res: Response, next: NextFunction) =>
     }
 
     logger.info(`刪除支付方式 ID ${id}`);
-    res.json({ success: true, message: '支付方式已刪除' });
+    return res.json({ success: true, message: '支付方式已刪除' });
   } catch (error) {
     logger.error(`刪除支付方式失敗 ID ${req.params.id}:`, error);
-    next(error);
+    return next(error);
   }
 });
 
@@ -135,10 +138,10 @@ router.post('/:id/link-scheme', async (req: Request, res: Response, next: NextFu
       [id, schemeId, displayOrder || 0]
     );
 
-    res.json({ success: true, data: result.rows[0] });
+    return res.json({ success: true, data: result.rows[0] });
   } catch (error) {
     logger.error(`連結方案失敗 PaymentID ${req.params.id}:`, error);
-    next(error);
+    return next(error);
   }
 });
 
@@ -158,10 +161,10 @@ router.delete('/:id/unlink-scheme/:schemeId', async (req: Request, res: Response
       return res.status(404).json({ success: false, error: '連結不存在' });
     }
 
-    res.json({ success: true, message: '連結已取消' });
+    return res.json({ success: true, message: '連結已取消' });
   } catch (error) {
     logger.error(`取消連結失敗 PaymentID ${req.params.id}:`, error);
-    next(error);
+    return next(error);
   }
 });
 
@@ -175,14 +178,14 @@ router.get('/:id/channels', async (req: Request, res: Response, next: NextFuncti
        FROM payment_channel_applications pca
        JOIN channels c ON pca.channel_id = c.id
        WHERE pca.payment_method_id = $1
-       ORDER BY pca.created_at`,
+       ORDER BY COALESCE(pca.display_order, 999999), pca.created_at`,
       [id]
     );
 
-    res.json({ success: true, data: result.rows });
+    return res.json({ success: true, data: result.rows });
   } catch (error) {
     logger.error(`取得通路失敗 PaymentID ${req.params.id}:`, error);
-    next(error);
+    return next(error);
   }
 });
 
@@ -200,10 +203,10 @@ router.get('/scheme/:schemeId', async (req: Request, res: Response, next: NextFu
       [schemeId]
     );
 
-    res.json({ success: true, data: result.rows });
+    return res.json({ success: true, data: result.rows });
   } catch (error) {
     logger.error(`取得方案綁定支付方式失敗 SchemeID ${req.params.schemeId}:`, error);
-    next(error);
+    return next(error);
   }
 });
 
@@ -221,20 +224,36 @@ router.put('/:id/channels', async (req: Request, res: Response, next: NextFuncti
 
       if (Array.isArray(applications) && applications.length > 0) {
         const validApps = applications.filter((app: any) => app.channelId);
-        for (const app of validApps) {
-          const params = [id, app.channelId, app.note || null];
-          await client.query(
-            `INSERT INTO payment_channel_applications (payment_method_id, channel_id, note)
-             VALUES ($1::uuid, $2::uuid, $3::text)
-             ON CONFLICT (payment_method_id, channel_id) DO UPDATE SET note = EXCLUDED.note`,
-            params
-          );
+        // 按前端傳遞的順序插入，使用索引作為display_order
+        for (let i = 0; i < validApps.length; i++) {
+          const app = validApps[i];
+          // 嘗試添加display_order，如果表沒有此欄位則忽略
+          try {
+            await client.query(
+              `INSERT INTO payment_channel_applications (payment_method_id, channel_id, note, display_order)
+               VALUES ($1::uuid, $2::uuid, $3::text, $4::integer)
+               ON CONFLICT (payment_method_id, channel_id) DO UPDATE SET note = EXCLUDED.note, display_order = EXCLUDED.display_order`,
+              [id, app.channelId, app.note || null, i]
+            );
+          } catch (error: any) {
+            // 如果表沒有display_order欄位，使用舊的方式
+            if (error.code === '42703') {
+              await client.query(
+                `INSERT INTO payment_channel_applications (payment_method_id, channel_id, note)
+                 VALUES ($1::uuid, $2::uuid, $3::text)
+                 ON CONFLICT (payment_method_id, channel_id) DO UPDATE SET note = EXCLUDED.note`,
+                [id, app.channelId, app.note || null]
+              );
+            } else {
+              throw error;
+            }
+          }
         }
       }
 
       await client.query('COMMIT');
       logger.info(`更新通路成功 PaymentID ${id}`);
-      res.json({ success: true, message: '通路設定已更新' });
+      return res.json({ success: true, message: '通路設定已更新' });
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
@@ -243,7 +262,7 @@ router.put('/:id/channels', async (req: Request, res: Response, next: NextFuncti
     }
   } catch (error) {
     logger.error(`更新通路失敗 PaymentID ${req.params.id}:`, error);
-    next(error);
+    return next(error);
   }
 });
 
@@ -260,10 +279,10 @@ router.get('/:id/rewards', async (req: Request, res: Response, next: NextFunctio
        ORDER BY display_order`,
       [id]
     );
-    res.json({ success: true, data: result.rows });
+    return res.json({ success: true, data: result.rows });
   } catch (error) {
     logger.error(`取得回饋組成失敗 PaymentID ${req.params.id}:`, error);
-    next(error);
+    return next(error);
   }
 });
 
@@ -292,10 +311,10 @@ router.post('/:id/rewards', async (req: Request, res: Response, next: NextFuncti
       ]
     );
 
-    res.json({ success: true, data: result.rows[0] });
+    return res.json({ success: true, data: result.rows[0] });
   } catch (error) {
     logger.error('新增回饋失敗:', error);
-    next(error);
+    return next(error);
   }
 });
 
@@ -331,10 +350,10 @@ router.put('/:id/rewards/:rewardId', async (req: Request, res: Response, next: N
       return res.status(404).json({ success: false, error: '回饋組成不存在' });
     }
 
-    res.json({ success: true, data: result.rows[0] });
+    return res.json({ success: true, data: result.rows[0] });
   } catch (error) {
     logger.error('更新回饋失敗:', error);
-    next(error);
+    return next(error);
   }
 });
 
@@ -352,10 +371,10 @@ router.delete('/:id/rewards/:rewardId', async (req: Request, res: Response, next
       return res.status(404).json({ success: false, error: '回饋組成不存在' });
     }
 
-    res.json({ success: true, message: '回饋組成已刪除' });
+    return res.json({ success: true, message: '回饋組成已刪除' });
   } catch (error) {
     logger.error('刪除回饋失敗:', error);
-    next(error);
+    return next(error);
   }
 });
 
@@ -375,51 +394,17 @@ router.put('/:id/rewards', async (req: Request, res: Response, next: NextFunctio
 
       await client.query('DELETE FROM payment_rewards WHERE payment_method_id = $1', [id]);
 
-      if (rewards.length > 0) {
-        const validRewards = rewards.filter((r: any) => r.percentage !== undefined && r.percentage !== null);
-        if (validRewards.length > 0) {
-          const percentages = validRewards.map((r: any) => parseFloat(r.percentage) || 0);
-          const calculationMethods = validRewards.map((r: any) => r.calculationMethod || 'round');
-          const quotaLimits = validRewards.map((r: any) => {
-            const val = r.quotaLimit;
-            return val !== undefined && val !== null ? parseFloat(val) : null;
-          });
-          const quotaRefreshTypes = validRewards.map((r: any) => r.quotaRefreshType || null);
-          const quotaRefreshValues = validRewards.map((r: any) => {
-            const val = r.quotaRefreshValue;
-            return val !== undefined && val !== null ? parseFloat(val) : null;
-          });
-          const quotaRefreshDates = validRewards.map((r: any) => r.quotaRefreshDate || null);
-          const quotaCalculationBases = validRewards.map((r: any) => r.quotaCalculationBasis || 'transaction');
-          const displayOrders = validRewards.map((r: any, idx: number) => {
-            const val = r.displayOrder;
-            return val !== undefined && val !== null ? parseInt(val) : idx;
-          });
-
-          await client.query(
-            `INSERT INTO payment_rewards 
-             (payment_method_id, reward_percentage, calculation_method, quota_limit, 
-              quota_refresh_type, quota_refresh_value, quota_refresh_date, quota_calculation_basis, display_order)
-             SELECT $1::uuid, unnest($2::numeric[]), unnest($3::text[]), unnest($4::numeric[]),
-                    unnest($5::text[]), unnest($6::integer[]), unnest($7::date[]), unnest($8::text[]), unnest($9::integer[])`,
-            [
-              id,
-              percentages,
-              calculationMethods,
-              quotaLimits,
-              quotaRefreshTypes,
-              quotaRefreshValues,
-              quotaRefreshDates,
-              quotaCalculationBases,
-              displayOrders,
-            ]
-          );
-        }
-      }
+      await bulkInsertRewards(
+        client,
+        'payment_rewards',
+        'payment_method_id',
+        id,
+        rewards
+      );
 
       await client.query('COMMIT');
       logger.info(`批量更新回饋成功 PaymentID ${id}`);
-      res.json({ success: true, message: '回饋組成已更新' });
+      return res.json({ success: true, message: '回饋組成已更新' });
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
@@ -428,7 +413,7 @@ router.put('/:id/rewards', async (req: Request, res: Response, next: NextFunctio
     }
   } catch (error) {
     logger.error(`批量更新回饋失敗 PaymentID ${req.params.id}:`, error);
-    next(error);
+    return next(error);
   }
 });
 
@@ -458,7 +443,7 @@ router.put('/:id/rewards/order', async (req: Request, res: Response, next: NextF
       }
 
       await client.query('COMMIT');
-      res.json({ success: true, message: '順序已更新' });
+      return res.json({ success: true, message: '順序已更新' });
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
@@ -467,7 +452,7 @@ router.put('/:id/rewards/order', async (req: Request, res: Response, next: NextF
     }
   } catch (error) {
     logger.error('更新回饋順序失敗:', error);
-    next(error);
+    return next(error);
   }
 });
 

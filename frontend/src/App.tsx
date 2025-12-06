@@ -4,7 +4,7 @@ import QueryRewards from './pages/QueryRewards';
 import CalculateRewards from './pages/CalculateRewards';
 import Transactions from './pages/Transactions';
 import QuotaQuery from './pages/QuotaQuery';
-import Settings from './pages/Settings';
+import Settings from './pages/settings/Settings';
 import ImportData from './pages/ImportData';
 
 function App() {
