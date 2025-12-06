@@ -248,10 +248,10 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
     await setSharedRewardGroupMapping(id, sharedRewardGroupId || null);
 
     logger.info(`更新方案成功 ID ${id}`);
-    res.json({ success: true, data: result.rows[0] });
+    return res.json({ success: true, data: result.rows[0] });
   } catch (error) {
     logger.error(`更新方案失敗 ID ${req.params.id}:`, error);
-    next(error);
+    return next(error);
   }
 });
 
