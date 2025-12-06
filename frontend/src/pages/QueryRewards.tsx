@@ -30,6 +30,14 @@ const formatBasis = (basis?: string) => {
   return basis === 'statement' ? '帳單總額' : '單筆回饋';
 };
 
+const formatMethod = (method?: string) => {
+  switch (method) {
+    case 'floor': return '無條件捨去';
+    case 'ceil': return '無條件進位';
+    default: return '四捨五入';
+  }
+};
+
 interface Channel {
   id: string;
   name: string;
@@ -48,6 +56,7 @@ interface QueryResult {
     requiresSwitch: boolean;
     note?: string;
     activityEndDate?: string;
+    originalChannelName?: string;
   }>;
 }
 
@@ -358,7 +367,7 @@ export default function QueryRewards() {
                                   <span className={`badge ${item.requiresSwitch ? 'badge-warning' : 'badge-success'}`}>{item.requiresSwitch ? '需切換' : '免切換'}</span>
                                   {/* [修正項目 6] 顯示方案中的通路名稱 */}
                                   <span className="text-gray-500 text-xs bg-gray-100 px-2 py-0.5 rounded-full">
-                                    適用: {result.channelName} 
+                                    適用: {item.originalChannelName || result.channelName}
                                   </span>
                                 </div>
                                 {item.note && <div className="text-xs text-gray-600 bg-white/50 px-2 py-1 rounded">💡 {item.note}</div>}

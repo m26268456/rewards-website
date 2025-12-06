@@ -150,13 +150,19 @@ router.get('/calculation-schemes', async (_req: Request, res: Response, next: Ne
 // 新增計算方案
 router.post('/calculation-schemes', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { schemeId, paymentMethodId, displayOrder } = req.body;
+    const { schemeId, paymentMethodId } = req.body;
+
+    // 取得目前最大 display_order，新的放在最底部
+    const maxOrderResult = await pool.query(
+      'SELECT COALESCE(MAX(display_order), -1) AS max_order FROM calculation_schemes'
+    );
+    const nextOrder = (maxOrderResult.rows[0]?.max_order ?? -1) + 1;
 
     const result = await pool.query(
       `INSERT INTO calculation_schemes (scheme_id, payment_method_id, display_order)
        VALUES ($1, $2, $3)
        RETURNING id`,
-      [schemeId || null, paymentMethodId || null, displayOrder || 0]
+      [schemeId || null, paymentMethodId || null, nextOrder]
     );
 
     return res.json({ success: true, data: result.rows[0] });

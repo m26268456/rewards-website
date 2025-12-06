@@ -214,6 +214,7 @@ export async function queryChannelRewardsByKeywords(
       schemeInfo: string;
       requiresSwitch: boolean;
       note?: string;
+      originalChannelName?: string;
     }>;
   }>
 > {
@@ -343,6 +344,7 @@ export async function queryChannelRewards(
       // 2. 找出適用此通路的卡片方案
       const schemeApplicationsResult = await pool.query(
         `SELECT cs.id, cs.name, cs.requires_switch, cs.activity_end_date, c.name as card_name, sca.note,
+                ch.name as scheme_channel_name,
                 (SELECT json_agg(
                   json_build_object(
                     'percentage', reward_percentage,
@@ -354,6 +356,7 @@ export async function queryChannelRewards(
          FROM scheme_channel_applications sca
          JOIN card_schemes cs ON sca.scheme_id = cs.id
          JOIN cards c ON cs.card_id = c.id
+         JOIN channels ch ON sca.channel_id = ch.id
          WHERE sca.channel_id = $1
          AND cs.id NOT IN (SELECT scheme_id FROM scheme_channel_exclusions WHERE channel_id = $1)`,
         [channelId]
@@ -361,7 +364,7 @@ export async function queryChannelRewards(
 
       // 3. 找出適用此通路的支付方式
       const paymentApplicationsResult = await pool.query(
-        `SELECT pm.id, pm.name, pca.note,
+        `SELECT pm.id, pm.name, pca.note, ch.name as payment_channel_name,
                 (SELECT json_agg(
                   json_build_object(
                     'percentage', reward_percentage,
@@ -372,6 +375,7 @@ export async function queryChannelRewards(
                 WHERE pr.payment_method_id = pm.id) as rewards
          FROM payment_channel_applications pca
          JOIN payment_methods pm ON pca.payment_method_id = pm.id
+         JOIN channels ch ON pca.channel_id = ch.id
          WHERE pca.channel_id = $1`,
         [channelId]
       );
@@ -380,7 +384,7 @@ export async function queryChannelRewards(
       // 修正：移除 payment_rewards 的計算，只保留信用卡方案的回饋
       const paymentSchemeLinksResult = await pool.query(
         `SELECT cs.id, cs.name, cs.requires_switch, cs.activity_end_date, c.name as card_name, 
-                pm.name as payment_name, pm.id as payment_id, pca.note,
+                pm.name as payment_name, pm.id as payment_id, pca.note, ch.name as payment_channel_name,
                 (SELECT json_agg(
                   json_build_object(
                     'percentage', reward_percentage,
@@ -393,7 +397,8 @@ export async function queryChannelRewards(
          JOIN card_schemes cs ON psl.scheme_id = cs.id
          JOIN cards c ON cs.card_id = c.id
          JOIN payment_methods pm ON psl.payment_method_id = pm.id
-         JOIN payment_channel_applications pca ON pm.id = pca.payment_method_id
+        JOIN payment_channel_applications pca ON pm.id = pca.payment_method_id
+        JOIN channels ch ON pca.channel_id = ch.id
          WHERE pca.channel_id = $1
          AND cs.id NOT IN (SELECT scheme_id FROM scheme_channel_exclusions WHERE channel_id = $1)`,
         [channelId]
@@ -417,6 +422,7 @@ export async function queryChannelRewards(
           schemeInfo: `${row.card_name}-${row.name}`,
           requiresSwitch: row.requires_switch,
           note: row.note || undefined,
+          originalChannelName: row.scheme_channel_name || channelName,
           activityEndDate: row.activity_end_date || undefined,
         };
       });
@@ -438,6 +444,7 @@ export async function queryChannelRewards(
           schemeInfo: row.name,
           requiresSwitch: false,
           note: row.note || undefined,
+          originalChannelName: row.payment_channel_name || channelName,
         };
       });
 
@@ -462,6 +469,7 @@ export async function queryChannelRewards(
           schemeInfo: `${row.card_name}-${row.name}-${row.payment_name}`,
           requiresSwitch: row.requires_switch,
           note: row.note || undefined,
+          originalChannelName: row.payment_channel_name || channelName,
           activityEndDate: row.activity_end_date || undefined,
         };
       });

@@ -95,7 +95,10 @@ function SchemeDetailManager({
           )}
         </div>
         <div className="flex gap-1 flex-shrink-0 flex-wrap">
-          <button onClick={onExpand} className="px-2 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 whitespace-nowrap">
+          <button
+            onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); onExpand(); }}
+            className="px-2 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 whitespace-nowrap"
+          >
             {isExpanded ? '收起' : '展開'}
           </button>
           <button onClick={onEdit} className="px-2 py-1 bg-yellow-500 text-white rounded text-xs hover:bg-yellow-600">
@@ -138,7 +141,7 @@ function SchemeDetailManager({
             <span className="text-xs font-medium">回饋組成</span>
             {schemeDetails.rewards.length > 0 ? (
               <div className="mt-2 overflow-x-auto rounded border border-gray-200">
-                <table className="min-w-full text-xs text-gray-700">
+                <table className="w-auto min-w-max text-xs text-gray-700">
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-2 py-1 text-left font-semibold text-gray-600 whitespace-nowrap">回饋 %</th>
