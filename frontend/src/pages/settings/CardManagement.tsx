@@ -437,10 +437,10 @@ function CardItem({ card, onEdit, onDelete, onReload }: { card: Card; onEdit: ()
                 </div>
                 {isReorderingSchemes && (
                   <div className="flex flex-col gap-1">
-                    <button onClick={() => moveScheme(idx, 'up')} className="bg-blue-500 text-white px-1 rounded text-xs" disabled={idx === 0}>⬆</button>
-                    <button onClick={() => moveScheme(idx, 'down')} className="bg-blue-500 text-white px-1 rounded text-xs" disabled={idx === (isReorderingSchemes ? reorderedSchemes.length - 1 : schemes.length - 1)}>⬇</button>
-                    <button onClick={() => moveScheme(idx, 'top')} className="bg-gray-500 text-white px-1 rounded text-xs" disabled={idx === 0}>⇤頂</button>
-                    <button onClick={() => moveScheme(idx, 'bottom')} className="bg-gray-500 text-white px-1 rounded text-xs" disabled={idx === (isReorderingSchemes ? reorderedSchemes.length - 1 : schemes.length - 1)}>⇥底</button>
+                    <button onClick={() => moveScheme(idx, 'top')} className="px-2 py-1 bg-gray-600 text-white rounded text-xs disabled:opacity-40" disabled={idx === 0}>⏫ 置頂</button>
+                    <button onClick={() => moveScheme(idx, 'up')} className="px-2 py-1 bg-blue-600 text-white rounded text-xs disabled:opacity-40" disabled={idx === 0}>▲ 上移</button>
+                    <button onClick={() => moveScheme(idx, 'down')} className="px-2 py-1 bg-blue-600 text-white rounded text-xs disabled:opacity-40" disabled={idx === (isReorderingSchemes ? reorderedSchemes.length - 1 : schemes.length - 1)}>▼ 下移</button>
+                    <button onClick={() => moveScheme(idx, 'bottom')} className="px-2 py-1 bg-gray-600 text-white rounded text-xs disabled:opacity-40" disabled={idx === (isReorderingSchemes ? reorderedSchemes.length - 1 : schemes.length - 1)}>⏬ 置底</button>
                   </div>
                 )}
               </div>
@@ -563,10 +563,10 @@ export default function CardManagement() {
             </div>
             {isReordering && (
               <div className="flex flex-col gap-1">
-                <button onClick={() => moveCard(idx, 'up')} className="bg-blue-500 text-white px-2 rounded text-xs" disabled={idx === 0}>⬆</button>
-                <button onClick={() => moveCard(idx, 'down')} className="bg-blue-500 text-white px-2 rounded text-xs" disabled={idx === (isReordering ? reorderedCards.length - 1 : cards.length - 1)}>⬇</button>
-                <button onClick={() => moveCard(idx, 'top')} className="bg-gray-500 text-white px-2 rounded text-xs" disabled={idx === 0}>⇤頂</button>
-                <button onClick={() => moveCard(idx, 'bottom')} className="bg-gray-500 text-white px-2 rounded text-xs" disabled={idx === (isReordering ? reorderedCards.length - 1 : cards.length - 1)}>⇥底</button>
+                <button onClick={() => moveCard(idx, 'top')} className="px-2 py-1 bg-gray-600 text-white rounded text-xs disabled:opacity-40" disabled={idx === 0}>⏫ 置頂</button>
+                <button onClick={() => moveCard(idx, 'up')} className="px-2 py-1 bg-blue-600 text-white rounded text-xs disabled:opacity-40" disabled={idx === 0}>▲ 上移</button>
+                <button onClick={() => moveCard(idx, 'down')} className="px-2 py-1 bg-blue-600 text-white rounded text-xs disabled:opacity-40" disabled={idx === (isReordering ? reorderedCards.length - 1 : cards.length - 1)}>▼ 下移</button>
+                <button onClick={() => moveCard(idx, 'bottom')} className="px-2 py-1 bg-gray-600 text-white rounded text-xs disabled:opacity-40" disabled={idx === (isReordering ? reorderedCards.length - 1 : cards.length - 1)}>⏬ 置底</button>
               </div>
             )}
             {!isReordering && editingCard?.id === card.id && showCardForm && (

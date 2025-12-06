@@ -101,24 +101,24 @@ export default function ChannelManagement() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      <div className="space-y-2">
         {(isReordering ? reorderedChannels : channels).map((ch, idx) => (
-          <div key={ch.id} className="p-2 border rounded bg-white space-y-2">
+          <div key={ch.id} className="p-3 border rounded bg-white space-y-2 shadow-sm">
             <div className="flex justify-between items-center">
-              <span>{ch.name}</span>
+              <span className="font-medium text-gray-800">{ch.name}</span>
               <div className="flex gap-1">
                 {isReordering ? (
-                  <>
-                    <button onClick={() => moveChannel(idx, 'up')} className="text-blue-600 text-xs border px-1 rounded" disabled={idx === 0}>⬆</button>
-                    <button onClick={() => moveChannel(idx, 'down')} className="text-blue-600 text-xs border px-1 rounded" disabled={idx === (isReordering ? reorderedChannels.length - 1 : channels.length - 1)}>⬇</button>
-                    <button onClick={() => moveChannel(idx, 'top')} className="text-gray-600 text-xs border px-1 rounded" disabled={idx === 0}>⇤頂</button>
-                    <button onClick={() => moveChannel(idx, 'bottom')} className="text-gray-600 text-xs border px-1 rounded" disabled={idx === (isReordering ? reorderedChannels.length - 1 : channels.length - 1)}>⇥底</button>
-                  </>
+                  <div className="flex gap-1">
+                    <button onClick={() => moveChannel(idx, 'top')} className="px-2 py-1 text-xs rounded bg-gray-600 text-white disabled:opacity-40" disabled={idx === 0}>⏫ 置頂</button>
+                    <button onClick={() => moveChannel(idx, 'up')} className="px-2 py-1 text-xs rounded bg-blue-600 text-white disabled:opacity-40" disabled={idx === 0}>▲ 上移</button>
+                    <button onClick={() => moveChannel(idx, 'down')} className="px-2 py-1 text-xs rounded bg-blue-600 text-white disabled:opacity-40" disabled={idx === (isReordering ? reorderedChannels.length - 1 : channels.length - 1)}>▼ 下移</button>
+                    <button onClick={() => moveChannel(idx, 'bottom')} className="px-2 py-1 text-xs rounded bg-gray-600 text-white disabled:opacity-40" disabled={idx === (isReordering ? reorderedChannels.length - 1 : channels.length - 1)}>⏬ 置底</button>
+                  </div>
                 ) : (
-                  <>
-                    <button onClick={() => { setEditingChannel(ch); setShowForm(true); }} className="text-yellow-600 text-xs">編輯</button>
-                    <button onClick={() => handleDelete(ch.id)} className="text-red-600 text-xs">刪除</button>
-                  </>
+                  <div className="flex gap-2">
+                    <button onClick={() => { setEditingChannel(ch); setShowForm(true); }} className="px-2 py-1 bg-yellow-500 text-white rounded text-xs">編輯</button>
+                    <button onClick={() => handleDelete(ch.id)} className="px-2 py-1 bg-red-500 text-white rounded text-xs">刪除</button>
+                  </div>
                 )}
               </div>
             </div>

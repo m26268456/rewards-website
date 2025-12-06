@@ -410,14 +410,14 @@ export default function PaymentManagement() {
                 </div>
               )}
             </div>
-            {isReordering && (
-              <div className="flex flex-col gap-1">
-                <button onClick={() => movePayment(idx, 'up')} className="bg-blue-500 text-white px-2 rounded text-xs" disabled={idx === 0}>⬆</button>
-                <button onClick={() => movePayment(idx, 'down')} className="bg-blue-500 text-white px-2 rounded text-xs" disabled={idx === (isReordering ? reorderedPayments.length - 1 : payments.length - 1)}>⬇</button>
-                <button onClick={() => movePayment(idx, 'top')} className="bg-gray-500 text-white px-2 rounded text-xs" disabled={idx === 0}>⇤頂</button>
-                <button onClick={() => movePayment(idx, 'bottom')} className="bg-gray-500 text-white px-2 rounded text-xs" disabled={idx === (isReordering ? reorderedPayments.length - 1 : payments.length - 1)}>⇥底</button>
-              </div>
-            )}
+                {isReordering && (
+                  <div className="flex flex-col gap-1">
+                    <button onClick={() => movePayment(idx, 'top')} className="px-2 py-1 bg-gray-600 text-white rounded text-xs disabled:opacity-40" disabled={idx === 0}>⏫ 置頂</button>
+                    <button onClick={() => movePayment(idx, 'up')} className="px-2 py-1 bg-blue-600 text-white rounded text-xs disabled:opacity-40" disabled={idx === 0}>▲ 上移</button>
+                    <button onClick={() => movePayment(idx, 'down')} className="px-2 py-1 bg-blue-600 text-white rounded text-xs disabled:opacity-40" disabled={idx === (isReordering ? reorderedPayments.length - 1 : payments.length - 1)}>▼ 下移</button>
+                    <button onClick={() => movePayment(idx, 'bottom')} className="px-2 py-1 bg-gray-600 text-white rounded text-xs disabled:opacity-40" disabled={idx === (isReordering ? reorderedPayments.length - 1 : payments.length - 1)}>⏬ 置底</button>
+                  </div>
+                )}
           </div>
         ))}
       </div>

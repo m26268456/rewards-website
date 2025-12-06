@@ -438,12 +438,15 @@ export default function QueryRewards() {
                                     <span className="text-purple-600 text-[10px] border border-purple-200 px-1 rounded">{formatBasis(r.quotaCalculationBasis)}</span>
                                   </div>
                                   <div className="flex flex-wrap gap-x-2 mt-1 text-gray-500">
-                                    <span>
-                                      {r.calculationMethod === 'round' ? '四捨五入' : r.calculationMethod === 'floor' ? '無條件捨去' : '無條件進位'}
-                                    </span>
-                                    <span>|</span>
+                                    <div className="flex flex-col text-gray-700 text-sm space-y-1">
+                                      <span>{r.calculationMethod === 'round' ? '四捨五入' : r.calculationMethod === 'floor' ? '無條件捨去' : '無條件進位'}</span>
+                                      <span className="text-[11px] text-purple-700 border border-purple-200 rounded px-1 inline-block w-fit">
+                                        {formatBasis(r.quotaCalculationBasis)}
+                                      </span>
+                                    </div>
+                                    <span className="text-gray-400">|</span>
                                     <span>{r.quotaLimit ? `上限 ${r.quotaLimit}` : '無上限'}</span>
-                                    <span>|</span>
+                                    <span className="text-gray-400">|</span>
                                     <span>{formatRefreshRule(r)}</span>
                                   </div>
                                   {/* 顯示額度資訊 */}

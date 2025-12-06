@@ -185,6 +185,21 @@ export default function QuotaManagement() {
     }
   });
 
+  // 將同一共同回饋群組的方案聚在一起（無群組則以自身索引為 key）
+  const groupByShared = (items: any[]) => {
+    const order: string[] = [];
+    const map = new Map<string, any[]>();
+    items.forEach((item) => {
+      const key = item.sharedRewardGroupId || `solo-${item.__index}`;
+      if (!map.has(key)) {
+        map.set(key, []);
+        order.push(key);
+      }
+      map.get(key)!.push(item);
+    });
+    return order.map(k => ({ key: k, items: map.get(k)! }));
+  };
+
   const renderTable = (list: any[], groupKey: string) => (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
       <div className="overflow-x-auto">
@@ -200,7 +215,8 @@ export default function QuotaManagement() {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {list.map((q) => {
+            {groupByShared(list).map(({ key: sharedKey, items }) => {
+              return items.map((q) => {
               const rewardIndices = q.rewardIds.map((_: any, i: number) => i);
               return rewardIndices.map((rIdx: number) => {
                 const isFirst = rIdx === 0;
@@ -214,7 +230,10 @@ export default function QuotaManagement() {
                 const basisText = basis === 'statement' ? '帳單總額' : '單筆回饋';
 
                 return (
-                  <tr key={`${q.__index}-${rIdx}`} className={rIdx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                  <tr
+                    key={`${sharedKey}-${q.__index}-${rIdx}`}
+                    className={`${rIdx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} border-l-4 border-blue-100 hover:bg-blue-50 transition-colors`}
+                  >
                     {isFirst && (
                       <td rowSpan={rewardIndices.length} className="px-4 py-3 text-sm font-medium sticky left-0 bg-white z-10 border-r border-gray-200 align-top">
                         <div className="space-y-1">
