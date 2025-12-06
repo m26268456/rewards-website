@@ -290,7 +290,6 @@ export default function PaymentManagement() {
   const [isReordering, setIsReordering] = useState(false);
   const [reorderedPayments, setReorderedPayments] = useState<any[]>([]);
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const rootRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => { loadPayments(); }, []);
   useEffect(() => {
