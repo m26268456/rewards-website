@@ -18,6 +18,15 @@ function App() {
         <Route path="/quota" element={<QuotaQuery />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/import" element={<ImportData />} />
+        <Route path="*" element={
+          <div className="flex items-center justify-center min-h-screen">
+            <div className="text-center">
+              <h1 className="text-4xl font-bold text-gray-800 mb-4">404</h1>
+              <p className="text-gray-600 mb-4">頁面不存在</p>
+              <a href="/" className="text-blue-600 hover:underline">返回首頁</a>
+            </div>
+          </div>
+        } />
       </Routes>
     </Layout>
   );

@@ -81,6 +81,15 @@ app.use('/api/settings', settingsRouter);
 app.use('/api/seed', seedRouter);
 app.use('/api/import', importDataRouter);
 
+// 404 處理（必須在所有路由之後，錯誤處理之前）
+app.use((_req, res) => {
+  return res.status(404).json({
+    status: 'error',
+    message: 'Route not found',
+    path: _req.path,
+  });
+});
+
 // 錯誤處理
 app.use(errorHandler);
 
