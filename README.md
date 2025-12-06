@@ -52,6 +52,13 @@ npm install
 npm run dev
 ```
 
+### 環境變數
+
+- `DATABASE_URL`：PostgreSQL 連線字串（必填）
+- `PORT`：後端服務埠號，預設 `3001`
+- `HOST`：服務監聽位址，預設 `0.0.0.0`
+- `CORS_ORIGINS`：允許的前端來源，逗號分隔，例如 `https://app.example.com,http://localhost:5173`
+
 ## 資料庫設計
 
 詳細的資料庫結構請參考 `database/schema.sql`
