@@ -175,7 +175,11 @@ router.post('/', validate(createTransactionSchema), async (req: Request, res: Re
             quotaParams = [validPaymentMethodId, reward.id];
           }
 
-          const quotaResult = await client.query(quotaQuery, quotaParams);
+          // 只取未過期的追蹤
+          const quotaResult = await client.query(
+            `${quotaQuery} AND (next_refresh_at IS NULL OR next_refresh_at >= NOW())`,
+            quotaParams
+          );
           let currentAccumulated = 0;
           let quotaId: string | null = null;
           let currentUsedQuota = 0;
@@ -323,8 +327,11 @@ router.delete('/:id', async (req: Request, res: Response, next: NextFunction) =>
 
     const tx = txResult.rows[0];
     const amountNum = tx.amount ? parseFloat(tx.amount) : null;
-    const schemeId: string | null = tx.scheme_id || null;
+    const schemeIdRaw: string | null = tx.scheme_id || null;
     const paymentMethodId: string | null = tx.payment_method_id || null;
+    const schemeId: string | null = schemeIdRaw
+      ? await resolveSharedRewardTargetSchemeId(schemeIdRaw, client)
+      : null;
 
     // 若有金額且有綁定方案或支付方式，需回補額度
     if (amountNum && (schemeId || paymentMethodId)) {

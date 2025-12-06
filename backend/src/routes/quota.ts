@@ -235,10 +235,39 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
       });
     };
 
-    const finalSchemeRows = schemeQuotasResult.rows;
-    const finalPaymentRows = paymentQuotasResult.rows;
+    // 先建立 root rows 映射（scheme_id 為 root 的行）
+    const schemeRows = schemeQuotasResult.rows;
+    const paymentRows = paymentQuotasResult.rows;
+    const rootRowsMap = new Map<string, QuotaDbRow[]>();
+    schemeRows.forEach((row) => {
+      const rootId = row.shared_reward_group_id || row.scheme_id || '';
+      if (!rootRowsMap.has(rootId)) rootRowsMap.set(rootId, []);
+      rootRowsMap.get(rootId)!.push(row);
+    });
 
-    [...finalSchemeRows, ...finalPaymentRows].forEach(processRow);
+    // 將方案行展開：同一共同回饋群組的方案使用 root 行的 quota/used/remaining
+    const expandedSchemeRows: QuotaDbRow[] = [];
+    schemeRows.forEach((row) => {
+      const rootId = row.shared_reward_group_id || row.scheme_id || '';
+      const sourceRows = rootRowsMap.get(rootId);
+      if (sourceRows && sourceRows.length > 0) {
+        sourceRows.forEach((src) => {
+          expandedSchemeRows.push({
+            ...src,
+            scheme_id: row.scheme_id,               // 保留當前方案 id 以供前端顯示
+            scheme_name: row.scheme_name,
+            name: row.name,
+            card_id: row.card_id,
+            card_name: row.card_name,
+            shared_reward_group_id: rootId,         // 群組 id 統一為 root
+          });
+        });
+      } else {
+        expandedSchemeRows.push(row);
+      }
+    });
+
+    [...expandedSchemeRows, ...paymentRows].forEach(processRow);
 
     const result = Array.from(quotaMap.entries()).map(([key, quota]) => {
       const [schemeId, paymentMethodId] = key.split('_');
