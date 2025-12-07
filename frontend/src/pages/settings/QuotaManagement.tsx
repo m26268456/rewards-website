@@ -9,8 +9,10 @@ const formatQuotaInfo = (used: number, remaining: number | null, limit: number |
   const limitStr = limit === null ? '無上限' : limit.toLocaleString();
   
   // 常態顯示 a+b=c 格式（如果有調整）
-  const displayUsed = adjustment !== undefined ? `${used}${adjustment >= 0 ? '+' : ''}${adjustment}=${used + adjustment}` : usedStr;
-  
+  const displayUsed = (adjustment !== undefined && adjustment !== 0)
+    ? `${used}${adjustment >= 0 ? '+' : ''}${adjustment}=${used + adjustment}` 
+    : usedStr;
+	
   return (
     <div className="space-y-1">
       <div className="text-xs text-gray-600">
