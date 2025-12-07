@@ -9,12 +9,14 @@ interface QuotaInfo {
   calculationMethods: string[];
   quotaLimits: Array<number | null>;
   currentAmounts: number[];
-  usedQuotas: number[];
-  manualAdjustments: number[];
+  usedQuotas: number[]; // a: 系統計算的額度
+  manualAdjustments?: number[]; // b: 人工調整值
+  totalUsedQuotas?: number[]; // c: a + b
   remainingQuotas: Array<number | null>;
   referenceAmounts: Array<number | null>;
   refreshTimes: string[];
   rewardIds: string[];
+  quotaCalculationBases?: string[];
   cardId?: string | null;
   paymentMethodIdForGroup?: string | null;
   cardName?: string | null;
@@ -65,25 +67,26 @@ export default function QuotaQuery() {
   };
 
   const formatQuotaInfo = (
-    used: number,
-	adjustment: number,
+    used: number, // a: 系統計算的額度
     remaining: number | null,
-    limit: number | null
+    limit: number | null,
+    manualAdjustment?: number // b: 人工調整值
   ) => {
-	const totalUsed = used + adjustment;
-	
-	// 顯示邏輯：a + b = c
-    const displayUsed = adjustment !== 0
+    const adjustment = manualAdjustment !== undefined ? manualAdjustment : 0;
+    const totalUsed = used + adjustment; // c = a + b
+    const displayUsed = adjustment !== 0 
       ? `${used}${adjustment >= 0 ? '+' : ''}${adjustment}=${totalUsed}`
       : used.toLocaleString();
-	
+    const usedStr = used.toLocaleString();
     const remainingStr = remaining === null ? '無上限' : remaining.toLocaleString();
     const limitStr = limit === null ? '無上限' : limit.toLocaleString();
     return (
       <div className="space-y-1">
         <div className="text-xs text-gray-600">
           <span className="font-medium">已用：</span>
-          <span className={used > 0 ? 'text-orange-600' : 'text-gray-500'}>{usedStr}</span>
+          <span className={totalUsed > 0 ? 'text-orange-600' : 'text-gray-500'}>
+            {displayUsed}
+          </span>
         </div>
         <div className="text-xs text-gray-600">
           <span className="font-medium">剩餘：</span>
@@ -263,7 +266,6 @@ export default function QuotaQuery() {
                     const basisText = basis === 'statement' ? '帳單總額' : '單筆回饋';
                     
                     const usedQuota = primary.usedQuotas?.[rIdx] || 0;
-					const manualAdjustment = primary.manualAdjustments?.[rIdx] || 0;
                     const remainingQuota = primary.remainingQuotas?.[rIdx] ?? null;
                     const quotaLimit = primary.quotaLimits?.[rIdx] ?? null;
                     const currentAmount = primary.currentAmounts?.[rIdx] || 0;
@@ -298,12 +300,21 @@ export default function QuotaQuery() {
                         </td>
                         <td className="px-4 py-3 text-xs text-gray-700 space-y-1">
                           <div>{calculationMethodText}</div>
-                          <div className="text-[11px] text-purple-700 border border-purple-200 rounded px-1 inline-block">
+                          <div className={`text-[11px] rounded px-1 inline-block ${
+                            basis === 'statement' 
+                              ? 'text-blue-700 border border-blue-200 bg-blue-50' 
+                              : 'text-purple-700 border border-purple-200 bg-purple-50'
+                          }`}>
                             {basisText}
                           </div>
                         </td>
                         <td className="px-4 py-3 text-sm align-top">
-                          {formatQuotaInfo(usedQuota, manualAdjustment, remainingQuota, quotaLimit)}
+                          {formatQuotaInfo(
+                            usedQuota, 
+                            remainingQuota, 
+                            quotaLimit,
+                            primary.manualAdjustments?.[rIdx]
+                          )}
                         </td>
                         <td className="px-4 py-3 text-sm align-top">
                           {formatConsumptionInfo(currentAmount, referenceAmount)}

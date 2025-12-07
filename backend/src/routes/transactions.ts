@@ -158,7 +158,7 @@ router.post('/', validate(createTransactionSchema), async (req: Request, res: Re
 
           if (reward.type === 'scheme') {
             quotaQuery = `
-              SELECT id, used_quota, remaining_quota, current_amount, manual_adjustment
+              SELECT id, used_quota, remaining_quota, current_amount, COALESCE(manual_adjustment, 0) as manual_adjustment
               FROM quota_trackings
               WHERE scheme_id = $1 AND reward_id = $2 
               AND (payment_method_id = $3 OR (payment_method_id IS NULL AND $3 IS NULL))
@@ -167,7 +167,7 @@ router.post('/', validate(createTransactionSchema), async (req: Request, res: Re
           } else {
             // Payment reward
             quotaQuery = `
-              SELECT id, used_quota, remaining_quota, current_amount, manual_adjustment
+              SELECT id, used_quota, remaining_quota, current_amount, COALESCE(manual_adjustment, 0) as manual_adjustment
               FROM quota_trackings
               WHERE payment_method_id = $1 
               AND payment_reward_id = $2
@@ -183,13 +183,12 @@ router.post('/', validate(createTransactionSchema), async (req: Request, res: Re
           let currentAccumulated = 0;
           let quotaId: string | null = null;
           let currentUsedQuota = 0;
-		  let currentManualAdjustment = 0;
 
           if (quotaResult.rows.length > 0) {
             currentAccumulated = parseFloat(quotaResult.rows[0].current_amount) || 0;
             currentUsedQuota = parseFloat(quotaResult.rows[0].used_quota) || 0;
-			currentManualAdjustment = parseFloat(quotaResult.rows[0].manual_adjustment) || 0;
             quotaId = quotaResult.rows[0].id;
+            // manual_adjustment 不需要在這裡讀取，因為我們只更新 used_quota（系統計算值）
           }
 
           // 核心邏輯：根據 basis 計算本次應扣除的回饋額
@@ -209,10 +208,13 @@ router.post('/', validate(createTransactionSchema), async (req: Request, res: Re
           let newRemainingQuota: number | null = null;
 
           if (quotaLimit !== null) {
-            // 如果已有記錄，基於記錄扣除；如果無記錄，基於上限扣除
-            // 但最準確的是: Limit - NewUsed
-            newRemainingQuota = quotaLimit - (newUsedQuota + currentManualAdjustment);
-            // 允許變負嗎？通常不允許低於0，但記帳可能只記錄事實。這裡保持數學正確性。
+            // 需要考慮 manual_adjustment，但這裡只更新 used_quota（系統計算值）
+            // remaining_quota 會在查詢時動態計算：quota_limit - (used_quota + manual_adjustment)
+            // 為了保持資料一致性，這裡先計算（假設 manual_adjustment 不變）
+            const currentManualAdjustment = quotaResult.rows.length > 0 
+              ? (parseFloat(quotaResult.rows[0].manual_adjustment) || 0)
+              : 0;
+            newRemainingQuota = Math.max(0, quotaLimit - (newUsedQuota + currentManualAdjustment));
           }
 
           const newCurrentAmount = currentAccumulated + amountNum;
@@ -271,13 +273,13 @@ router.post('/', validate(createTransactionSchema), async (req: Request, res: Re
 
             // 創建新記錄
             const insertParams = reward.type === 'scheme' 
-              ? [validSchemeId, validPaymentMethodId, reward.id, null, newUsedQuota, newRemainingQuota, newCurrentAmount, nextRefreshAt]
-              : [null, validPaymentMethodId, null, reward.id, newUsedQuota, newRemainingQuota, newCurrentAmount, nextRefreshAt];
+              ? [validSchemeId, validPaymentMethodId, reward.id, null, newUsedQuota, newRemainingQuota, newCurrentAmount, 0, nextRefreshAt]
+              : [null, validPaymentMethodId, null, reward.id, newUsedQuota, newRemainingQuota, newCurrentAmount, 0, nextRefreshAt];
             
             await client.query(
               `INSERT INTO quota_trackings 
-               (scheme_id, payment_method_id, reward_id, payment_reward_id, used_quota, remaining_quota, current_amount, next_refresh_at)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+               (scheme_id, payment_method_id, reward_id, payment_reward_id, used_quota, remaining_quota, current_amount, manual_adjustment, next_refresh_at)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
               insertParams
             );
           }
@@ -375,7 +377,7 @@ router.delete('/:id', async (req: Request, res: Response, next: NextFunction) =>
 
         if (reward.type === 'scheme') {
           quotaQuery = `
-            SELECT id, used_quota, remaining_quota, current_amount
+            SELECT id, used_quota, remaining_quota, current_amount, COALESCE(manual_adjustment, 0) as manual_adjustment
             FROM quota_trackings
             WHERE scheme_id = $1 AND reward_id = $2
               AND (payment_method_id = $3 OR (payment_method_id IS NULL AND $3 IS NULL))
@@ -383,7 +385,7 @@ router.delete('/:id', async (req: Request, res: Response, next: NextFunction) =>
           quotaParams = [schemeId, reward.id, paymentMethodId];
         } else {
           quotaQuery = `
-            SELECT id, used_quota, remaining_quota, current_amount
+            SELECT id, used_quota, remaining_quota, current_amount, COALESCE(manual_adjustment, 0) as manual_adjustment
             FROM quota_trackings
             WHERE payment_method_id = $1
               AND payment_reward_id = $2
@@ -404,6 +406,7 @@ router.delete('/:id', async (req: Request, res: Response, next: NextFunction) =>
         const quotaRow = quotaResult.rows[0];
         const currentAmount = quotaRow.current_amount ? parseFloat(quotaRow.current_amount) : 0;
         const currentUsed = quotaRow.used_quota ? parseFloat(quotaRow.used_quota) : 0;
+        const currentManualAdjustment = parseFloat(quotaRow.manual_adjustment) || 0;
         const quotaLimit = reward.quota_limit ? parseFloat(reward.quota_limit) : null;
 
         const newCurrentAmount = Math.max(0, currentAmount - amountNum);
@@ -417,7 +420,10 @@ router.delete('/:id', async (req: Request, res: Response, next: NextFunction) =>
         }
 
         const newUsed = Math.max(0, currentUsed - rollbackAmount);
-        const newRemaining = quotaLimit !== null ? quotaLimit - newUsed : null;
+        // 計算 remaining_quota 時需考慮 manual_adjustment
+        const newRemaining = quotaLimit !== null 
+          ? Math.max(0, quotaLimit - (newUsed + currentManualAdjustment))
+          : null;
 
         await client.query(
           `UPDATE quota_trackings

@@ -3,37 +3,50 @@ import api from '../../utils/api';
 
 // 格式化函數
 const formatQuotaInfo = (
-  used: number, 
-  manualAdjustment: number, // 直接接收數值
+  used: number, // a: 系統計算的額度
   remaining: number | null, 
   limit: number | null, 
   isEditing: boolean, 
   editingValue?: string, 
-  onEditingChange?: (val: string) => void
+  onEditingChange?: (val: string) => void, 
+  manualAdjustment?: number // b: 人工調整值（從後端資料取得）
 ) => {
-  const totalUsed = used + manualAdjustment;
-  
-  const displayUsed = manualAdjustment !== 0
-    ? `${used}${manualAdjustment >= 0 ? '+' : ''}${manualAdjustment}=${totalUsed}`
-    : used.toLocaleString();
-  
+  const adjustment = manualAdjustment !== undefined ? manualAdjustment : 0;
+  const totalUsed = used + adjustment; // c = a + b
+  const usedStr = used.toLocaleString();
   const remainingStr = remaining === null ? '無上限' : remaining.toLocaleString();
   const limitStr = limit === null ? '無上限' : limit.toLocaleString();
-
+  
+  // 常態顯示 a+b=c 格式（如果有調整）
+  const displayUsed = adjustment !== 0 
+    ? `${used}${adjustment >= 0 ? '+' : ''}${adjustment}=${totalUsed}`
+    : usedStr;
+  
   return (
     <div className="space-y-1">
       <div className="text-xs text-gray-600">
         <span className="font-medium">已用：</span>
         {isEditing ? (
           <div className="flex items-center gap-1 mt-1">
-            <span className="text-gray-500">{used.toLocaleString()}</span>
+            <span className="text-gray-500">{usedStr}</span>
             <input 
               type="text" 
               value={editingValue} 
               onChange={e => onEditingChange?.(e.target.value)} 
-              placeholder={manualAdjustment !== 0 ? `${manualAdjustment >= 0 ? '+' : ''}${manualAdjustment}` : "+100"} 
+              placeholder={adjustment !== 0 ? `${adjustment >= 0 ? '+' : ''}${adjustment}` : "+7/-5"} 
               className="w-16 px-1 border rounded text-xs" 
             />
+            {(() => {
+              // 即時計算新的總額（如果輸入框有值）
+              let newAdjustment = 0;
+              if (editingValue && editingValue.trim() !== '') {
+                if (editingValue.startsWith('+')) newAdjustment = parseFloat(editingValue.substring(1)) || 0;
+                else if (editingValue.startsWith('-')) newAdjustment = parseFloat(editingValue) || 0;
+                else newAdjustment = parseFloat(editingValue) || 0;
+              }
+              const newTotal = used + newAdjustment;
+              return <span className="text-gray-500">= {newTotal}</span>;
+            })()}
           </div>
         ) : (
           <span className={totalUsed > 0 ? 'text-orange-600' : 'text-gray-500'}>
@@ -67,8 +80,6 @@ export default function QuotaManagement() {
     refreshType: '', refreshValue: '', refreshDate: '',
     calculationBasis: 'transaction' 
   });
-  // 人工干預額度調整記錄
-  const [manualAdjustments, setManualAdjustments] = useState<Map<string, number>>(new Map());
   // 共同回饋綁定
   const [sharedGroupOptions, setSharedGroupOptions] = useState<Array<{ id: string; name: string; cardId?: string }>>([]);
   const [bindingTarget, setBindingTarget] = useState<{ idx: number; group: string } | null>(null);
@@ -114,33 +125,20 @@ export default function QuotaManagement() {
     const targetSchemeId = q.rewardSourceSchemeId || q.sharedRewardGroupId || q.schemeId;
     const rewardId = q.rewardIds[editingQuota.rIdx];
     
-    // 解析輸入值為 adjustment (現在 adjustment 代表 B)
-    let adjustment = 0;
-    // 如果沒有輸入調整值，清除調整記錄
-    if (quotaAdjust && quotaAdjust.trim() !== '') {
-        if (quotaAdjust.startsWith('+')) adjustment = parseFloat(quotaAdjust.substring(1));
-        else if (quotaAdjust.startsWith('-')) adjustment = parseFloat(quotaAdjust);
-        else adjustment = parseFloat(quotaAdjust);
-    }
-
-    if (isNaN(adjustment)) return;
-	
-      // 更新為原始值
+    // 如果沒有輸入調整值，設為 0（清除調整）
+    if (!quotaAdjust || quotaAdjust.trim() === '') {
       try {
-      // [修改] 只送出 manualAdjustment
-      await api.put(`/quota/${targetSchemeId || 'null'}`, {
-        paymentMethodId: q.paymentMethodId,
-        rewardId,
-        manualAdjustment: adjustment 
-      });
-      // 更新本地狀態（這裡其實直接 reload 比較簡單，但要保持 map 更新也行）
-      const adjustmentKey = `${targetSchemeId || q.schemeId || q.paymentMethodId}_${rewardId}`;
-      setManualAdjustments(new Map(manualAdjustments.set(adjustmentKey, adjustment)));
-      loadQuotas();
-    } catch (e: any) { 
-      throw e; 
+        await api.put(`/quota/${targetSchemeId || 'null'}`, {
+          paymentMethodId: q.paymentMethodId,
+          rewardId,
+          manualAdjustment: 0
+        });
+        loadQuotas();
+      } catch (e: any) {
+        throw e;
+      }
+      return;
     }
-  };
     
     // 解析調整值
     let adjustment = 0;
@@ -150,19 +148,13 @@ export default function QuotaManagement() {
 
     if (isNaN(adjustment)) return; // 如果無效，不執行（允許0）
 
-    // 計算新的已用額度 = 原始值 + 調整值
-    const newUsed = baseUsed + adjustment;
-    const limit = q.quotaLimits[editingQuota.rIdx];
-    const newRemaining = limit !== null ? Math.max(0, limit - newUsed) : null;
-
     try {
+      // 發送 manualAdjustment 而非 usedQuota
       await api.put(`/quota/${targetSchemeId || 'null'}`, {
         paymentMethodId: q.paymentMethodId,
         rewardId,
-        remainingQuota: newRemaining
+        manualAdjustment: adjustment
       });
-      // 記錄調整值（不是累積值，而是當前的調整值）
-      setManualAdjustments(new Map(manualAdjustments.set(adjustmentKey, adjustment)));
       loadQuotas();
     } catch (e: any) { 
       throw e; // 拋出錯誤，讓 handleSaveAll 處理
@@ -177,11 +169,8 @@ export default function QuotaManagement() {
     // [修正] 從陣列中讀取正確的 basis，若無則預設 'transaction'
     const basis = q.quotaCalculationBases?.[rIdx] || 'transaction';
     
-    // 獲取當前的調整值（如果存在）
-    const targetSchemeId = q.rewardSourceSchemeId || q.sharedRewardGroupId || q.schemeId || q.paymentMethodId;
-    const rewardId = q.rewardIds[rIdx];
-    const adjustmentKey = `${targetSchemeId}_${rewardId}`;
-    const currentAdjustment = manualAdjustments.get(adjustmentKey);
+    // 從後端資料中獲取當前的調整值
+    const currentAdjustment = q.manualAdjustments?.[rIdx] || 0;
     
     setEditingReward({ idx: qIdx, rIdx: rIdx, group });
     setEditingQuota({ idx: qIdx, rIdx: rIdx, group });
@@ -195,7 +184,7 @@ export default function QuotaManagement() {
       calculationBasis: basis
     });
     // 將當前的調整值帶入編輯欄位
-    setQuotaAdjust(currentAdjustment !== undefined ? `${currentAdjustment >= 0 ? '+' : ''}${currentAdjustment}` : '');
+    setQuotaAdjust(currentAdjustment !== 0 ? `${currentAdjustment >= 0 ? '+' : ''}${currentAdjustment}` : '');
   };
 
   const handleRewardSave = async () => {
@@ -513,15 +502,13 @@ export default function QuotaManagement() {
                     </td>
                     <td className="px-4 py-3 text-sm align-top">
                       {formatQuotaInfo(
-                        primary.usedQuotas[rIdx], 
-						primary.manualAdjustments?.[rIdx] || 0,
+                        primary.usedQuotas[rIdx] || 0, // a: 系統計算的額度
                         primary.remainingQuotas[rIdx], 
                         primary.quotaLimits[rIdx],
-                        isEditingQ,
+                        isEditingR, // 使用 isEditingR 來控制編輯模式
                         quotaAdjust, 
                         setQuotaAdjust,
-                        `${primary.rewardSourceSchemeId || primary.sharedRewardGroupId || primary.schemeId || primary.paymentMethodId}_${primary.rewardIds[rIdx]}`,
-                        manualAdjustments
+                        primary.manualAdjustments?.[rIdx] // b: 人工調整值（從後端資料取得）
                       )}
                     </td>
                     <td className="px-4 py-3 text-sm align-top">

@@ -121,5 +121,6 @@ export interface QuotaDbRow {
   used_quota: string | number | null;
   remaining_quota: string | number | null;
   current_amount: string | number | null;
+  manual_adjustment: string | number | null;
   next_refresh_at: Date | null;
 }

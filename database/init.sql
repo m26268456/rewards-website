@@ -178,8 +178,9 @@ CREATE TABLE quota_trackings (
     -- 當 payment_method_id 不為 NULL 且 scheme_id 不為 NULL 時，表示這是支付方式綁定卡片方案的額度
     -- 當 payment_method_id 不為 NULL 且 scheme_id 為 NULL 時，表示這是純支付方式的額度（使用 payment_reward_id）
     current_amount DECIMAL(12,2) DEFAULT 0, -- 當前消費金額
-    used_quota DECIMAL(12,2) DEFAULT 0, -- 已使用額度
-    remaining_quota DECIMAL(12,2), -- 剩餘額度（NULL 表示無上限）
+    used_quota DECIMAL(12,2) DEFAULT 0, -- 已使用額度（系統計算值，a）
+    manual_adjustment DECIMAL(12,2) DEFAULT 0, -- 人工調整值（b），顯示的總額度 = used_quota + manual_adjustment（c = a + b）
+    remaining_quota DECIMAL(12,2), -- 剩餘額度（NULL 表示無上限），計算方式：quota_limit - (used_quota + manual_adjustment)
     last_refresh_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, -- 上次刷新時間
     next_refresh_at TIMESTAMP WITH TIME ZONE, -- 下次刷新時間
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
