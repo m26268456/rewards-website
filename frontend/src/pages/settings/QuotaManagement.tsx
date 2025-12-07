@@ -403,7 +403,10 @@ export default function QuotaManagement() {
               
               const schemeNames = [rootNameDisplay, ...childNames];
 
-              return rewardIndices.map((rIdx: number) => {
+              // 共享群組只渲染第一個回饋組成，非共享群組渲染所有回饋組成
+              const rowsToRender = isSharedGroup ? [0] : rewardIndices;
+
+              return rowsToRender.map((rIdx: number) => {
                 const isFirst = rIdx === 0;
                 const isEditingQ = editingQuota?.idx === primary.__index && editingQuota?.rIdx === rIdx;
                 const isEditingR = editingReward?.idx === primary.__index && editingReward?.rIdx === rIdx;
@@ -423,7 +426,8 @@ export default function QuotaManagement() {
                 const sharedPairs = [['bg-blue-50','bg-blue-100'], ['bg-blue-100','bg-blue-50']];
                 const soloPairs = [['bg-white','bg-gray-50'], ['bg-gray-50','bg-white']];
                 const colorPair = isSharedGroup ? sharedPairs[groupColorIdx % 2] : soloPairs[groupColorIdx % 2];
-                const rowBgColor = colorPair[rIdx % 2];
+                // 共享群組只顯示一行，使用第一個顏色；非共享群組使用交替顏色
+                const rowBgColor = isSharedGroup ? colorPair[0] : colorPair[rIdx % 2];
                 const rowBorder = isSharedGroup ? 'border-blue-300' : 'border-gray-200';
 
                 return (
@@ -432,7 +436,7 @@ export default function QuotaManagement() {
                     className={`${rowBgColor} border-l-4 ${rowBorder} hover:bg-blue-50 transition-colors`}
                   >
                     {isFirst && (
-                      <td rowSpan={rewardIndices.length} className={`px-4 py-3 text-sm font-medium sticky left-0 ${rowBgColor} z-10 border-r border-gray-200 align-top`}>
+                      <td rowSpan={rowsToRender.length} className={`px-4 py-3 text-sm font-medium sticky left-0 ${rowBgColor} z-10 border-r border-gray-200 align-top`}>
                         <div className="space-y-1">
                           <div className="font-semibold">{rootNameDisplay}</div>
                           {childNames.length > 0 && (
@@ -600,7 +604,8 @@ export default function QuotaManagement() {
                                       : groupMembers;
                                     setSelectedSharedGroups(preset);
                                   }}
-                                  className="px-3 py-1 text-sm bg-gray-600 text-white rounded hover:bg-gray-700"
+                                  className="px-3 py-1 text-sm text-white rounded hover:opacity-90"
+                                  style={{ backgroundColor: '#3B82F6' }}
                                 >
                                   回饋綁定
                                 </button>
