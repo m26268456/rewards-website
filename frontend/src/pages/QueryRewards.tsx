@@ -148,7 +148,23 @@ export default function QueryRewards() {
       const requestBody = keywords.length > 0 ? { keywords } : { channelIds: realChannelIds };
 
       api.post('/schemes/query-channels', requestBody)
-        .then((res) => setQueryResults(res.data.data))
+        .then((res) => {
+          const data = res.data?.data || [];
+          // 如果是關鍵字查詢，後端已分組；若是通路 ID 查詢，需包成單一分組以供前端顯示
+          if (keywords.length > 0) {
+            setQueryResults(data);
+          } else {
+            const normalized = [{
+              keyword: '通路查詢',
+              channels: (Array.isArray(data) ? data : []).map((c: any) => ({
+                channelId: c.channelId,
+                channelName: c.channelName || selectedChannelNames.get(c.channelId) || '',
+                results: c.results || [],
+              })),
+            }];
+            setQueryResults(normalized);
+          }
+        })
         .catch((error) => {
           console.error('查詢錯誤:', error);
           setQueryResults([]);
@@ -352,13 +368,13 @@ export default function QueryRewards() {
                       </h4>
                       <div className="space-y-4">
                         {/* 每個關鍵字下的通路 */}
-                        {keywordGroup.channels.map((channel, channelIdx) => (
+                        {(keywordGroup.channels || []).map((channel, channelIdx) => (
                           <div key={channelIdx} className="border rounded p-3 bg-gray-50">
                             <h5 className="font-semibold mb-2 text-base text-gray-700">
                               {channel.channelName}
                             </h5>
                             <div className="space-y-2">
-                              {channel.results.map((item, idx) => (
+                              {(channel.results || []).map((item, idx) => (
                                 <div key={idx} className={`p-3 rounded-lg ${item.isExcluded ? 'bg-red-50 border-l-4 border-red-500' : 'bg-green-50 border-l-4 border-green-500'}`}>
                                   {item.isExcluded ? (
                                     <div className="text-sm">
