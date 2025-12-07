@@ -2,7 +2,9 @@ import { useState, useEffect } from 'react';
 import api from '../../utils/api';
 
 // 格式化函數
-const formatQuotaInfo = (used: number, remaining: number | null, limit: number | null, isEditing: boolean, editingValue?: string, onEditingChange?: (val: string) => void) => {
+const formatQuotaInfo = (used: number, remaining: number | null, limit: number | null, isEditing: boolean, editingValue?: string, onEditingChange?: (val: string) => void, adjustmentKey?: string, manualAdjustments?: Map<string, number>) => {
+  const adjustment = adjustmentKey && manualAdjustments ? manualAdjustments.get(adjustmentKey) : undefined;
+  const displayUsed = adjustment !== undefined ? `${used}${adjustment >= 0 ? '+' : ''}${adjustment}=${used + adjustment}` : used.toLocaleString();
   const usedStr = used.toLocaleString();
   const remainingStr = remaining === null ? '無上限' : remaining.toLocaleString();
   const limitStr = limit === null ? '無上限' : limit.toLocaleString();
@@ -15,7 +17,7 @@ const formatQuotaInfo = (used: number, remaining: number | null, limit: number |
             <span className="text-gray-500">{usedStr}</span>
             <input type="text" value={editingValue} onChange={e => onEditingChange?.(e.target.value)} placeholder="+7/-5" className="w-16 px-1 border rounded text-xs" />
           </div>
-        ) : <span className={used > 0 ? 'text-orange-600' : 'text-gray-500'}>{usedStr}</span>}
+        ) : <span className={used > 0 ? 'text-orange-600' : 'text-gray-500'}>{adjustment !== undefined ? displayUsed : usedStr}</span>}
       </div>
       <div className="text-xs text-gray-600">
         <span className="font-medium">剩餘：</span>
@@ -43,11 +45,12 @@ export default function QuotaManagement() {
     refreshType: '', refreshValue: '', refreshDate: '',
     calculationBasis: 'transaction' 
   });
+  // 人工干預額度調整記錄
+  const [manualAdjustments, setManualAdjustments] = useState<Map<string, number>>(new Map());
   // 共同回饋綁定
   const [sharedGroupOptions, setSharedGroupOptions] = useState<Array<{ id: string; name: string; cardId?: string }>>([]);
   const [bindingTarget, setBindingTarget] = useState<{ idx: number; group: string } | null>(null);
   const [selectedSharedGroups, setSelectedSharedGroups] = useState<string[]>([]);
-  const [selectedRootSchemeId, setSelectedRootSchemeId] = useState<string>('');
 
   useEffect(() => {
     loadQuotas();
@@ -55,18 +58,6 @@ export default function QuotaManagement() {
     const timer = setInterval(() => setCurrentTime(new Date().toLocaleString('zh-TW', { hour12: false })), 1000);
     return () => clearInterval(timer);
   }, []);
-
-  // 開啟綁定視窗時，預設勾選 root + 全組成員（含自身）
-  useEffect(() => {
-    if (!bindingTarget) return;
-    const current = quotas[bindingTarget.idx];
-    if (!current?.schemeId) return;
-    const rootId = current.sharedRewardGroupId || current.schemeId;
-    const groupMembers = quotas
-      .filter((x) => x.schemeId && (x.sharedRewardGroupId === rootId || x.schemeId === rootId))
-      .map((x) => x.schemeId as string);
-    setSelectedSharedGroups(Array.from(new Set(groupMembers.concat(rootId))));
-  }, [bindingTarget, quotas]);
 
   const loadQuotas = async () => {
     try {
@@ -101,12 +92,14 @@ export default function QuotaManagement() {
     const targetSchemeId = q.rewardSourceSchemeId || q.sharedRewardGroupId || q.schemeId;
     const rewardId = q.rewardIds[editingQuota.rIdx];
     
+    if (!quotaAdjust || quotaAdjust.trim() === '') return; // 允許空白，不強制調整
+    
     let adjustment = 0;
     if (quotaAdjust.startsWith('+')) adjustment = parseFloat(quotaAdjust.substring(1));
     else if (quotaAdjust.startsWith('-')) adjustment = parseFloat(quotaAdjust);
     else adjustment = parseFloat(quotaAdjust);
 
-    if (isNaN(adjustment) || adjustment === 0) return alert('請輸入增減值 (如 +10, -5)');
+    if (isNaN(adjustment) || adjustment === 0) return; // 如果無效或為0，不執行
 
     const newUsed = (q.usedQuotas[editingQuota.rIdx] || 0) + adjustment;
     const limit = q.quotaLimits[editingQuota.rIdx];
@@ -119,11 +112,13 @@ export default function QuotaManagement() {
         usedQuota: newUsed,
         remainingQuota: newRemaining
       });
-      alert('額度已更新');
-      setEditingQuota(null);
-      setQuotaAdjust('');
+      // 記錄調整值
+      const adjustmentKey = `${targetSchemeId || q.schemeId || q.paymentMethodId}_${rewardId}`;
+      setManualAdjustments(new Map(manualAdjustments.set(adjustmentKey, adjustment)));
       loadQuotas();
-    } catch (e: any) { alert(e.response?.data?.error || '更新失敗'); }
+    } catch (e: any) { 
+      throw e; // 拋出錯誤，讓 handleSaveAll 處理
+    }
   };
 
   const handleRewardEdit = (qIdx: number, rIdx: number, group: string) => {
@@ -148,6 +143,14 @@ export default function QuotaManagement() {
 
   const handleRewardSave = async () => {
     if (!editingReward) return;
+    
+    // 驗證回饋百分比
+    const percentage = parseFloat(rewardForm.percentage);
+    if (isNaN(percentage) || percentage <= 0) {
+      alert('請輸入有效的回饋百分比（必須大於 0）');
+      return;
+    }
+    
     const q = quotas[editingReward.idx];
     const targetSchemeId = q.rewardSourceSchemeId || q.sharedRewardGroupId || q.schemeId;
     const rewardId = q.rewardIds[editingReward.rIdx];
@@ -157,7 +160,7 @@ export default function QuotaManagement() {
 
     try {
       await api.put(endpoint, {
-        rewardPercentage: parseFloat(rewardForm.percentage),
+        rewardPercentage: percentage,
         calculationMethod: rewardForm.method,
         quotaLimit: rewardForm.limit ? parseFloat(rewardForm.limit) : null,
         quotaRefreshType: rewardForm.refreshType || null,
@@ -165,10 +168,33 @@ export default function QuotaManagement() {
         quotaRefreshDate: rewardForm.refreshType === 'date' ? rewardForm.refreshDate : null,
         quotaCalculationBasis: rewardForm.calculationBasis
       });
-      alert('設定已更新');
-      setEditingReward(null);
       loadQuotas();
-    } catch (e: any) { alert(e.response?.data?.error || '更新失敗'); }
+    } catch (e: any) { 
+      throw e; // 拋出錯誤，讓 handleSaveAll 處理
+    }
+  };
+
+  // 整合儲存邏輯：同時處理回饋設定和額度調整
+  const handleSaveAll = async () => {
+    if (!editingReward) return;
+    
+    try {
+      // 如果有額度調整，先儲存額度
+      if (editingQuota && quotaAdjust && quotaAdjust.trim() !== '') {
+        await handleQuotaSave();
+      }
+      
+      // 儲存回饋設定
+      await handleRewardSave();
+      
+      // 清除編輯狀態
+      setEditingReward(null);
+      setEditingQuota(null);
+      setQuotaAdjust('');
+      alert('設定已更新');
+    } catch (e: any) {
+      alert(e.response?.data?.error || '儲存失敗');
+    }
   };
 
   // 綁定共同回饋群組（只對信用卡方案）
@@ -198,7 +224,7 @@ export default function QuotaManagement() {
 
     // 確保包含當前方案與既有 root，根據 sharedRewardGroupId 決定 root
     const currentGroupRoot = current.sharedRewardGroupId || current.schemeId;
-    const preferredRoot = selectedRootSchemeId || current.sharedRewardGroupId || ids[0] || currentSchemeId;
+    const preferredRoot = current.sharedRewardGroupId || ids[0] || currentSchemeId;
     const toBindSet = new Set(ids);
     toBindSet.add(currentSchemeId);
     toBindSet.add(preferredRoot);
@@ -238,18 +264,39 @@ export default function QuotaManagement() {
     }
   });
 
-  // 將同一共同回饋群組的方案聚在一起（無群組則以自身索引為 key）
+  // 將同一共同回饋群組的方案聚在一起（與 QuotaQuery 一致的邏輯）
   const groupByShared = (items: any[]) => {
     const order: string[] = [];
     const map = new Map<string, any[]>();
+    
+    // 先找出所有被綁定的 root schemeId
+    const rootSchemeIds = new Set<string>();
     items.forEach((item) => {
-      const key = item.sharedRewardGroupId || `solo-${item.__index}`;
+      if (item.sharedRewardGroupId) {
+        rootSchemeIds.add(item.sharedRewardGroupId);
+      }
+    });
+    
+    items.forEach((item) => {
+      let key: string;
+      if (item.sharedRewardGroupId) {
+        // 被綁定的方案：使用 sharedRewardGroupId 作為 key
+        key = item.sharedRewardGroupId;
+      } else if (item.schemeId && rootSchemeIds.has(item.schemeId)) {
+        // Root 方案（被其他方案綁定）：使用自己的 schemeId 作為 key
+        key = item.schemeId;
+      } else {
+        // 獨立方案：使用 solo-${id} 作為 key
+        key = `solo-${item.schemeId || item.paymentMethodId || item.__index}`;
+      }
+      
       if (!map.has(key)) {
         map.set(key, []);
         order.push(key);
       }
       map.get(key)!.push(item);
     });
+    
     // 將有共同回饋的群組置頂，並給群組分配顏色索引
     const sorted = order.sort((a, b) => {
       const aIsShared = a.startsWith('solo-') ? 1 : 0;
@@ -278,13 +325,35 @@ export default function QuotaManagement() {
           <tbody className="bg-white divide-y divide-gray-200">
             {groupByShared(list).map(({ key: sharedKey, items, colorIndexMap }) => {
               const isSharedGroup = !sharedKey.startsWith('solo-');
-              const primary = items[0];
-              const rewardIndices = primary.rewardIds.map((_: any, i: number) => i);
-              const schemeNames = items.map((it: any) => {
-                const nm = it.schemeName || it.name || '';
-                const parts = nm.split('-');
-                return parts.length > 1 ? parts[parts.length - 1] : nm;
+              
+              // 排序：root 方案在前，被綁定方案在後（與 QuotaQuery 一致）
+              const sortedItems = items.slice().sort((a, b) => {
+                const isRootA = !a.sharedRewardGroupId || a.sharedRewardGroupId === a.schemeId;
+                const isRootB = !b.sharedRewardGroupId || b.sharedRewardGroupId === b.schemeId;
+                if (isRootA !== isRootB) return isRootA ? -1 : 1;
+                return 0;
               });
+              
+              const primary = sortedItems[0];
+              const rewardIndices = primary.rewardIds.map((_: any, i: number) => i);
+              
+              // 找出 root 方案名稱和被綁定方案名稱
+              const rootId = primary.sharedRewardGroupId || primary.schemeId;
+              const rootScheme = sortedItems.find((it) => !it.sharedRewardGroupId || it.sharedRewardGroupId === it.schemeId) || primary;
+              const rootName = rootScheme.schemeName || rootScheme.name || '';
+              const rootNameParts = rootName.split('-');
+              const rootNameDisplay = rootNameParts.length > 1 ? rootNameParts[rootNameParts.length - 1] : rootName;
+              
+              const childNames = sortedItems
+                .filter((it) => it.schemeId !== rootId)
+                .map((it) => {
+                  const nm = it.schemeName || it.name || '';
+                  const parts = nm.split('-');
+                  return parts.length > 1 ? parts[parts.length - 1] : nm;
+                })
+                .filter(Boolean);
+              
+              const schemeNames = [rootNameDisplay, ...childNames];
 
               return rewardIndices.map((rIdx: number) => {
                 const isFirst = rIdx === 0;
@@ -317,13 +386,16 @@ export default function QuotaManagement() {
                     {isFirst && (
                       <td rowSpan={rewardIndices.length} className={`px-4 py-3 text-sm font-medium sticky left-0 ${rowBgColor} z-10 border-r border-gray-200 align-top`}>
                         <div className="space-y-1">
-                          <div className="space-y-0.5">
-                            {schemeNames.map((nm: string, i: number) => (
-                              <div key={i}>{nm || primary.name}</div>
-                            ))}
-                          </div>
-                          {sharedBound && (
-                            <div className="text-[11px] text-blue-700 bg-blue-50 border border-blue-100 rounded px-2 py-1 inline-block">
+                          <div className="font-semibold">{rootNameDisplay}</div>
+                          {childNames.length > 0 && (
+                            <div className="text-xs text-gray-600 space-y-0.5">
+                              {childNames.map((nm: string, i: number) => (
+                                <div key={i}>{nm}</div>
+                              ))}
+                            </div>
+                          )}
+                          {isSharedGroup && (
+                            <div className="text-[11px] text-blue-700 bg-blue-50 border border-blue-100 rounded px-2 py-1 inline-block mt-1">
                               共用回饋
                             </div>
                           )}
@@ -374,14 +446,14 @@ export default function QuotaManagement() {
                     </td>
                     <td className="px-4 py-3 text-sm align-top">
                       {formatQuotaInfo(
-                        primary.usedQuotas[rIdx], primary.remainingQuotas[rIdx], primary.quotaLimits[rIdx],
-                        isEditingQ, quotaAdjust, setQuotaAdjust
-                      )}
-                      {isEditingQ && (
-                        <div className="flex gap-1 mt-1">
-                          <button onClick={handleQuotaSave} className="bg-green-500 text-white px-2 py-0.5 rounded text-xs">確認</button>
-                          <button onClick={() => { setEditingQuota(null); setQuotaAdjust(''); }} className="bg-gray-300 px-2 py-0.5 rounded text-xs">取消</button>
-                        </div>
+                        primary.usedQuotas[rIdx], 
+                        primary.remainingQuotas[rIdx], 
+                        primary.quotaLimits[rIdx],
+                        isEditingR, // 使用 isEditingR 來控制編輯模式
+                        quotaAdjust, 
+                        setQuotaAdjust,
+                        editingReward ? `${primary.rewardSourceSchemeId || primary.sharedRewardGroupId || primary.schemeId || primary.paymentMethodId}_${primary.rewardIds[rIdx]}` : undefined,
+                        manualAdjustments
                       )}
                     </td>
                     <td className="px-4 py-3 text-sm align-top">
@@ -441,16 +513,20 @@ export default function QuotaManagement() {
                               共用回饋：此變更會影響同組方案
                             </div>
                           )}
-                          <button onClick={handleRewardSave} className="bg-blue-500 text-white px-2 py-1 rounded text-xs">儲存</button>
-                          <button onClick={() => setEditingReward(null)} className="bg-gray-300 px-2 py-1 rounded text-xs">取消</button>
+                          <button onClick={handleSaveAll} className="bg-blue-500 text-white px-2 py-1 rounded text-xs">儲存</button>
+                          <button onClick={() => { 
+                            setEditingReward(null); 
+                            setEditingQuota(null); 
+                            setQuotaAdjust(''); 
+                          }} className="bg-gray-300 px-2 py-1 rounded text-xs">取消</button>
                         </div>
-                      ) : !isEditingQ && (
+                      ) : (
                         <div className="flex flex-col gap-1">
                           {!isSharedChild ? (
                             <>
                               <button
                                 onClick={() => { 
-                                  setEditingReward({ idx: primary.__index, rIdx, group: groupKey }); 
+                                  handleRewardEdit(primary.__index, rIdx, groupKey);
                                   setEditingQuota({ idx: primary.__index, rIdx, group: groupKey });
                                   setQuotaAdjust('');
                                 }} 
@@ -463,15 +539,14 @@ export default function QuotaManagement() {
                                   onClick={() => { 
                                     setBindingTarget({ idx: primary.__index, group: groupKey }); 
                                     const current = quotas.find(q => q.__index === primary.__index);
-                                  const rootId = current?.sharedRewardGroupId || current?.rewardSourceSchemeId || current?.schemeId || '';
-                                  const groupMembers = current?.sharedRewardGroupId
-                                    ? quotas.filter(x => x.sharedRewardGroupId === current.sharedRewardGroupId || x.schemeId === current.sharedRewardGroupId).map(x => x.schemeId)
-                                    : (current?.schemeId ? [current.schemeId] : []);
-                                  const preset = rootId
-                                    ? Array.from(new Set([rootId, ...groupMembers]))
-                                    : groupMembers;
-                                  setSelectedSharedGroups(preset);
-                                  if (rootId) setSelectedRootSchemeId(rootId);
+                                    const rootId = current?.sharedRewardGroupId || current?.rewardSourceSchemeId || current?.schemeId;
+                                    const groupMembers = current?.sharedRewardGroupId
+                                      ? quotas.filter(x => x.sharedRewardGroupId === current.sharedRewardGroupId || x.schemeId === current.sharedRewardGroupId).map(x => x.schemeId)
+                                      : (current?.schemeId ? [current.schemeId] : []);
+                                    const preset = rootId
+                                      ? Array.from(new Set([rootId, ...groupMembers]))
+                                      : groupMembers;
+                                    setSelectedSharedGroups(preset);
                                   }}
                                   className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
                                 >
@@ -582,30 +657,6 @@ export default function QuotaManagement() {
                   ))}
                   {candidates.length === 0 && (
                     <div className="text-xs text-gray-500">此卡片無可綁定的其他方案</div>
-                  )}
-                  
-                  {selectedSharedGroups.length > 0 && (
-                    <div className="mt-4 pt-4 border-t">
-                      <div className="text-sm font-medium mb-2 text-gray-700">選擇主方案：</div>
-                      <div className="space-y-2">
-                        {selectedSharedGroups.map(id => {
-                          const scheme = sharedGroupOptions.find(opt => opt.id === id);
-                          if (!scheme) return null;
-                          return (
-                            <label key={id} className="flex items-center gap-2 text-sm">
-                              <input
-                                type="radio"
-                                name="rootScheme"
-                                value={id}
-                                checked={selectedRootSchemeId === id}
-                                onChange={() => setSelectedRootSchemeId(id)}
-                              />
-                              <span>{scheme.name}</span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    </div>
                   )}
                 </div>
               );

@@ -387,7 +387,7 @@ router.put('/:id/batch', async (req: Request, res: Response, next: NextFunction)
 
       await setSharedRewardGroupMapping(id, sharedRewardGroupId || null, client);
 
-      // 2. 批量更新通路設定（保留輸入順序）
+      // 2. 批量更新通路設定
       await client.query('DELETE FROM scheme_channel_applications WHERE scheme_id = $1', [id]);
 
       if (applications && Array.isArray(applications) && applications.length > 0) {
@@ -395,11 +395,11 @@ router.put('/:id/batch', async (req: Request, res: Response, next: NextFunction)
         if (validApps.length > 0) {
           for (let i = 0; i < validApps.length; i++) {
             const app = validApps[i];
-            const params = [id, app.channelId, app.note || null, i];
+            const params = [id, app.channelId, app.note || null];
             await client.query(
-              `INSERT INTO scheme_channel_applications (scheme_id, channel_id, note, display_order)
-               VALUES ($1::uuid, $2::uuid, $3::text, $4::integer)
-               ON CONFLICT (scheme_id, channel_id) DO UPDATE SET note = EXCLUDED.note, display_order = EXCLUDED.display_order`,
+              `INSERT INTO scheme_channel_applications (scheme_id, channel_id, note)
+               VALUES ($1::uuid, $2::uuid, $3::text)
+               ON CONFLICT (scheme_id, channel_id) DO UPDATE SET note = EXCLUDED.note`,
               params
             );
           }
@@ -501,7 +501,7 @@ router.get('/:id/details', async (req: Request, res: Response, next: NextFunctio
        FROM scheme_channel_applications sca
        JOIN channels c ON sca.channel_id = c.id
        WHERE sca.scheme_id = $1
-       ORDER BY sca.display_order NULLS LAST, sca.created_at`,
+       ORDER BY sca.created_at`,
       [id]
     );
 
@@ -687,6 +687,11 @@ router.put('/:id/rewards/:rewardId', async (req: Request, res: Response, next: N
   try {
     const { id, rewardId } = req.params;
     const { rewardPercentage, calculationMethod, quotaLimit, quotaRefreshType, quotaRefreshValue, quotaRefreshDate, quotaCalculationBasis } = req.body;
+
+    // 驗證 rewardPercentage
+    if (rewardPercentage === undefined || rewardPercentage === null || isNaN(parseFloat(rewardPercentage)) || parseFloat(rewardPercentage) <= 0) {
+      return res.status(400).json({ success: false, error: '回饋百分比必填且必須大於 0' });
+    }
 
     const schemeResult = await pool.query('SELECT id FROM card_schemes WHERE id = $1', [id]);
     if (schemeResult.rows.length === 0) {
