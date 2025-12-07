@@ -4,10 +4,13 @@ import api from '../../utils/api';
 // 格式化函數
 const formatQuotaInfo = (used: number, remaining: number | null, limit: number | null, isEditing: boolean, editingValue?: string, onEditingChange?: (val: string) => void, adjustmentKey?: string, manualAdjustments?: Map<string, number>) => {
   const adjustment = adjustmentKey && manualAdjustments ? manualAdjustments.get(adjustmentKey) : undefined;
-  const displayUsed = adjustment !== undefined ? `${used}${adjustment >= 0 ? '+' : ''}${adjustment}=${used + adjustment}` : used.toLocaleString();
   const usedStr = used.toLocaleString();
   const remainingStr = remaining === null ? '無上限' : remaining.toLocaleString();
   const limitStr = limit === null ? '無上限' : limit.toLocaleString();
+  
+  // 常態顯示 a+b=c 格式（如果有調整）
+  const displayUsed = adjustment !== undefined ? `${used}${adjustment >= 0 ? '+' : ''}${adjustment}=${used + adjustment}` : usedStr;
+  
   return (
     <div className="space-y-1">
       <div className="text-xs text-gray-600">
@@ -15,9 +18,22 @@ const formatQuotaInfo = (used: number, remaining: number | null, limit: number |
         {isEditing ? (
           <div className="flex items-center gap-1 mt-1">
             <span className="text-gray-500">{usedStr}</span>
-            <input type="text" value={editingValue} onChange={e => onEditingChange?.(e.target.value)} placeholder="+7/-5" className="w-16 px-1 border rounded text-xs" />
+            <input 
+              type="text" 
+              value={editingValue} 
+              onChange={e => onEditingChange?.(e.target.value)} 
+              placeholder={adjustment !== undefined ? `${adjustment >= 0 ? '+' : ''}${adjustment}` : "+7/-5"} 
+              className="w-16 px-1 border rounded text-xs" 
+            />
+            {adjustment !== undefined && (
+              <span className="text-gray-500">= {used + adjustment}</span>
+            )}
           </div>
-        ) : <span className={used > 0 ? 'text-orange-600' : 'text-gray-500'}>{adjustment !== undefined ? displayUsed : usedStr}</span>}
+        ) : (
+          <span className={used > 0 ? 'text-orange-600' : 'text-gray-500'}>
+            {displayUsed}
+          </span>
+        )}
       </div>
       <div className="text-xs text-gray-600">
         <span className="font-medium">剩餘：</span>
@@ -91,17 +107,41 @@ export default function QuotaManagement() {
     const q = quotas[editingQuota.idx];
     const targetSchemeId = q.rewardSourceSchemeId || q.sharedRewardGroupId || q.schemeId;
     const rewardId = q.rewardIds[editingQuota.rIdx];
+    const adjustmentKey = `${targetSchemeId || q.schemeId || q.paymentMethodId}_${rewardId}`;
     
-    if (!quotaAdjust || quotaAdjust.trim() === '') return; // 允許空白，不強制調整
+    // 獲取原始已用額度（不包含調整）
+    const baseUsed = q.usedQuotas[editingQuota.rIdx] || 0;
     
+    // 如果沒有輸入調整值，清除調整記錄
+    if (!quotaAdjust || quotaAdjust.trim() === '') {
+      const newAdjustments = new Map(manualAdjustments);
+      newAdjustments.delete(adjustmentKey);
+      setManualAdjustments(newAdjustments);
+      // 更新為原始值
+      try {
+        await api.put(`/quota/${targetSchemeId || 'null'}`, {
+          paymentMethodId: q.paymentMethodId,
+          rewardId,
+          usedQuota: baseUsed,
+          remainingQuota: q.remainingQuotas[editingQuota.rIdx]
+        });
+        loadQuotas();
+      } catch (e: any) {
+        throw e;
+      }
+      return;
+    }
+    
+    // 解析調整值
     let adjustment = 0;
     if (quotaAdjust.startsWith('+')) adjustment = parseFloat(quotaAdjust.substring(1));
     else if (quotaAdjust.startsWith('-')) adjustment = parseFloat(quotaAdjust);
     else adjustment = parseFloat(quotaAdjust);
 
-    if (isNaN(adjustment) || adjustment === 0) return; // 如果無效或為0，不執行
+    if (isNaN(adjustment)) return; // 如果無效，不執行（允許0）
 
-    const newUsed = (q.usedQuotas[editingQuota.rIdx] || 0) + adjustment;
+    // 計算新的已用額度 = 原始值 + 調整值
+    const newUsed = baseUsed + adjustment;
     const limit = q.quotaLimits[editingQuota.rIdx];
     const newRemaining = limit !== null ? Math.max(0, limit - newUsed) : null;
 
@@ -112,8 +152,7 @@ export default function QuotaManagement() {
         usedQuota: newUsed,
         remainingQuota: newRemaining
       });
-      // 記錄調整值
-      const adjustmentKey = `${targetSchemeId || q.schemeId || q.paymentMethodId}_${rewardId}`;
+      // 記錄調整值（不是累積值，而是當前的調整值）
       setManualAdjustments(new Map(manualAdjustments.set(adjustmentKey, adjustment)));
       loadQuotas();
     } catch (e: any) { 
@@ -129,7 +168,14 @@ export default function QuotaManagement() {
     // [修正] 從陣列中讀取正確的 basis，若無則預設 'transaction'
     const basis = q.quotaCalculationBases?.[rIdx] || 'transaction';
     
+    // 獲取當前的調整值（如果存在）
+    const targetSchemeId = q.rewardSourceSchemeId || q.sharedRewardGroupId || q.schemeId || q.paymentMethodId;
+    const rewardId = q.rewardIds[rIdx];
+    const adjustmentKey = `${targetSchemeId}_${rewardId}`;
+    const currentAdjustment = manualAdjustments.get(adjustmentKey);
+    
     setEditingReward({ idx: qIdx, rIdx: rIdx, group });
+    setEditingQuota({ idx: qIdx, rIdx: rIdx, group });
     setRewardForm({
       percentage,
       method,
@@ -139,6 +185,8 @@ export default function QuotaManagement() {
       refreshDate: q.quotaRefreshDates?.[rIdx] || '',
       calculationBasis: basis
     });
+    // 將當前的調整值帶入編輯欄位
+    setQuotaAdjust(currentAdjustment !== undefined ? `${currentAdjustment >= 0 ? '+' : ''}${currentAdjustment}` : '');
   };
 
   const handleRewardSave = async () => {
@@ -440,7 +488,13 @@ export default function QuotaManagement() {
                       ) : (
                         <>
                           <div>{methodText}</div>
-                          <div className="text-[11px] text-purple-700 border border-purple-200 rounded px-1 inline-block">{basisText}</div>
+                          <div className={`text-[11px] rounded px-1 inline-block ${
+                            basis === 'statement' 
+                              ? 'text-blue-700 border border-blue-200 bg-blue-50' 
+                              : 'text-purple-700 border border-purple-200 bg-purple-50'
+                          }`}>
+                            {basisText}
+                          </div>
                         </>
                       )}
                     </td>
@@ -452,7 +506,7 @@ export default function QuotaManagement() {
                         isEditingR, // 使用 isEditingR 來控制編輯模式
                         quotaAdjust, 
                         setQuotaAdjust,
-                        editingReward ? `${primary.rewardSourceSchemeId || primary.sharedRewardGroupId || primary.schemeId || primary.paymentMethodId}_${primary.rewardIds[rIdx]}` : undefined,
+                        `${primary.rewardSourceSchemeId || primary.sharedRewardGroupId || primary.schemeId || primary.paymentMethodId}_${primary.rewardIds[rIdx]}`,
                         manualAdjustments
                       )}
                     </td>
@@ -527,10 +581,8 @@ export default function QuotaManagement() {
                               <button
                                 onClick={() => { 
                                   handleRewardEdit(primary.__index, rIdx, groupKey);
-                                  setEditingQuota({ idx: primary.__index, rIdx, group: groupKey });
-                                  setQuotaAdjust('');
                                 }} 
-                                className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                                className="px-3 py-1 text-sm bg-yellow-500 text-white rounded hover:bg-yellow-600"
                               >
                                 編輯
                               </button>
@@ -548,7 +600,7 @@ export default function QuotaManagement() {
                                       : groupMembers;
                                     setSelectedSharedGroups(preset);
                                   }}
-                                  className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                                  className="px-3 py-1 text-sm bg-gray-600 text-white rounded hover:bg-gray-700"
                                 >
                                   回饋綁定
                                 </button>
