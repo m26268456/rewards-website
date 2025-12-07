@@ -158,7 +158,7 @@ router.post('/', validate(createTransactionSchema), async (req: Request, res: Re
 
           if (reward.type === 'scheme') {
             quotaQuery = `
-              SELECT id, used_quota, remaining_quota, current_amount
+              SELECT id, used_quota, remaining_quota, current_amount, manual_adjustment
               FROM quota_trackings
               WHERE scheme_id = $1 AND reward_id = $2 
               AND (payment_method_id = $3 OR (payment_method_id IS NULL AND $3 IS NULL))
@@ -167,7 +167,7 @@ router.post('/', validate(createTransactionSchema), async (req: Request, res: Re
           } else {
             // Payment reward
             quotaQuery = `
-              SELECT id, used_quota, remaining_quota, current_amount
+              SELECT id, used_quota, remaining_quota, current_amount, manual_adjustment
               FROM quota_trackings
               WHERE payment_method_id = $1 
               AND payment_reward_id = $2
@@ -183,10 +183,12 @@ router.post('/', validate(createTransactionSchema), async (req: Request, res: Re
           let currentAccumulated = 0;
           let quotaId: string | null = null;
           let currentUsedQuota = 0;
+		  let currentManualAdjustment = 0;
 
           if (quotaResult.rows.length > 0) {
             currentAccumulated = parseFloat(quotaResult.rows[0].current_amount) || 0;
             currentUsedQuota = parseFloat(quotaResult.rows[0].used_quota) || 0;
+			currentManualAdjustment = parseFloat(quotaResult.rows[0].manual_adjustment) || 0;
             quotaId = quotaResult.rows[0].id;
           }
 
@@ -209,7 +211,7 @@ router.post('/', validate(createTransactionSchema), async (req: Request, res: Re
           if (quotaLimit !== null) {
             // 如果已有記錄，基於記錄扣除；如果無記錄，基於上限扣除
             // 但最準確的是: Limit - NewUsed
-            newRemainingQuota = quotaLimit - newUsedQuota;
+            newRemainingQuota = quotaLimit - (newUsedQuota + currentManualAdjustment);
             // 允許變負嗎？通常不允許低於0，但記帳可能只記錄事實。這裡保持數學正確性。
           }
 

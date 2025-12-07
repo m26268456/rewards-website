@@ -10,6 +10,7 @@ interface QuotaInfo {
   quotaLimits: Array<number | null>;
   currentAmounts: number[];
   usedQuotas: number[];
+  manualAdjustments: number[];
   remainingQuotas: Array<number | null>;
   referenceAmounts: Array<number | null>;
   refreshTimes: string[];
@@ -65,10 +66,17 @@ export default function QuotaQuery() {
 
   const formatQuotaInfo = (
     used: number,
+	adjustment: number,
     remaining: number | null,
     limit: number | null
   ) => {
-    const usedStr = used.toLocaleString();
+	const totalUsed = used + adjustment;
+	
+	// 顯示邏輯：a + b = c
+    const displayUsed = adjustment !== 0
+      ? `${used}${adjustment >= 0 ? '+' : ''}${adjustment}=${totalUsed}`
+      : used.toLocaleString();
+	
     const remainingStr = remaining === null ? '無上限' : remaining.toLocaleString();
     const limitStr = limit === null ? '無上限' : limit.toLocaleString();
     return (
@@ -255,6 +263,7 @@ export default function QuotaQuery() {
                     const basisText = basis === 'statement' ? '帳單總額' : '單筆回饋';
                     
                     const usedQuota = primary.usedQuotas?.[rIdx] || 0;
+					const manualAdjustment = primary.manualAdjustments?.[rIdx] || 0;
                     const remainingQuota = primary.remainingQuotas?.[rIdx] ?? null;
                     const quotaLimit = primary.quotaLimits?.[rIdx] ?? null;
                     const currentAmount = primary.currentAmounts?.[rIdx] || 0;
@@ -294,7 +303,7 @@ export default function QuotaQuery() {
                           </div>
                         </td>
                         <td className="px-4 py-3 text-sm align-top">
-                          {formatQuotaInfo(usedQuota, remainingQuota, quotaLimit)}
+                          {formatQuotaInfo(usedQuota, manualAdjustment, remainingQuota, quotaLimit)}
                         </td>
                         <td className="px-4 py-3 text-sm align-top">
                           {formatConsumptionInfo(currentAmount, referenceAmount)}

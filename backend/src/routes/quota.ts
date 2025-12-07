@@ -21,6 +21,7 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
         NULL::uuid as payment_method_id,
         qt.reward_id,
         NULL::uuid as payment_reward_id,
+		qt.manual_adjustment,
         qt.next_refresh_at,
         sr.quota_limit,
         sr.quota_refresh_type,
@@ -43,6 +44,7 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
         qt.payment_method_id,
         NULL::uuid as reward_id,
         qt.payment_reward_id,
+		qt.manual_adjustment,
         qt.next_refresh_at,
         pr.quota_limit,
         pr.quota_refresh_type,
@@ -133,7 +135,8 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
          sr.quota_calculation_basis,
          cs.activity_end_date,
          sr.display_order,
-         qt.used_quota,
+         COALESCE(qt.used_quota, 0) as used_quota,
+		 COALESCE(qt.manual_adjustment, 0) as manual_adjustment,
          qt.remaining_quota,
          qt.current_amount,
          qt.next_refresh_at
@@ -167,6 +170,7 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
          NULL::date as activity_end_date,
          pr.display_order,
          COALESCE(qt.used_quota, 0) as used_quota,
+		 COALESCE(qt.manual_adjustment, 0) as manual_adjustment,
          qt.remaining_quota,
          COALESCE(qt.current_amount, 0) as current_amount,
          qt.next_refresh_at
@@ -187,6 +191,7 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
       const percentage = Number(row.reward_percentage);
       const usedQuota = row.used_quota ? Number(row.used_quota) : 0;
       const currentAmount = row.current_amount ? Number(row.current_amount) : 0;
+	  const manualAdjustment = row.manual_adjustment ? Number(row.manual_adjustment) : 0;
       const quotaLimit = row.quota_limit ? Number(row.quota_limit) : null;
       
       let remainingQuota: number | null = null;
@@ -227,6 +232,7 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
         quotaLimit,
         currentAmount,
         usedQuota,
+		manualAdjustment,
         remainingQuota,
         referenceAmount,
         refreshTime,
@@ -298,6 +304,7 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
         quotaLimits: quota.rewards.map((r: any) => r.quotaLimit),
         currentAmounts: quota.rewards.map((r: any) => r.currentAmount),
         usedQuotas: quota.rewards.map((r: any) => r.usedQuota),
+		manualAdjustments: quota.rewards.map((r: any) => r.manualAdjustment),
         remainingQuotas: quota.rewards.map((r: any) => r.remainingQuota),
         referenceAmounts: quota.rewards.map((r: any) => r.referenceAmount),
         refreshTimes: quota.rewards.map((r: any) => r.refreshTime),
@@ -324,7 +331,7 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
 router.put('/:schemeId', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { schemeId } = req.params;
-    const { paymentMethodId, rewardId, usedQuota, remainingQuota } = req.body;
+    const { paymentMethodId, rewardId, manualAdjustment } = req.body;
 
     if (!rewardId) {
         res.status(400).json({ success: false, error: '回饋 ID 必填' });
@@ -335,6 +342,8 @@ router.put('/:schemeId', async (req: Request, res: Response, next: NextFunction)
     
     // 檢查是否存在記錄
     let checkResult;
+	const selectSql = `SELECT id, used_quota FROM quota_trackings`;
+	
     if (actualSchemeId) {
       checkResult = await pool.query(
         `SELECT id, used_quota FROM quota_trackings WHERE scheme_id = $1 AND reward_id = $2 AND payment_reward_id IS NULL`,
@@ -349,12 +358,21 @@ router.put('/:schemeId', async (req: Request, res: Response, next: NextFunction)
       res.status(400).json({ success: false, error: '參數錯誤' });
       return;
     }
+	
+	const fetchLimit = async () => {
+      const table = actualSchemeId ? 'scheme_rewards' : 'payment_rewards';
+      const res = await pool.query(`SELECT quota_limit FROM ${table} WHERE id = $1`, [rewardId]);
+      return res.rows[0]?.quota_limit ? Number(res.rows[0].quota_limit) : null;
+    };
+    const limit = await fetchLimit();
+
+    const newAdjustment = Number(manualAdjustment || 0);
 
     if (checkResult.rows.length > 0) {
       // 更新 (使用 Postgres NOW())
       await pool.query(
-        `UPDATE quota_trackings SET used_quota = $1, remaining_quota = $2, updated_at = NOW() WHERE id = $3`,
-        [usedQuota, remainingQuota, checkResult.rows[0].id]
+        `UPDATE quota_trackings SET manual_adjustment = $1, remaining_quota = $2, updated_at = NOW() WHERE id = $3`,
+        [newAdjustment, newRemaining, checkResult.rows[0].id]
       );
     } else {
       // 新增並初始化 next_refresh_at
