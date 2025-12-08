@@ -195,7 +195,7 @@ router.post('/', validate(createTransactionSchema), async (req: Request, res: Re
         // 更新每個回饋組成的額度追蹤
         for (const reward of allRewards) {
           const percentage = parseFloat(reward.reward_percentage);
-          const method = reward.calculation_method as CalculationMethod;
+          const method = (reward.calculation_method || 'round') as CalculationMethod;
           const basis = (reward.quota_calculation_basis || 'transaction') as QuotaCalculationBasis;
 
           // 查找現有額度記錄以獲取累積金額
@@ -479,7 +479,7 @@ router.delete('/:id', async (req: Request, res: Response, next: NextFunction) =>
 
       for (const reward of allRewards) {
         const percentage = parseFloat(reward.reward_percentage);
-        const method = reward.calculation_method as CalculationMethod;
+        const method = (reward.calculation_method || 'round') as CalculationMethod;
         const basis = (reward.quota_calculation_basis || 'transaction') as QuotaCalculationBasis;
 
         // 取得對應的 quota_tracking
