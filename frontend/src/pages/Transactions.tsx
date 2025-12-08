@@ -108,8 +108,8 @@ export default function Transactions() {
     }
 
     const amountNum = parseFloat(formData.amount || '');
-    if (Number.isNaN(amountNum) || amountNum < 0) {
-      alert('請輸入有效的金額（需為數字且不小於 0）');
+    if (!Number.isInteger(amountNum)) {
+      alert('金額需為正負整數（不允許小數）');
       return;
     }
 
@@ -229,6 +229,7 @@ export default function Transactions() {
             <label className="block text-sm font-medium text-gray-700 mb-1">金額</label>
             <input
               type="number"
+              step="1"
               value={formData.amount}
               onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -306,28 +307,28 @@ export default function Transactions() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase whitespace-normal break-words min-w-0">
                   時間
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase whitespace-normal break-words min-w-0">
                   日期
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase whitespace-normal break-words min-w-0">
                   事由
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase whitespace-normal break-words min-w-0">
                   金額
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase whitespace-normal break-words min-w-0">
                   類型
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase whitespace-normal break-words min-w-0">
                   使用方案
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase whitespace-normal break-words min-w-0">
                   備註
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase whitespace-normal break-words min-w-0">
                   操作
                 </th>
               </tr>
@@ -335,22 +336,24 @@ export default function Transactions() {
             <tbody className="bg-white divide-y divide-gray-200">
               {transactions.map((transaction) => (
                 <tr key={transaction.id}>
-                  <td className="px-4 py-3 text-sm whitespace-nowrap">
+                  <td className="px-3 py-2 text-sm whitespace-normal break-words min-w-0">
                     {formatTz(utcToZonedTime(new Date(transaction.created_at), TIMEZONE), 'yyyy/MM/dd HH:mm', { timeZone: TIMEZONE })}
                   </td>
-                  <td className="px-4 py-3 text-sm whitespace-nowrap">
+                  <td className="px-3 py-2 text-sm whitespace-normal break-words min-w-0">
                     {transaction.transaction_date 
                       ? formatTz(utcToZonedTime(new Date(transaction.transaction_date), TIMEZONE), 'yyyy/MM/dd', { timeZone: TIMEZONE })
                       : '-'}
                   </td>
-                  <td className="px-4 py-3 text-sm whitespace-nowrap">{transaction.reason}</td>
-                  <td className="px-4 py-3 text-sm whitespace-nowrap">
-                    {transaction.amount ? transaction.amount.toLocaleString() : '-'}
+                  <td className="px-3 py-2 text-sm whitespace-normal break-words min-w-0">{transaction.reason}</td>
+                  <td className="px-3 py-2 text-sm whitespace-normal break-words min-w-0">
+                    {transaction.amount !== null && transaction.amount !== undefined
+                      ? Math.trunc(transaction.amount).toLocaleString()
+                      : '-'}
                   </td>
-                  <td className="px-4 py-3 text-sm whitespace-nowrap">{transaction.type_name}</td>
-                  <td className="px-4 py-3 text-sm whitespace-nowrap">{transaction.scheme_name || '-'}</td>
-                  <td className="px-4 py-3 text-sm whitespace-pre-wrap break-words">{transaction.note || '-'}</td>
-                  <td className="px-4 py-3 text-sm whitespace-nowrap">
+                  <td className="px-3 py-2 text-sm whitespace-normal break-words min-w-0">{transaction.type_name}</td>
+                  <td className="px-3 py-2 text-sm whitespace-normal break-words min-w-0">{transaction.scheme_name || '-'}</td>
+                  <td className="px-3 py-2 text-sm whitespace-pre-wrap break-words min-w-0">{transaction.note || '-'}</td>
+                  <td className="px-3 py-2 text-sm whitespace-normal break-words min-w-0">
                     <button
                       onClick={() => handleDelete(transaction.id)}
                       className="text-red-600 hover:text-red-800"

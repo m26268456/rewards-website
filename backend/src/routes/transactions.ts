@@ -110,6 +110,10 @@ router.post('/', validate(createTransactionSchema), async (req: Request, res: Re
       // 如果有選擇方案或支付方式，計算回饋並更新額度
       if ((validSchemeId || validPaymentMethodId) && amount) {
         const amountNum = parseFloat(amount);
+        if (!Number.isInteger(amountNum)) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ success: false, error: '金額必須為整數' });
+        }
 
         // 1. 取得所有相關的回饋組成 (Scheme Rewards + Payment Rewards)
         // 這裡需要分別處理，因為我們要支持獨立計算 (Item 1 需求)
@@ -121,10 +125,12 @@ router.post('/', validate(createTransactionSchema), async (req: Request, res: Re
         if (validSchemeId) {
           targetSchemeId = await resolveSharedRewardTargetSchemeId(validSchemeId, client);
           const res = await client.query(
-            `SELECT id, reward_percentage, calculation_method, quota_limit, 
-                    quota_calculation_basis
-             FROM scheme_rewards 
-             WHERE scheme_id = $1 ORDER BY display_order`,
+            `SELECT sr.id, sr.reward_percentage, sr.calculation_method, sr.quota_limit, 
+                    sr.quota_calculation_basis, sr.quota_refresh_type, sr.quota_refresh_value, sr.quota_refresh_date,
+                    cs.activity_end_date
+             FROM scheme_rewards sr
+             JOIN card_schemes cs ON sr.scheme_id = cs.id
+             WHERE sr.scheme_id = $1 ORDER BY sr.display_order`,
             [targetSchemeId]
           );
           schemeRewards = res.rows.map(r => ({ ...r, type: 'scheme' }));
@@ -135,7 +141,7 @@ router.post('/', validate(createTransactionSchema), async (req: Request, res: Re
         if (validPaymentMethodId) {
           const res = await client.query(
             `SELECT id, reward_percentage, calculation_method, quota_limit,
-                    quota_calculation_basis
+                    quota_calculation_basis, quota_refresh_type, quota_refresh_value, quota_refresh_date
              FROM payment_rewards 
              WHERE payment_method_id = $1 ORDER BY display_order`,
             [validPaymentMethodId]
@@ -144,6 +150,47 @@ router.post('/', validate(createTransactionSchema), async (req: Request, res: Re
         }
 
         const allRewards = [...schemeRewards, ...paymentRewards];
+
+        // 若追蹤已過期，重置用量並計算下一次刷新
+        const refreshTrackingIfExpired = async (row: any, reward: any) => {
+          const nextRefreshAt = row.next_refresh_at ? new Date(row.next_refresh_at) : null;
+          if (!nextRefreshAt || nextRefreshAt > new Date()) return row;
+
+          const quotaLimit = reward.quota_limit ? parseFloat(reward.quota_limit) : null;
+          const manualAdj = row.manual_adjustment ? parseFloat(row.manual_adjustment) : 0;
+          const remaining = quotaLimit !== null ? Math.max(0, quotaLimit - manualAdj) : null;
+
+          const nextRefresh = calculateNextRefreshTime(
+            reward.quota_refresh_type,
+            reward.quota_refresh_value,
+            reward.quota_refresh_date
+              ? new Date(reward.quota_refresh_date).toISOString().split('T')[0]
+              : null,
+            reward.activity_end_date
+              ? new Date(reward.activity_end_date).toISOString().split('T')[0]
+              : null
+          );
+
+          await client.query(
+            `UPDATE quota_trackings
+             SET used_quota = 0,
+                 current_amount = 0,
+                 remaining_quota = $1,
+                 last_refresh_at = NOW(),
+                 next_refresh_at = $2,
+                 updated_at = NOW()
+             WHERE id = $3`,
+            [remaining, nextRefresh, row.id]
+          );
+
+          return {
+            ...row,
+            used_quota: 0,
+            current_amount: 0,
+            remaining_quota: remaining,
+            next_refresh_at: nextRefresh,
+          };
+        };
 
         // 更新每個回饋組成的額度追蹤
         for (const reward of allRewards) {
@@ -158,7 +205,8 @@ router.post('/', validate(createTransactionSchema), async (req: Request, res: Re
 
           if (reward.type === 'scheme') {
             quotaQuery = `
-              SELECT id, used_quota, remaining_quota, current_amount, COALESCE(manual_adjustment, 0) as manual_adjustment
+              SELECT id, used_quota, remaining_quota, current_amount, COALESCE(manual_adjustment, 0) as manual_adjustment,
+                     next_refresh_at, last_refresh_at
               FROM quota_trackings
               WHERE scheme_id = $1 AND reward_id = $2 
               AND (payment_method_id = $3 OR (payment_method_id IS NULL AND $3 IS NULL))
@@ -167,7 +215,8 @@ router.post('/', validate(createTransactionSchema), async (req: Request, res: Re
           } else {
             // Payment reward
             quotaQuery = `
-              SELECT id, used_quota, remaining_quota, current_amount, COALESCE(manual_adjustment, 0) as manual_adjustment
+              SELECT id, used_quota, remaining_quota, current_amount, COALESCE(manual_adjustment, 0) as manual_adjustment,
+                     next_refresh_at, last_refresh_at
               FROM quota_trackings
               WHERE payment_method_id = $1 
               AND payment_reward_id = $2
@@ -175,19 +224,17 @@ router.post('/', validate(createTransactionSchema), async (req: Request, res: Re
             quotaParams = [validPaymentMethodId, reward.id];
           }
 
-          // 只取未過期的追蹤
-          const quotaResult = await client.query(
-            `${quotaQuery} AND (next_refresh_at IS NULL OR next_refresh_at >= NOW())`,
-            quotaParams
-          );
+          const quotaResult = await client.query(quotaQuery, quotaParams);
           let currentAccumulated = 0;
           let quotaId: string | null = null;
           let currentUsedQuota = 0;
 
           if (quotaResult.rows.length > 0) {
-            currentAccumulated = parseFloat(quotaResult.rows[0].current_amount) || 0;
-            currentUsedQuota = parseFloat(quotaResult.rows[0].used_quota) || 0;
-            quotaId = quotaResult.rows[0].id;
+            const refreshedRow = await refreshTrackingIfExpired(quotaResult.rows[0], reward);
+            currentAccumulated = parseFloat(refreshedRow.current_amount) || 0;
+            currentUsedQuota = parseFloat(refreshedRow.used_quota) || 0;
+            quotaId = refreshedRow.id;
+            quotaResult.rows[0] = refreshedRow;
             // manual_adjustment 不需要在這裡讀取，因為我們只更新 used_quota（系統計算值）
           }
 
@@ -377,7 +424,8 @@ router.delete('/:id', async (req: Request, res: Response, next: NextFunction) =>
 
         if (reward.type === 'scheme') {
           quotaQuery = `
-            SELECT id, used_quota, remaining_quota, current_amount, COALESCE(manual_adjustment, 0) as manual_adjustment
+            SELECT id, used_quota, remaining_quota, current_amount, COALESCE(manual_adjustment, 0) as manual_adjustment,
+                   next_refresh_at, last_refresh_at
             FROM quota_trackings
             WHERE scheme_id = $1 AND reward_id = $2
               AND (payment_method_id = $3 OR (payment_method_id IS NULL AND $3 IS NULL))
@@ -385,7 +433,8 @@ router.delete('/:id', async (req: Request, res: Response, next: NextFunction) =>
           quotaParams = [schemeId, reward.id, paymentMethodId];
         } else {
           quotaQuery = `
-            SELECT id, used_quota, remaining_quota, current_amount, COALESCE(manual_adjustment, 0) as manual_adjustment
+            SELECT id, used_quota, remaining_quota, current_amount, COALESCE(manual_adjustment, 0) as manual_adjustment,
+                   next_refresh_at, last_refresh_at
             FROM quota_trackings
             WHERE payment_method_id = $1
               AND payment_reward_id = $2
@@ -393,17 +442,14 @@ router.delete('/:id', async (req: Request, res: Response, next: NextFunction) =>
           quotaParams = [paymentMethodId, reward.id];
         }
 
-        // 只計算未過期的追蹤；若過期則當作沒有記錄
-        const quotaResult = await client.query(
-          `${quotaQuery} AND (next_refresh_at IS NULL OR next_refresh_at >= NOW())`,
-          quotaParams
-        );
+        const quotaResult = await client.query(quotaQuery, quotaParams);
         if (quotaResult.rows.length === 0) {
           // 沒有追蹤記錄，直接跳過
           continue;
         }
 
-        const quotaRow = quotaResult.rows[0];
+        const quotaRowRaw = quotaResult.rows[0];
+        const quotaRow = await refreshTrackingIfExpired(quotaRowRaw, reward);
         const currentAmount = quotaRow.current_amount ? parseFloat(quotaRow.current_amount) : 0;
         const currentUsed = quotaRow.used_quota ? parseFloat(quotaRow.used_quota) : 0;
         const currentManualAdjustment = parseFloat(quotaRow.manual_adjustment) || 0;

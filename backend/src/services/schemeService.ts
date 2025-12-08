@@ -217,16 +217,16 @@ export async function queryChannelRewardsByKeywords(
   Array<{
     keyword: string;
     channels: Array<{
-      channelId: string;
+    channelId: string;
       channelName: string; // 方案中使用的通路名稱
-      results: Array<{
-        isExcluded: boolean;
-        excludedSchemeName?: string;
-        totalRewardPercentage: number;
-        rewardBreakdown: string;
-        schemeInfo: string;
-        requiresSwitch: boolean;
-        note?: string;
+    results: Array<{
+      isExcluded: boolean;
+      excludedSchemeName?: string;
+      totalRewardPercentage: number;
+      rewardBreakdown: string;
+      schemeInfo: string;
+      requiresSwitch: boolean;
+      note?: string;
         schemeChannelName?: string; // 方案中記錄的通路名稱
       }>;
     }>;
@@ -269,9 +269,9 @@ export async function queryChannelRewardsByKeywords(
         return {
           keyword,
           channels: [{
-            channelId: '',
-            channelName: keyword,
-            results: [],
+          channelId: '',
+          channelName: keyword,
+          results: [],
           }],
         };
       }
@@ -336,9 +336,9 @@ export async function queryChannelRewardsByKeywords(
       return {
         keyword,
         channels: [{
-          channelId: '',
-          channelName: keyword,
-          results: [],
+        channelId: '',
+        channelName: keyword,
+        results: [],
         }],
       };
     })

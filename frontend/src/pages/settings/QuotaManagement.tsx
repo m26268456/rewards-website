@@ -377,12 +377,12 @@ const [selectedRootSchemeId, setSelectedRootSchemeId] = useState<string | null>(
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gradient-to-r from-gray-50 to-gray-100 sticky top-0 z-20 shadow-sm">
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap sticky left-0 bg-gray-50 z-30 border-r border-gray-200">名稱</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">回饋組成</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">計算方式</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">額度狀態</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">刷新時間</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">管理</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-normal break-words min-w-0 sticky left-0 bg-gray-50 z-30 border-r border-gray-200">名稱</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-normal break-words min-w-0">回饋組成</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-normal break-words min-w-0">計算方式</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-normal break-words min-w-0">額度狀態</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-normal break-words min-w-0">刷新時間</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-normal break-words min-w-0">管理</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
@@ -451,7 +451,7 @@ const [selectedRootSchemeId, setSelectedRootSchemeId] = useState<string | null>(
                     className={`${rowBgColor} border-l-4 ${rowBorder} hover:bg-blue-50 transition-colors`}
                   >
                     {isFirst && (
-                      <td rowSpan={rowsToRender.length} className={`px-4 py-3 text-sm font-medium sticky left-0 ${rowBgColor} z-10 border-r border-gray-200 align-top`}>
+                      <td rowSpan={rowsToRender.length} className={`px-3 py-2 text-sm font-medium sticky left-0 ${rowBgColor} z-10 border-r border-gray-200 align-top whitespace-normal break-words min-w-0`}>
                         <div className="space-y-1">
                           <div className="font-semibold">{rootNameDisplay}</div>
                           {childNames.length > 0 && (
@@ -469,7 +469,7 @@ const [selectedRootSchemeId, setSelectedRootSchemeId] = useState<string | null>(
                         </div>
                       </td>
                     )}
-                    <td className="px-4 py-3 text-sm align-top">
+                    <td className="px-3 py-2 text-sm align-top whitespace-normal break-words min-w-0">
                       {isEditingR ? (
                         <div className="space-y-2">
                           <input 
@@ -483,7 +483,7 @@ const [selectedRootSchemeId, setSelectedRootSchemeId] = useState<string | null>(
                         <span className="bg-orange-100 px-1 rounded font-bold">{primary.rewardComposition.split('/')[rIdx]}</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-xs align-top space-y-1 text-gray-700">
+                    <td className="px-3 py-2 text-xs align-top space-y-1 text-gray-700 whitespace-normal break-words min-w-0">
                       {isEditingR ? (
                         <div className="space-y-2">
                           <select 
@@ -517,7 +517,7 @@ const [selectedRootSchemeId, setSelectedRootSchemeId] = useState<string | null>(
                         </>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-sm align-top">
+                    <td className="px-3 py-2 text-sm align-top whitespace-normal break-words min-w-0">
                       {formatQuotaInfo(
                         primary.usedQuotas[rIdx] || 0, // a: 系統計算的額度
                         primary.remainingQuotas[rIdx], 
@@ -528,7 +528,7 @@ const [selectedRootSchemeId, setSelectedRootSchemeId] = useState<string | null>(
                         primary.manualAdjustments?.[rIdx] // b: 人工調整值（從後端資料取得）
                       )}
                     </td>
-                    <td className="px-4 py-3 text-sm align-top">
+                    <td className="px-3 py-2 text-sm align-top whitespace-normal break-words min-w-0">
                       {isEditingR ? (
                         <div className="space-y-2">
                           <select 
@@ -577,7 +577,7 @@ const [selectedRootSchemeId, setSelectedRootSchemeId] = useState<string | null>(
                         <div>{primary.refreshTimes?.[rIdx] || '-'}</div>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-sm align-top">
+                    <td className="px-3 py-2 text-sm align-top whitespace-normal break-words min-w-0">
                       {isEditingR ? (
                         <div className="flex flex-col gap-1">
                           {sharedBound && (

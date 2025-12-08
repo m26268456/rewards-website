@@ -39,17 +39,17 @@ interface Channel {
 interface QueryResult {
   keyword: string;
   channels: Array<{
-    channelId: string;
-    channelName: string;
-    results: Array<{
-      isExcluded: boolean;
-      excludedSchemeName?: string;
-      totalRewardPercentage: number;
-      rewardBreakdown: string;
-      schemeInfo: string;
-      requiresSwitch: boolean;
-      note?: string;
-      activityEndDate?: string;
+  channelId: string;
+  channelName: string;
+  results: Array<{
+    isExcluded: boolean;
+    excludedSchemeName?: string;
+    totalRewardPercentage: number;
+    rewardBreakdown: string;
+    schemeInfo: string;
+    requiresSwitch: boolean;
+    note?: string;
+    activityEndDate?: string;
       schemeChannelName?: string; // 方案中記錄的通路名稱
     }>;
   }>;
@@ -366,40 +366,40 @@ export default function QueryRewards() {
                       <h4 className="font-bold mb-4 text-xl border-b-2 border-blue-300 pb-2 text-blue-700">
                         {keywordGroup.keyword}
                       </h4>
-                      <div className="space-y-4">
+                <div className="space-y-4">
                         {/* 每個關鍵字下的通路 */}
                         {(keywordGroup.channels || []).map((channel, channelIdx) => (
                           <div key={channelIdx} className="border rounded p-3 bg-gray-50">
                             <h5 className="font-semibold mb-2 text-base text-gray-700">
                               {channel.channelName}
                             </h5>
-                            <div className="space-y-2">
+                      <div className="space-y-2">
                               {(channel.results || []).map((item, idx) => (
-                                <div key={idx} className={`p-3 rounded-lg ${item.isExcluded ? 'bg-red-50 border-l-4 border-red-500' : 'bg-green-50 border-l-4 border-green-500'}`}>
-                                  {item.isExcluded ? (
-                                    <div className="text-sm">
-                                      <span className="badge-danger font-medium">排除</span> <span className="font-semibold">{item.excludedSchemeName}</span>
-                                    </div>
-                                  ) : (
-                                    <div className="text-sm">
-                                      <div className="flex flex-wrap items-center gap-2 mb-1">
-                                        <span className="text-xl font-bold text-green-600">{item.totalRewardPercentage}%</span>
-                                        <span className="font-semibold text-gray-800">{item.schemeInfo}</span>
-                                        <span className={`badge ${item.requiresSwitch ? 'badge-warning' : 'badge-success'}`}>{item.requiresSwitch ? '需切換' : '免切換'}</span>
+                          <div key={idx} className={`p-3 rounded-lg ${item.isExcluded ? 'bg-red-50 border-l-4 border-red-500' : 'bg-green-50 border-l-4 border-green-500'}`}>
+                            {item.isExcluded ? (
+                              <div className="text-sm">
+                                <span className="badge-danger font-medium">排除</span> <span className="font-semibold">{item.excludedSchemeName}</span>
+                              </div>
+                            ) : (
+                              <div className="text-sm">
+                                <div className="flex flex-wrap items-center gap-2 mb-1">
+                                  <span className="text-xl font-bold text-green-600">{item.totalRewardPercentage}%</span>
+                                  <span className="font-semibold text-gray-800">{item.schemeInfo}</span>
+                                  <span className={`badge ${item.requiresSwitch ? 'badge-warning' : 'badge-success'}`}>{item.requiresSwitch ? '需切換' : '免切換'}</span>
                                         {/* 顯示方案中的通路名稱 */}
                                         {item.schemeChannelName && (
-                                          <span className="text-gray-500 text-xs bg-gray-100 px-2 py-0.5 rounded-full">
+                                  <span className="text-gray-500 text-xs bg-gray-100 px-2 py-0.5 rounded-full">
                                             通路: {item.schemeChannelName}
-                                          </span>
+                                  </span>
                                         )}
-                                      </div>
-                                      {item.note && <div className="text-xs text-gray-600 bg-white/50 px-2 py-1 rounded">💡 {item.note}</div>}
-                                      <div className="text-xs text-gray-500 mt-1">
-                                        {item.rewardBreakdown && <span>📊 組成：{item.rewardBreakdown}</span>}
-                                        {item.activityEndDate && <span className="ml-2">📅 期限：{new Date(item.activityEndDate).toLocaleDateString()}</span>}
-                                      </div>
-                                    </div>
-                                  )}
+                                </div>
+                                {item.note && <div className="text-xs text-gray-600 bg-white/50 px-2 py-1 rounded">💡 {item.note}</div>}
+                                <div className="text-xs text-gray-500 mt-1">
+                                  {item.rewardBreakdown && <span>📊 組成：{item.rewardBreakdown}</span>}
+                                  {item.activityEndDate && <span className="ml-2">📅 期限：{new Date(item.activityEndDate).toLocaleDateString()}</span>}
+                                </div>
+                              </div>
+                            )}
                                 </div>
                               ))}
                             </div>
@@ -458,7 +458,7 @@ export default function QueryRewards() {
                                       <span>{r.calculationMethod === 'round' ? '四捨五入' : r.calculationMethod === 'floor' ? '無條件捨去' : '無條件進位'}</span>
                                       <span className="text-[11px] text-purple-700 border border-purple-200 rounded px-1 inline-block w-fit">
                                         {formatBasis(r.quotaCalculationBasis)}
-                                      </span>
+                                    </span>
                                     </div>
                                     <span className="text-gray-400">|</span>
                                     <span>{r.quotaLimit ? `上限 ${r.quotaLimit}` : '無上限'}</span>

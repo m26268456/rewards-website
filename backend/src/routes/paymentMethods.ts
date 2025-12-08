@@ -238,12 +238,12 @@ router.put('/:id/channels', async (req: Request, res: Response, next: NextFuncti
           } catch (error: any) {
             // 如果表沒有display_order欄位，使用舊的方式
             if (error.code === '42703') {
-              await client.query(
-                `INSERT INTO payment_channel_applications (payment_method_id, channel_id, note)
-                 VALUES ($1::uuid, $2::uuid, $3::text)
-                 ON CONFLICT (payment_method_id, channel_id) DO UPDATE SET note = EXCLUDED.note`,
+          await client.query(
+            `INSERT INTO payment_channel_applications (payment_method_id, channel_id, note)
+             VALUES ($1::uuid, $2::uuid, $3::text)
+             ON CONFLICT (payment_method_id, channel_id) DO UPDATE SET note = EXCLUDED.note`,
                 [id, app.channelId, app.note || null]
-              );
+          );
             } else {
               throw error;
             }

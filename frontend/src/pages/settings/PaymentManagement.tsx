@@ -20,17 +20,7 @@ function PaymentMethodItem({ payment, onEdit, onDelete, onReload }: any) {
   const [isEditingChannels, setIsEditingChannels] = useState(false);
   const [channelText, setChannelText] = useState('');
   
-  // 回饋組成編輯狀態
-  const [editingRewardIdx, setEditingRewardIdx] = useState<number | null>(null);
-  const [rewardForm, setRewardForm] = useState({
-    percentage: '',
-    calculationMethod: 'round',
-    quotaLimit: '',
-    quotaRefreshType: '',
-    quotaRefreshValue: '',
-    quotaRefreshDate: '',
-    quotaCalculationBasis: 'transaction',
-  });
+  // 回饋組成改為唯讀，不提供編輯
 
   useEffect(() => {
     if (showDetails) loadDetails();
@@ -63,40 +53,7 @@ function PaymentMethodItem({ payment, onEdit, onDelete, onReload }: any) {
     } catch (e) { alert('更新失敗'); }
   };
 
-  const handleRewardEdit = (idx: number) => {
-    const r = rewards[idx];
-    setEditingRewardIdx(idx);
-    setRewardForm({
-      percentage: String(r.reward_percentage ?? ''),
-      calculationMethod: r.calculation_method || 'round',
-      quotaLimit: r.quota_limit !== null && r.quota_limit !== undefined ? String(r.quota_limit) : '',
-      quotaRefreshType: r.quota_refresh_type || '',
-      quotaRefreshValue: r.quota_refresh_value !== null && r.quota_refresh_value !== undefined ? String(r.quota_refresh_value) : '',
-      quotaRefreshDate: r.quota_refresh_date || '',
-      quotaCalculationBasis: r.quota_calculation_basis || 'transaction',
-    });
-  };
-
-  const handleRewardSave = async () => {
-    if (editingRewardIdx === null) return;
-    const r = rewards[editingRewardIdx];
-    try {
-      await api.put(`/payment-methods/${payment.id}/rewards/${r.id}`, {
-        rewardPercentage: parseFloat(rewardForm.percentage),
-        calculationMethod: rewardForm.calculationMethod,
-        quotaLimit: rewardForm.quotaLimit ? parseFloat(rewardForm.quotaLimit) : null,
-        quotaRefreshType: rewardForm.quotaRefreshType || null,
-        quotaRefreshValue: rewardForm.quotaRefreshType === 'monthly' && rewardForm.quotaRefreshValue ? parseInt(rewardForm.quotaRefreshValue) : null,
-        quotaRefreshDate: rewardForm.quotaRefreshType === 'date' ? rewardForm.quotaRefreshDate : null,
-        quotaCalculationBasis: rewardForm.quotaCalculationBasis,
-      });
-      alert('回饋已更新');
-      setEditingRewardIdx(null);
-      loadDetails();
-    } catch (e: any) {
-      alert(e?.response?.data?.error || '更新失敗');
-    }
-  };
+  // 回饋組成改為唯讀，不提供編輯
 
   return (
     <div className="p-3 bg-gray-50 rounded border">
@@ -104,13 +61,6 @@ function PaymentMethodItem({ payment, onEdit, onDelete, onReload }: any) {
         <div>
           <div className="font-medium">{payment.name}</div>
           {payment.note && <div className="text-sm text-gray-600" dangerouslySetInnerHTML={{ __html: linkify(payment.note) }} />}
-        </div>
-        <div className="flex gap-2">
-          <button onClick={() => setShowDetails(!showDetails)} className="px-3 py-1 bg-blue-500 text-white rounded text-sm">
-            {showDetails ? '隱藏詳細' : '管理詳細'}
-          </button>
-          <button onClick={onEdit} className="px-3 py-1 bg-yellow-500 text-white rounded text-sm">編輯</button>
-          <button onClick={onDelete} className="px-3 py-1 bg-red-500 text-white rounded text-sm">刪除</button>
         </div>
       </div>
 
@@ -121,11 +71,11 @@ function PaymentMethodItem({ payment, onEdit, onDelete, onReload }: any) {
             <div className="flex justify-between items-center mb-1">
               <h5 className="text-sm font-medium">適用通路</h5>
               {!isEditingChannels ? (
-                <button onClick={() => setIsEditingChannels(true)} className="text-xs text-blue-600">編輯</button>
+                <button onClick={() => setIsEditingChannels(true)} className="px-2 py-1 bg-yellow-500 text-white rounded text-xs hover:bg-yellow-600">編輯</button>
               ) : (
                 <div className="flex gap-2">
-                  <button onClick={handleSaveChannels} className="text-xs text-green-600">儲存</button>
-                  <button onClick={() => setIsEditingChannels(false)} className="text-xs text-gray-600">取消</button>
+                  <button onClick={handleSaveChannels} className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700">儲存</button>
+                  <button onClick={() => setIsEditingChannels(false)} className="px-2 py-1 bg-gray-400 text-white rounded text-xs">取消</button>
                 </div>
               )}
             </div>
@@ -138,13 +88,10 @@ function PaymentMethodItem({ payment, onEdit, onDelete, onReload }: any) {
             )}
           </div>
 
-          {/* 回饋組成 (包含 quotaCalculationBasis) */}
+      {/* 回饋組成：唯讀顯示，編輯改由額度管理 */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <h5 className="text-sm font-medium mb-1">回饋組成</h5>
-              {editingRewardIdx !== null && (
-                <button onClick={() => setEditingRewardIdx(null)} className="text-xs text-gray-500">取消編輯</button>
-              )}
             </div>
             {rewards.length === 0 && (
               <div className="text-xs text-gray-500">尚未設定回饋</div>
@@ -158,7 +105,6 @@ function PaymentMethodItem({ payment, onEdit, onDelete, onReload }: any) {
                       <th className="px-2 py-1 text-left font-semibold whitespace-nowrap">方式 / 基準</th>
                       <th className="px-2 py-1 text-left font-semibold whitespace-nowrap">上限</th>
                       <th className="px-2 py-1 text-left font-semibold whitespace-nowrap">刷新</th>
-                      <th className="px-2 py-1 text-left font-semibold whitespace-nowrap">操作</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -184,9 +130,6 @@ function PaymentMethodItem({ payment, onEdit, onDelete, onReload }: any) {
                           </td>
                           <td className="px-2 py-1">{r.quota_limit ?? '無上限'}</td>
                           <td className="px-2 py-1">{refreshText}</td>
-                          <td className="px-2 py-1">
-                            <button onClick={() => handleRewardEdit(idx)} className="text-blue-600 text-xs border px-2 py-0.5 rounded">編輯</button>
-                          </td>
                         </tr>
                       );
                     })}
@@ -194,91 +137,18 @@ function PaymentMethodItem({ payment, onEdit, onDelete, onReload }: any) {
                 </table>
               </div>
             )}
-
-            {editingRewardIdx !== null && (
-              <div className="p-3 bg-gray-50 border rounded space-y-2">
-                <div className="text-sm font-medium">編輯回饋</div>
-                <div className="flex gap-2">
-                  <input
-                    value={rewardForm.percentage}
-                    onChange={e => setRewardForm({ ...rewardForm, percentage: e.target.value })}
-                    className="w-1/3 border p-1 rounded text-xs"
-                    placeholder="%"
-                  />
-                  <select
-                    value={rewardForm.calculationMethod}
-                    onChange={e => setRewardForm({ ...rewardForm, calculationMethod: e.target.value })}
-                    className="w-2/3 border p-1 rounded text-xs"
-                  >
-                    <option value="round">四捨五入</option>
-                    <option value="floor">無條件捨去</option>
-                    <option value="ceil">無條件進位</option>
-                  </select>
-                </div>
-                <div className="flex flex-col">
-                  <label className="text-[10px] text-gray-500 mb-0.5">計算基準</label>
-                  <select
-                    value={rewardForm.quotaCalculationBasis}
-                    onChange={e => setRewardForm({ ...rewardForm, quotaCalculationBasis: e.target.value })}
-                    className="w-full border p-1 rounded text-xs bg-yellow-50"
-                  >
-                    <option value="transaction">單筆回饋</option>
-                    <option value="statement">帳單總額</option>
-                  </select>
-                </div>
-                <input
-                  value={rewardForm.quotaLimit}
-                  onChange={e => setRewardForm({ ...rewardForm, quotaLimit: e.target.value })}
-                  className="w-full border p-1 rounded text-xs"
-                  placeholder="上限"
-                />
-                <div className="flex flex-col gap-1">
-                  <label className="text-[10px] text-gray-500">刷新設定</label>
-                  <select
-                    value={rewardForm.quotaRefreshType}
-                    onChange={e => setRewardForm({ ...rewardForm, quotaRefreshType: e.target.value, quotaRefreshValue: '', quotaRefreshDate: '' })}
-                    className="w-full border p-1 rounded text-xs"
-                  >
-                    <option value="">不刷新</option>
-                    <option value="monthly">每月OO號</option>
-                    <option value="date">指定日期</option>
-                    <option value="activity">活動結束</option>
-                  </select>
-                  {rewardForm.quotaRefreshType === 'monthly' && (
-                    <input
-                      type="number"
-                      min="1"
-                      max="28"
-                      value={rewardForm.quotaRefreshValue}
-                      onChange={e => {
-                        const val = e.target.value;
-                        const num = parseInt(val);
-                        if (val === '' || (num >= 1 && num <= 28)) {
-                          setRewardForm({ ...rewardForm, quotaRefreshValue: val });
-                        }
-                      }}
-                      className="w-full border p-1 rounded text-xs"
-                      placeholder="1-28號"
-                    />
-                  )}
-                  {rewardForm.quotaRefreshType === 'date' && (
-                    <input
-                      type="date"
-                      value={rewardForm.quotaRefreshDate}
-                      onChange={e => setRewardForm({ ...rewardForm, quotaRefreshDate: e.target.value })}
-                      className="w-full border p-1 rounded text-xs"
-                    />
-                  )}
-                </div>
-                <div className="flex gap-2">
-                  <button onClick={handleRewardSave} className="bg-blue-500 text-white px-2 py-1 rounded text-xs">儲存</button>
-                  <button onClick={() => setEditingRewardIdx(null)} className="bg-gray-300 px-2 py-1 rounded text-xs">取消</button>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       )}
+
+      {/* 底部操作按鈕，置於卡片下方 */}
+      <div className="flex gap-2 mt-3 justify-end">
+        <button onClick={() => setShowDetails(!showDetails)} className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">
+          {showDetails ? '隱藏詳細' : '管理詳細'}
+        </button>
+        <button onClick={onEdit} className="px-3 py-1 bg-yellow-500 text-white rounded text-sm hover:bg-yellow-600">編輯</button>
+        <button onClick={onDelete} className="px-3 py-1 bg-red-500 text-white rounded text-sm hover:bg-red-600">刪除</button>
+      </div>
     </div>
   );
 }
@@ -420,18 +290,6 @@ export default function PaymentManagement() {
                   onDelete={() => !isReordering && handleDelete(pm.id)}
                   onReload={loadPayments}
                 />
-                {!isReordering && editingPayment?.id === pm.id && showForm && (
-                  <div className="p-3 bg-white border rounded shadow-sm mt-2">
-                    <form onSubmit={handleSubmit} className="space-y-3">
-                      <input name="name" defaultValue={editingPayment?.name} placeholder="名稱" required className="w-full border p-2 rounded text-sm" />
-                      <input name="note" defaultValue={editingPayment?.note} placeholder="備註" className="w-full border p-2 rounded text-sm" />
-                      <div className="flex gap-2">
-                        <button type="submit" className="px-3 py-1 bg-blue-600 text-white rounded text-xs">儲存</button>
-                        <button type="button" onClick={() => { setShowForm(false); setEditingPayment(null); }} className="px-3 py-1 bg-gray-400 text-white rounded text-xs">取消</button>
-                      </div>
-                    </form>
-                  </div>
-                )}
               </div>
               {isReordering && (
                 <div className="flex flex-col gap-1">
@@ -442,6 +300,19 @@ export default function PaymentManagement() {
                 </div>
               )}
             </div>
+            </div>
+            {!isReordering && editingPayment?.id === pm.id && showForm && (
+              <div className="p-3 bg-white border rounded shadow-sm mt-2">
+                <form onSubmit={handleSubmit} className="space-y-3">
+                  <input name="name" defaultValue={editingPayment?.name} placeholder="名稱" required className="w-full border p-2 rounded text-sm" />
+                  <input name="note" defaultValue={editingPayment?.note} placeholder="備註" className="w-full border p-2 rounded text-sm" />
+                  <div className="flex gap-2">
+                    <button type="submit" className="px-3 py-1 bg-blue-600 text-white rounded text-xs">儲存</button>
+                    <button type="button" onClick={() => { setShowForm(false); setEditingPayment(null); }} className="px-3 py-1 bg-gray-400 text-white rounded text-xs">取消</button>
+                  </div>
+                </form>
+              </div>
+            )}
           </div>
         ))}
       </div>

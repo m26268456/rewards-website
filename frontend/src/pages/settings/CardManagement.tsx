@@ -197,7 +197,6 @@ function CardItem({ card, onEdit, onDelete, onReload }: { card: Card; onEdit: ()
   const [schemeForm, setSchemeForm] = useState({
     name: '', note: '', requiresSwitch: false,
     activityStartDate: '', activityEndDate: '', displayOrder: 0,
-    sharedRewardGroupId: '',
   });
 
   // ESC / 點擊空白收合或取消編輯
@@ -344,7 +343,7 @@ function CardItem({ card, onEdit, onDelete, onReload }: { card: Card; onEdit: ()
     setSchemeForm({
       name: '', note: '', requiresSwitch: false,
       activityStartDate: '', activityEndDate: '', displayOrder: 0,
-      sharedRewardGroupId: ''
+      // 共同綁定由額度管理控制，表單不再設置
     });
     setAppsText(''); setExcsText('');
     setShowSchemeForm(true);
@@ -357,7 +356,7 @@ function CardItem({ card, onEdit, onDelete, onReload }: { card: Card; onEdit: ()
       activityStartDate: scheme.activity_start_date ? String(scheme.activity_start_date).split('T')[0] : '',
       activityEndDate: scheme.activity_end_date ? String(scheme.activity_end_date).split('T')[0] : '',
       displayOrder: scheme.display_order || 0,
-      sharedRewardGroupId: scheme.shared_reward_group_id || ''
+      // 共同綁定由額度管理控制，表單不再設置
     });
     try {
       const res = await api.get(`/schemes/${scheme.id}/details`);
@@ -468,16 +467,6 @@ function CardItem({ card, onEdit, onDelete, onReload }: { card: Card; onEdit: ()
                   <input type="date" value={schemeForm.activityStartDate} onChange={e => setSchemeForm({...schemeForm, activityStartDate: e.target.value})} className="border p-1 rounded text-sm" />
                   <input type="date" value={schemeForm.activityEndDate} onChange={e => setSchemeForm({...schemeForm, activityEndDate: e.target.value})} className="border p-1 rounded text-sm" />
                 </div>
-                <select 
-                  value={schemeForm.sharedRewardGroupId} 
-                  onChange={e => setSchemeForm({...schemeForm, sharedRewardGroupId: e.target.value})}
-                  className="w-full border p-1 rounded text-sm"
-                >
-                  <option value="">不綁定共同回饋</option>
-                  {schemes.filter(s => s.id !== editingScheme?.id).map(s => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
-                </select>
                 <textarea placeholder="適用通路 (每行一個)" value={appsText} onChange={e => setAppsText(e.target.value)} className="w-full border p-1 rounded text-sm" rows={3} />
                 <textarea placeholder="排除通路 (每行一個)" value={excsText} onChange={e => setExcsText(e.target.value)} className="w-full border p-1 rounded text-sm" rows={3} />
                 <label className="flex items-center gap-2 text-sm">
@@ -534,16 +523,6 @@ function CardItem({ card, onEdit, onDelete, onReload }: { card: Card; onEdit: ()
                         <input type="date" value={schemeForm.activityStartDate} onChange={e => setSchemeForm({...schemeForm, activityStartDate: e.target.value})} className="border p-1 rounded text-sm" />
                         <input type="date" value={schemeForm.activityEndDate} onChange={e => setSchemeForm({...schemeForm, activityEndDate: e.target.value})} className="border p-1 rounded text-sm" />
                       </div>
-                      <select 
-                        value={schemeForm.sharedRewardGroupId} 
-                        onChange={e => setSchemeForm({...schemeForm, sharedRewardGroupId: e.target.value})}
-                        className="w-full border p-1 rounded text-sm"
-                      >
-                        <option value="">不綁定共同回饋</option>
-                        {schemes.filter(s2 => s2.id !== editingScheme?.id).map(s2 => (
-                          <option key={s2.id} value={s2.id}>{s2.name}</option>
-                        ))}
-                      </select>
                       <textarea placeholder="適用通路 (每行一個)" value={appsText} onChange={e => setAppsText(e.target.value)} className="w-full border p-1 rounded text-sm" rows={3} />
                       <textarea placeholder="排除通路 (每行一個)" value={excsText} onChange={e => setExcsText(e.target.value)} className="w-full border p-1 rounded text-sm" rows={3} />
                       <label className="flex items-center gap-2 text-sm">
