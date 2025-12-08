@@ -559,11 +559,7 @@ const [selectedRootSchemeId, setSelectedRootSchemeId] = useState<string | null>(
                       {isEditingR ? (
                         <div className="space-y-2">
                           <input 
-                            value={
-                              isTempNewRow
-                                ? rewardForm.percentage
-                                : (primary.rewardComposition?.split('/')?.[rIdx]?.replace('%','') || rewardForm.percentage)
-                            }
+                            value={rewardForm.percentage}
                             onChange={e => setRewardForm({...rewardForm, percentage: e.target.value})} 
                             className="w-full border p-1 rounded text-xs" 
                             placeholder="%" 
