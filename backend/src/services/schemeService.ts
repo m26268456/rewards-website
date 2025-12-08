@@ -298,6 +298,15 @@ export async function queryChannelRewardsByKeywords(
         if (!channelResults.channelId) channelResults.channelId = match.id;
       }
 
+      // 排序：排除置頂，其次回饋降序
+      channelResults.results.sort((a: any, b: any) => {
+        if (a.isExcluded && !b.isExcluded) return -1;
+        if (!a.isExcluded && b.isExcluded) return 1;
+        const aPerc = typeof a.totalRewardPercentage === 'number' ? a.totalRewardPercentage : 0;
+        const bPerc = typeof b.totalRewardPercentage === 'number' ? b.totalRewardPercentage : 0;
+        return bPerc - aPerc;
+      });
+
       const channelRewardsList = channelResults.results.length > 0 ? [channelResults] : [];
       
       // 如果找到匹配的通路，返回所有結果
