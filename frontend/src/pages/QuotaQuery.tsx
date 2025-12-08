@@ -262,7 +262,10 @@ export default function QuotaQuery() {
                       calculationMethod === 'round' ? '四捨五入' :
                       calculationMethod === 'floor' ? '無條件捨去' :
                       calculationMethod === 'ceil' ? '無條件進位' : '四捨五入';
-                    const basis = (primary as any).quotaCalculationBases?.[rIdx] || 'transaction';
+                    const rawBasis = (primary as any).quotaCalculationBases?.[rIdx] || 'transaction';
+                    const basis = typeof rawBasis === 'string'
+                      ? rawBasis.trim().toLowerCase()
+                      : 'transaction';
                     const basisText = basis === 'statement' ? '帳單總額' : '單筆回饋';
                     
                     const usedQuota = primary.usedQuotas?.[rIdx] || 0;
