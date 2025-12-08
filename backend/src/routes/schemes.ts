@@ -11,7 +11,6 @@ import { bulkInsertRewards } from '../utils/rewardBatchUpdate';
 import { calculateNextRefreshTime } from '../utils/quotaRefresh';
 import { calculateReward } from '../utils/rewardCalculation';
 import { CalculationMethod, QuotaCalculationBasis } from '../utils/types';
-import { calculateMarginalReward } from '../utils/rewardCalculation';
 
 /**
  * 重新計算特定方案回饋的額度追蹤（used_quota / current_amount / remaining_quota）
