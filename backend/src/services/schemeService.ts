@@ -1,6 +1,6 @@
 import { pool } from '../config/database';
 import { RewardComposition } from '../utils/types';
-import { parseChannelName, matchesChannelName } from '../utils/channelUtils';
+import { parseChannelName, matchesChannelName, getChannelCanonicalKey } from '../utils/channelUtils';
 import { logger } from '../utils/logger';
 
 /**
@@ -227,7 +227,8 @@ export async function queryChannelRewardsByKeywords(
       schemeInfo: string;
       requiresSwitch: boolean;
       note?: string;
-        schemeChannelName?: string; // 方案中記錄的通路名稱
+      schemeChannelName?: string; // 方案中記錄的通路名稱
+      sourceChannelName?: string; // 回傳的來源通路名稱
       }>;
     }>;
   }>
@@ -276,53 +277,30 @@ export async function queryChannelRewardsByKeywords(
         };
       }
 
-      // 為每個匹配的通路查詢回饋，並獲取方案中使用的通路名稱
-      const channelRewardsList = [];
+      // 為每個匹配的通路查詢回饋，並依通路同義詞（逗號分隔）聚合
+      const grouped = new Map<string, { channelId: string; channelName: string; results: any[] }>();
       for (const match of matches) {
-        // 查詢此通路的所有方案應用，獲取方案中記錄的通路名稱
-        const schemeAppsResult = await pool.query(
-          `SELECT sca.scheme_id, sca.note, c.name as channel_name, cs.name as scheme_name, c2.name as card_name
-           FROM scheme_channel_applications sca
-           JOIN channels c ON sca.channel_id = c.id
-           JOIN card_schemes cs ON sca.scheme_id = cs.id
-           JOIN cards c2 ON cs.card_id = c2.id
-           WHERE sca.channel_id = $1`,
-          [match.id]
-        );
-
-        // 查詢此通路的回饋結果
         const channelRewards = await queryChannelRewards([match.id]);
-        if (channelRewards.length > 0) {
-          // 獲取方案中使用的通路名稱（如果有note則使用note，否則使用通路名稱）
-          const schemeChannelNames = new Map<string, string>();
-          for (const app of schemeAppsResult.rows) {
-            const schemeKey = `${app.card_name}-${app.scheme_name}`;
-            // 方案中記錄的名稱：如果有note則使用note，否則使用通路名稱
-            const schemeChannelName = app.note || app.channel_name;
-            if (!schemeChannelNames.has(schemeKey)) {
-              schemeChannelNames.set(schemeKey, schemeChannelName);
-            }
-          }
+        if (channelRewards.length === 0) continue;
 
-          // 為每個結果添加方案中的通路名稱
-          const enrichedResults = channelRewards[0].results.map((result: any) => {
-            // 從schemeInfo中提取方案名稱來匹配
-            const schemeChannelName = schemeChannelNames.get(result.schemeInfo) || match.name;
-            return {
-              ...result,
-              schemeChannelName,
-            };
-          });
+        const key = getChannelCanonicalKey(match.name);
+        const { baseName } = parseChannelName(match.name);
+        const existing = grouped.get(key) || {
+          channelId: match.id,
+          channelName: baseName,
+          results: [],
+        };
 
-          // 使用通路名稱作為顯示名稱（方案中使用的名稱）
-          const { baseName } = parseChannelName(match.name);
-          channelRewardsList.push({
-            channelId: match.id,
-            channelName: baseName, // 通路名稱
-            results: enrichedResults,
-          });
-        }
+        const enrichedResults = channelRewards[0].results.map((result: any) => ({
+          ...result,
+          sourceChannelName: match.name, // 紀錄來源通路名稱，前端可顯示以分辨 A/B/C
+        }));
+
+        existing.results.push(...enrichedResults);
+        grouped.set(key, existing);
       }
+
+      const channelRewardsList = Array.from(grouped.values());
       
       // 如果找到匹配的通路，返回所有結果
       if (channelRewardsList.length > 0) {
@@ -365,6 +343,7 @@ export async function queryChannelRewards(
       requiresSwitch: boolean;
       note?: string;
       schemeChannelName?: string; // 方案中記錄的通路名稱
+      sourceChannelName?: string; // 回傳的來源通路名稱
     }>;
   }>
 > {
@@ -468,8 +447,8 @@ export async function queryChannelRewards(
           .map((r: any) => `${r.percentage}%`)
           .join('+');
 
-        // 方案中記錄的通路名稱：如果有note則使用note，否則使用通路名稱
-        const schemeChannelName = row.note || row.channel_name;
+        // 方案中記錄的通路名稱：僅使用通路名稱，不取 note
+        const schemeChannelName = row.channel_name;
 
         return {
           isExcluded: false,

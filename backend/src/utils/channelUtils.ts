@@ -31,6 +31,17 @@ export function parseChannelName(channelName: string): {
   return { baseName: fullName, aliases: [], fullName };
 }
 
+// 取得通路的標準化 key：拆逗號/全形逗號、去空白、小寫、去重並排序
+export function getChannelCanonicalKey(name: string): string {
+  const tokens = name
+    .split(/[,，]/)
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+
+  if (tokens.length === 0) return name.trim().toLowerCase();
+  return Array.from(new Set(tokens)).sort().join('|');
+}
+
 /**
  * 檢查關鍵字是否匹配通路名稱（支持別稱）
  */
