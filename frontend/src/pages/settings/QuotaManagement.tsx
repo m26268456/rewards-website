@@ -245,6 +245,77 @@ const [selectedRootSchemeId, setSelectedRootSchemeId] = useState<string | null>(
     }
   };
 
+  // 新增回饋組成（簡易對話框方式）
+  const handleRewardAdd = async (qIdx: number, group: string) => {
+    const q = quotas[qIdx];
+    const targetSchemeId = q.rewardSourceSchemeId || q.sharedRewardGroupId || q.schemeId;
+    const isScheme = !!q.schemeId;
+    const endpoint = isScheme
+      ? `/schemes/${targetSchemeId}/rewards`
+      : `/payment-methods/${q.paymentMethodId}/rewards`;
+
+    const pctStr = prompt('請輸入回饋百分比（必填，例如 5 或 5.5）');
+    if (pctStr === null) return;
+    const pct = parseFloat(pctStr);
+    if (isNaN(pct) || pct <= 0) {
+      alert('回饋百分比必須大於 0');
+      return;
+    }
+
+    const method = (prompt('計算方式：round(四捨五入) / floor(無條件捨去) / ceil(無條件進位)', 'round') || 'round').trim() as any;
+    const basis = (prompt('計算基準：transaction(單筆回饋) / statement(帳單總額)', 'transaction') || 'transaction').trim();
+    const limitStr = prompt('上限（可留空，代表無上限）', '');
+    const refreshType = prompt('刷新類型：monthly/date/activity 或留空', '') || '';
+    const refreshValue = refreshType === 'monthly'
+      ? prompt('每月幾號刷新？(1-28)', '')
+      : '';
+    const refreshDate = refreshType === 'date'
+      ? prompt('指定日期 (YYYY-MM-DD)', '')
+      : '';
+
+    try {
+      await api.post(endpoint, {
+        rewardPercentage: pct,
+        calculationMethod: method || 'round',
+        quotaLimit: limitStr ? parseFloat(limitStr) : null,
+        quotaRefreshType: refreshType || null,
+        quotaRefreshValue: refreshType === 'monthly' && refreshValue ? parseInt(refreshValue) : null,
+        quotaRefreshDate: refreshType === 'date' ? refreshDate || null : null,
+        quotaCalculationBasis: basis || 'transaction',
+        displayOrder: q.rewardIds?.length || 0,
+      });
+      alert('回饋組成已新增');
+      loadQuotas();
+    } catch (e: any) {
+      alert(e.response?.data?.error || '新增失敗');
+    }
+  };
+
+  // 刪除回饋組成
+  const handleRewardDelete = async (qIdx: number, rIdx: number, group: string) => {
+    const q = quotas[qIdx];
+    const rewardId = q.rewardIds?.[rIdx];
+    if (!rewardId) {
+      alert('找不到要刪除的回饋組成');
+      return;
+    }
+    if (!confirm('確定刪除此回饋組成？')) return;
+
+    const targetSchemeId = q.rewardSourceSchemeId || q.sharedRewardGroupId || q.schemeId;
+    const isScheme = !!q.schemeId;
+    const endpoint = isScheme
+      ? `/schemes/${targetSchemeId}/rewards/${rewardId}`
+      : `/payment-methods/${q.paymentMethodId}/rewards/${rewardId}`;
+
+    try {
+      await api.delete(endpoint);
+      alert('回饋組成已刪除');
+      loadQuotas();
+    } catch (e: any) {
+      alert(e.response?.data?.error || '刪除失敗');
+    }
+  };
+
   // 綁定共同回饋群組（只對信用卡方案）
   // 綁定共同回饋群組（多選）
   const handleBindShared = async (overrideIds?: string[]) => {
@@ -596,35 +667,47 @@ const [selectedRootSchemeId, setSelectedRootSchemeId] = useState<string | null>(
                         <div className="flex flex-col gap-1">
                           {!isSharedChild ? (
                             <>
-                              <button
-                                onClick={() => { 
-                                  handleRewardEdit(primary.__index, rIdx, groupKey);
-                                }} 
-                                className="px-3 py-1 text-sm bg-yellow-500 text-white rounded hover:bg-yellow-600"
-                              >
-                                編輯
-                              </button>
-                              {isCardScheme && (
+                              <div className="flex flex-wrap gap-2">
                                 <button
-                                  onClick={() => { 
-                                    setBindingTarget({ idx: primary.__index, group: groupKey }); 
-                                    const current = quotas.find(q => q.__index === primary.__index);
-                                    const groupRoot = current?.sharedRewardGroupId || current?.schemeId;
-                                    const groupMembers = quotas
-                                      .filter(x => x.schemeId && (x.sharedRewardGroupId === groupRoot || x.schemeId === groupRoot))
-                                      .map(x => x.schemeId as string);
-                                    const preset = groupRoot
-                                      ? Array.from(new Set([groupRoot, ...groupMembers]))
-                                      : groupMembers;
-                                    setSelectedSharedGroups(preset);
-                                    setSelectedRootSchemeId(groupRoot ?? current?.schemeId ?? null);
-                                  }}
-                                  className="px-3 py-1 text-sm text-white rounded hover:opacity-90"
-                                  style={{ backgroundColor: '#3B82F6' }}
+                                  onClick={() => handleRewardEdit(primary.__index, rIdx, groupKey)} 
+                                  className="px-3 py-1 text-sm bg-yellow-500 text-white rounded hover:bg-yellow-600"
                                 >
-                                  回饋綁定
+                                  編輯
                                 </button>
-                              )}
+                                <button
+                                  onClick={() => handleRewardAdd(primary.__index, groupKey)}
+                                  className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                                >
+                                  新增組成
+                                </button>
+                                <button
+                                  onClick={() => handleRewardDelete(primary.__index, rIdx, groupKey)}
+                                  className="px-3 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600"
+                                >
+                                  刪除組成
+                                </button>
+                                {isCardScheme && (
+                                  <button
+                                    onClick={() => { 
+                                      setBindingTarget({ idx: primary.__index, group: groupKey }); 
+                                      const current = quotas.find(q => q.__index === primary.__index);
+                                      const groupRoot = current?.sharedRewardGroupId || current?.schemeId;
+                                      const groupMembers = quotas
+                                        .filter(x => x.schemeId && (x.sharedRewardGroupId === groupRoot || x.schemeId === groupRoot))
+                                        .map(x => x.schemeId as string);
+                                      const preset = groupRoot
+                                        ? Array.from(new Set([groupRoot, ...groupMembers]))
+                                        : groupMembers;
+                                      setSelectedSharedGroups(preset);
+                                      setSelectedRootSchemeId(groupRoot ?? current?.schemeId ?? null);
+                                    }}
+                                    className="px-3 py-1 text-sm text-white rounded hover:opacity-90"
+                                    style={{ backgroundColor: '#3B82F6' }}
+                                  >
+                                    回饋綁定
+                                  </button>
+                                )}
+                              </div>
                             </>
                           ) : (
                             <div className="text-xs text-blue-600 bg-blue-50 border border-blue-100 rounded px-2 py-1">
