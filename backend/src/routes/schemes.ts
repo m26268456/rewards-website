@@ -750,6 +750,42 @@ router.put('/:id/rewards/:rewardId', async (req: Request, res: Response, next: N
   }
 });
 
+// 刪除單一回饋
+router.delete('/:id/rewards/:rewardId', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id, rewardId } = req.params;
+
+    const schemeExists = await pool.query('SELECT id FROM card_schemes WHERE id = $1', [id]);
+    if (schemeExists.rows.length === 0) {
+      return res.status(404).json({ success: false, error: '方案不存在' });
+    }
+
+    const targetSchemeId = await resolveSharedRewardTargetSchemeId(id);
+    const result = await pool.query(
+      `DELETE FROM scheme_rewards 
+       WHERE id = $1 AND scheme_id = $2
+       RETURNING id`,
+      [rewardId, targetSchemeId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: '回饋組成不存在' });
+    }
+
+    // 同步刪除 quota_trackings 相關紀錄
+    await pool.query(
+      `DELETE FROM quota_trackings 
+       WHERE reward_id = $1 AND scheme_id = $2`,
+      [rewardId, targetSchemeId]
+    );
+
+    return res.json({ success: true, message: '回饋組成已刪除' });
+  } catch (error) {
+    logger.error(`刪除方案回饋失敗 ID ${req.params.id} Reward ${req.params.rewardId}:`, error);
+    return next(error);
+  }
+});
+
 // 更新順序
 router.put('/card/:cardId/order', async (req: Request, res: Response, next: NextFunction) => {
   try {
