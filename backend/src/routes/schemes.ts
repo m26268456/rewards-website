@@ -49,6 +49,14 @@ async function recomputeSchemeRewardTracking(schemeId: string, rewardId: string)
     );
     const tracking = trackingRes.rows[0] || null;
 
+    // 取得同一共同回饋群組的所有方案 ID（包含 root 自己）
+    const memberRes = await client.query(
+      `SELECT scheme_id FROM shared_reward_group_members WHERE root_scheme_id = $1`,
+      [schemeId]
+    );
+    const memberIds: string[] = memberRes.rows.map((r) => r.scheme_id);
+    const schemeIdsToInclude = [schemeId, ...memberIds];
+
     const windowStart: Date | null = tracking?.last_refresh_at
       ? new Date(tracking.last_refresh_at)
       : tracking?.created_at
@@ -59,10 +67,10 @@ async function recomputeSchemeRewardTracking(schemeId: string, rewardId: string)
     const txRes = await client.query(
       `SELECT amount, transaction_date
          FROM transactions
-        WHERE scheme_id = $1
+        WHERE scheme_id = ANY($1::uuid[])
           AND ($2::timestamptz IS NULL OR transaction_date >= $2)
           AND transaction_date <= $3`,
-      [schemeId, windowStart, windowEnd]
+      [schemeIdsToInclude, windowStart, windowEnd]
     );
 
     let currentAmount = 0;
