@@ -453,17 +453,17 @@ router.delete('/:id', async (req: Request, res: Response, next: NextFunction) =>
       await client.query('DELETE FROM shared_reward_group_members WHERE scheme_id = $1 OR root_scheme_id = $1', [id]);
 
       const result = await client.query(
-        'DELETE FROM card_schemes WHERE id = $1 RETURNING id',
-        [id]
-      );
+      'DELETE FROM card_schemes WHERE id = $1 RETURNING id',
+      [id]
+    );
 
-      if (result.rows.length === 0) {
+    if (result.rows.length === 0) {
         await client.query('ROLLBACK');
-        return res.status(404).json({ success: false, error: '方案不存在' });
-      }
+      return res.status(404).json({ success: false, error: '方案不存在' });
+    }
 
       await client.query('COMMIT');
-      logger.info(`刪除方案成功 ID ${id}`);
+    logger.info(`刪除方案成功 ID ${id}`);
       return res.json({ success: true, message: '方案已刪除' });
     } catch (error) {
       await client.query('ROLLBACK');
@@ -646,6 +646,110 @@ router.post('/:id/rewards', async (req: Request, res: Response, next: NextFuncti
         displayOrder || 0,
       ]
     );
+
+    // 建立或更新 quota_trackings 讓既有交易立即納入計算
+    try {
+      const client = await pool.connect();
+      try {
+        const targetSchemeId = await resolveSharedRewardTargetSchemeId(id, client);
+        const newRewardId = result.rows[0].id;
+
+        // 取得同方案任一既有追蹤紀錄，複用其刷新週期窗口
+        const trackingTemplate = await client.query(
+          `SELECT last_refresh_at, next_refresh_at, manual_adjustment
+             FROM quota_trackings
+             WHERE scheme_id = $1
+             ORDER BY last_refresh_at DESC
+             LIMIT 1`,
+          [targetSchemeId]
+        );
+
+        let lastRefreshAt: Date = new Date();
+        let nextRefreshAt: Date | null = null;
+        if (trackingTemplate.rows.length > 0) {
+          const row = trackingTemplate.rows[0];
+          lastRefreshAt = row.last_refresh_at ? new Date(row.last_refresh_at) : new Date();
+          nextRefreshAt = row.next_refresh_at ? new Date(row.next_refresh_at) : null;
+        } else {
+          // 若找不到，計算下一次刷新時間，並將 lastRefreshAt 設為現在
+          const calcNext = calculateNextRefreshTime(
+            quotaRefreshType,
+            quotaRefreshValue,
+            quotaRefreshDate || null,
+            null
+          );
+          nextRefreshAt = calcNext ? new Date(calcNext) : null;
+          lastRefreshAt = new Date();
+        }
+
+        // 彙總本週期內的既有交易
+        const windowEnd = nextRefreshAt ? nextRefreshAt : new Date();
+        const txResult = await client.query(
+          `SELECT amount, transaction_date
+             FROM transactions
+             WHERE scheme_id = $1
+               AND transaction_date >= $2
+               AND transaction_date <= $3`,
+          [targetSchemeId, lastRefreshAt, windowEnd]
+        );
+
+        let usedQuota = 0;
+        let currentAmount = 0;
+        const pct = parseFloat(rewardPercentage);
+        const method = (calculationMethod || 'round') as CalculationMethod;
+        const basis = (quotaCalculationBasis || 'transaction') as QuotaCalculationBasis;
+
+        if (basis === 'transaction') {
+          txResult.rows.forEach((r) => {
+            const amt = parseFloat(r.amount);
+            currentAmount += amt;
+            usedQuota += calculateReward(amt, pct, method);
+          });
+        } else {
+          // statement / 帳單總額：先累計總額，再算一次
+          let total = 0;
+          txResult.rows.forEach((r) => {
+            const amt = parseFloat(r.amount);
+            total += amt;
+          });
+          currentAmount = total;
+          usedQuota = calculateReward(total, pct, method); // 新增組成先視為無前期累積
+        }
+
+        const manualAdj = 0;
+        const remainingQuota =
+          quotaLimit !== null && quotaLimit !== undefined
+            ? Math.max(0, parseFloat(quotaLimit) - (usedQuota + manualAdj))
+            : null;
+
+        // 建立對應的 quota_trackings
+        await client.query(
+          `INSERT INTO quota_trackings
+             (scheme_id, reward_id, payment_method_id, payment_reward_id,
+              used_quota, current_amount, remaining_quota, manual_adjustment,
+              last_refresh_at, next_refresh_at, created_at, updated_at)
+           VALUES ($1, $2, NULL, NULL, $3, $4, $5, $6, $7, $8, NOW(), NOW())`,
+          [
+            targetSchemeId,
+            newRewardId,
+            usedQuota,
+            currentAmount,
+            remainingQuota,
+            manualAdj,
+            lastRefreshAt,
+            nextRefreshAt,
+          ]
+        );
+      } catch (err) {
+        logger.error('新增回饋後回填額度追蹤失敗:', err);
+        // 不阻斷主要流程，繼續返回成功，但前端需要重新查詢以看到正確額度
+      } finally {
+        // @ts-ignore
+        client && client.release();
+      }
+    } catch (err) {
+      logger.error('新增回饋後回填額度追蹤取得連線失敗:', err);
+    }
 
     return res.json({ success: true, data: result.rows[0] });
   } catch (error) {
