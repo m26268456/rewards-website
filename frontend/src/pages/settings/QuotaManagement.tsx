@@ -71,6 +71,7 @@ export default function QuotaManagement() {
   
   // 編輯額度狀態 (數值調整)
   const [editingQuota, setEditingQuota] = useState<{ idx: number; rIdx: number; group: string } | null>(null);
+  const [isAddingReward, setIsAddingReward] = useState(false); // 是否在新增組成
   const [quotaAdjust, setQuotaAdjust] = useState('');
 
   // 編輯回饋組成狀態 (設定調整)
@@ -176,6 +177,7 @@ const [selectedRootSchemeId, setSelectedRootSchemeId] = useState<string | null>(
     
     setEditingReward({ idx: qIdx, rIdx: rIdx, group });
     setEditingQuota({ idx: qIdx, rIdx: rIdx, group });
+    setIsAddingReward(false);
     setRewardForm({
       percentage,
       method,
@@ -202,21 +204,30 @@ const [selectedRootSchemeId, setSelectedRootSchemeId] = useState<string | null>(
     const q = quotas[editingReward.idx];
     const targetSchemeId = q.rewardSourceSchemeId || q.sharedRewardGroupId || q.schemeId;
     const rewardId = q.rewardIds[editingReward.rIdx];
-    const endpoint = q.schemeId 
-      ? `/schemes/${targetSchemeId}/rewards/${rewardId}`
-      : `/payment-methods/${q.paymentMethodId}/rewards/${rewardId}`;
+    const isScheme = !!q.schemeId;
+    const isNew = isAddingReward || !rewardId;
+    const endpoint = isNew
+      ? (isScheme ? `/schemes/${targetSchemeId}/rewards` : `/payment-methods/${q.paymentMethodId}/rewards`)
+      : (isScheme ? `/schemes/${targetSchemeId}/rewards/${rewardId}` : `/payment-methods/${q.paymentMethodId}/rewards/${rewardId}`);
 
     try {
-      await api.put(endpoint, {
+      const payload = {
         rewardPercentage: percentage,
         calculationMethod: rewardForm.method,
         quotaLimit: rewardForm.limit ? parseFloat(rewardForm.limit) : null,
         quotaRefreshType: rewardForm.refreshType || null,
-        quotaRefreshValue: rewardForm.refreshType === 'monthly' && rewardForm.refreshValue ? parseInt(rewardForm.refreshValue) : (rewardForm.refreshType === 'monthly' ? null : null),
+        quotaRefreshValue: rewardForm.refreshType === 'monthly' && rewardForm.refreshValue ? parseInt(rewardForm.refreshValue) : null,
         quotaRefreshDate: rewardForm.refreshType === 'date' ? rewardForm.refreshDate : null,
-        quotaCalculationBasis: rewardForm.calculationBasis
-      });
+        quotaCalculationBasis: rewardForm.calculationBasis,
+        displayOrder: q.rewardIds?.length || 0,
+      };
+      if (isNew) {
+        await api.post(endpoint, payload);
+      } else {
+        await api.put(endpoint, payload);
+      }
       loadQuotas();
+      setIsAddingReward(false);
     } catch (e: any) { 
       throw e; // 拋出錯誤，讓 handleSaveAll 處理
     }
@@ -239,62 +250,49 @@ const [selectedRootSchemeId, setSelectedRootSchemeId] = useState<string | null>(
       setEditingReward(null);
       setEditingQuota(null);
       setQuotaAdjust('');
+      setIsAddingReward(false);
       alert('設定已更新');
     } catch (e: any) {
       alert(e.response?.data?.error || '儲存失敗');
     }
   };
 
-  // 新增回饋組成（簡易對話框方式）
+  // 新增回饋組成：改為直接進入空白編輯列
   const handleRewardAdd = async (qIdx: number, group: string) => {
     const q = quotas[qIdx];
-    const targetSchemeId = q.rewardSourceSchemeId || q.sharedRewardGroupId || q.schemeId;
-    const isScheme = !!q.schemeId;
-    const endpoint = isScheme
-      ? `/schemes/${targetSchemeId}/rewards`
-      : `/payment-methods/${q.paymentMethodId}/rewards`;
+    const nextIndex =
+      (q.rewardIds && q.rewardIds.length) ||
+      (q.rewardComposition && q.rewardComposition.split('/').length) ||
+      0;
 
-    const pctStr = prompt('請輸入回饋百分比（必填，例如 5 或 5.5）');
-    if (pctStr === null) return;
-    const pct = parseFloat(pctStr);
-    if (isNaN(pct) || pct <= 0) {
-      alert('回饋百分比必須大於 0');
-      return;
-    }
-
-    const method = (prompt('計算方式：round(四捨五入) / floor(無條件捨去) / ceil(無條件進位)', 'round') || 'round').trim() as any;
-    const basis = (prompt('計算基準：transaction(單筆回饋) / statement(帳單總額)', 'transaction') || 'transaction').trim();
-    const limitStr = prompt('上限（可留空，代表無上限）', '');
-    const refreshType = prompt('刷新類型：monthly/date/activity 或留空', '') || '';
-    const refreshValue = refreshType === 'monthly'
-      ? prompt('每月幾號刷新？(1-28)', '')
-      : '';
-    const refreshDate = refreshType === 'date'
-      ? prompt('指定日期 (YYYY-MM-DD)', '')
-      : '';
-
-    try {
-      await api.post(endpoint, {
-        rewardPercentage: pct,
-        calculationMethod: method || 'round',
-        quotaLimit: limitStr ? parseFloat(limitStr) : null,
-        quotaRefreshType: refreshType || null,
-        quotaRefreshValue: refreshType === 'monthly' && refreshValue ? parseInt(refreshValue) : null,
-        quotaRefreshDate: refreshType === 'date' ? refreshDate || null : null,
-        quotaCalculationBasis: basis || 'transaction',
-        displayOrder: q.rewardIds?.length || 0,
-      });
-      alert('回饋組成已新增');
-      loadQuotas();
-    } catch (e: any) {
-      alert(e.response?.data?.error || '新增失敗');
-    }
+    setIsAddingReward(true);
+    setEditingReward({ idx: qIdx, rIdx: nextIndex, group });
+    setEditingQuota({ idx: qIdx, rIdx: nextIndex, group });
+    setRewardForm({
+      percentage: '',
+      method: 'round',
+      limit: '',
+      refreshType: '',
+      refreshValue: '',
+      refreshDate: '',
+      calculationBasis: 'transaction',
+    });
+    setQuotaAdjust('');
   };
 
   // 刪除回饋組成
   const handleRewardDelete = async (qIdx: number, rIdx: number, group: string) => {
     const q = quotas[qIdx];
     const rewardId = q.rewardIds?.[rIdx];
+    // 若是新增中的暫存列，直接取消
+    const isTempNew = isAddingReward && editingReward?.idx === qIdx && editingReward?.rIdx === rIdx;
+    if (isTempNew) {
+      setEditingReward(null);
+      setEditingQuota(null);
+      setIsAddingReward(false);
+      setQuotaAdjust('');
+      return;
+    }
     if (!rewardId) {
       alert('找不到要刪除的回饋組成');
       return;
@@ -469,7 +467,19 @@ const [selectedRootSchemeId, setSelectedRootSchemeId] = useState<string | null>(
               });
               
               const primary = sortedItems[0];
-              const rewardIndices = primary.rewardIds.map((_: any, i: number) => i);
+              let rewardIndices: number[] = [];
+              if (primary.rewardIds && primary.rewardIds.length > 0) {
+                rewardIndices = primary.rewardIds.map((_: any, i: number) => i);
+              } else if (primary.rewardComposition && primary.rewardComposition.includes('/')) {
+                const count = primary.rewardComposition.split('/').length;
+                rewardIndices = Array.from({ length: count }, (_, i) => i);
+              } else {
+                rewardIndices = [0];
+              }
+              // 若正在新增新的組成，非共享群組時增加一列空白
+              if (!isSharedGroup && isEditingR && isAddingReward && editingReward?.idx === primary.__index) {
+                rewardIndices = [...rewardIndices, rewardIndices.length];
+              }
               
               // 找出 root 方案名稱和被綁定方案名稱
               const rootId = primary.sharedRewardGroupId || primary.schemeId;
@@ -544,14 +554,16 @@ const [selectedRootSchemeId, setSelectedRootSchemeId] = useState<string | null>(
                       {isEditingR ? (
                         <div className="space-y-2">
                           <input 
-                            value={rewardForm.percentage} 
+                            value={isAddingReward && editingReward?.rIdx === rIdx ? rewardForm.percentage : rewardForm.percentage || primary.rewardComposition.split('/')[rIdx]?.replace('%','')}
                             onChange={e => setRewardForm({...rewardForm, percentage: e.target.value})} 
                             className="w-full border p-1 rounded text-xs" 
                             placeholder="%" 
                           />
                         </div>
                       ) : (
-                        <span className="bg-orange-100 px-1 rounded font-bold">{primary.rewardComposition.split('/')[rIdx]}</span>
+                        <span className="bg-orange-100 px-1 rounded font-bold">
+                          {primary.rewardComposition.split('/')[rIdx] || (isAddingReward && editingReward?.rIdx === rIdx ? `${rewardForm.percentage || ''}%` : '-')}
+                        </span>
                       )}
                     </td>
                     <td className="px-3 py-2 text-xs align-top space-y-1 text-gray-700 whitespace-normal break-words min-w-0">
@@ -656,12 +668,26 @@ const [selectedRootSchemeId, setSelectedRootSchemeId] = useState<string | null>(
                               共用回饋：此變更會影響同組方案
                             </div>
                           )}
-                          <button onClick={handleSaveAll} className="bg-blue-500 text-white px-2 py-1 rounded text-xs">儲存</button>
-                          <button onClick={() => { 
-                            setEditingReward(null); 
-                            setEditingQuota(null); 
-                            setQuotaAdjust(''); 
-                          }} className="bg-gray-300 px-2 py-1 rounded text-xs">取消</button>
+                          <div className="flex flex-wrap gap-2">
+                            <button onClick={handleSaveAll} className="bg-blue-500 text-white px-2 py-1 rounded text-xs">儲存</button>
+                            <button onClick={() => { 
+                              setEditingReward(null); 
+                              setEditingQuota(null); 
+                              setQuotaAdjust(''); 
+                            }} className="bg-gray-300 px-2 py-1 rounded text-xs">取消</button>
+                            <button
+                              onClick={() => handleRewardAdd(primary.__index, groupKey)}
+                              className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                            >
+                              新增組成
+                            </button>
+                            <button
+                              onClick={() => handleRewardDelete(primary.__index, rIdx, groupKey)}
+                              className="px-3 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600"
+                            >
+                              刪除組成
+                            </button>
+                          </div>
                         </div>
                       ) : (
                         <div className="flex flex-col gap-1">
@@ -673,18 +699,6 @@ const [selectedRootSchemeId, setSelectedRootSchemeId] = useState<string | null>(
                                   className="px-3 py-1 text-sm bg-yellow-500 text-white rounded hover:bg-yellow-600"
                                 >
                                   編輯
-                                </button>
-                                <button
-                                  onClick={() => handleRewardAdd(primary.__index, groupKey)}
-                                  className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
-                                >
-                                  新增組成
-                                </button>
-                                <button
-                                  onClick={() => handleRewardDelete(primary.__index, rIdx, groupKey)}
-                                  className="px-3 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600"
-                                >
-                                  刪除組成
                                 </button>
                                 {isCardScheme && (
                                   <button
