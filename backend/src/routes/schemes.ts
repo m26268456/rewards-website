@@ -445,6 +445,7 @@ router.delete('/:id', async (req: Request, res: Response, next: NextFunction) =>
       await client.query('BEGIN');
 
       // 清除關聯資料，避免 FK 衝突
+      await client.query('UPDATE transactions SET scheme_id = NULL WHERE scheme_id = $1', [id]);
       await client.query('DELETE FROM payment_scheme_links WHERE scheme_id = $1', [id]);
       await client.query('DELETE FROM scheme_channel_applications WHERE scheme_id = $1', [id]);
       await client.query('DELETE FROM scheme_channel_exclusions WHERE scheme_id = $1', [id]);
