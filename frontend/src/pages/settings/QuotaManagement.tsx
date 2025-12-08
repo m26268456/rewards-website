@@ -84,6 +84,8 @@ export default function QuotaManagement() {
   const [sharedGroupOptions, setSharedGroupOptions] = useState<Array<{ id: string; name: string; cardId?: string }>>([]);
   const [bindingTarget, setBindingTarget] = useState<{ idx: number; group: string } | null>(null);
   const [selectedSharedGroups, setSelectedSharedGroups] = useState<string[]>([]);
+// 主方案（root）選擇
+const [selectedRootSchemeId, setSelectedRootSchemeId] = useState<string | null>(null);
 
   useEffect(() => {
     loadQuotas();
@@ -263,6 +265,7 @@ export default function QuotaManagement() {
       );
       setBindingTarget(null);
       setSelectedSharedGroups([]);
+      setSelectedRootSchemeId(null);
       await loadQuotas();
       alert('共同回饋已解除');
       return;
@@ -270,19 +273,20 @@ export default function QuotaManagement() {
 
     // 修正 root 選擇與綁定邏輯：
     // 1) 必須包含當前方案
-    // 2) 若當前已有群組，沿用該群組的 root；否則以當前方案為 root
+    // 2) 若使用者有選 root，且 root 在集合內，採用該 root；否則沿用既有群組 root；再否則以當前方案為 root
     const toBindSet = new Set(ids);
     toBindSet.add(currentSchemeId);
-    const toBind = Array.from(toBindSet);
 
     let rootId: string;
-    if (current.sharedRewardGroupId) {
-      // 已有群組，沿用現有 root
+    if (selectedRootSchemeId && toBindSet.has(selectedRootSchemeId)) {
+      rootId = selectedRootSchemeId;
+    } else if (current.sharedRewardGroupId) {
       rootId = current.sharedRewardGroupId;
     } else {
-      // 沒有群組，以當前方案為 root
       rootId = currentSchemeId;
     }
+    toBindSet.add(rootId);
+    const toBind = Array.from(toBindSet);
 
     // 找出原群組成員（僅限同一張卡、同一 root）
     const existingGroupMembers = quotas
@@ -303,6 +307,7 @@ export default function QuotaManagement() {
       alert('共同回饋綁定已更新');
       setBindingTarget(null);
       setSelectedSharedGroups([]);
+      setSelectedRootSchemeId(null);
       loadQuotas();
     } catch (e: any) {
       alert(e.response?.data?.error || '更新失敗');
@@ -604,14 +609,15 @@ export default function QuotaManagement() {
                                   onClick={() => { 
                                     setBindingTarget({ idx: primary.__index, group: groupKey }); 
                                     const current = quotas.find(q => q.__index === primary.__index);
-                                    const rootId = current?.sharedRewardGroupId || current?.rewardSourceSchemeId || current?.schemeId;
-                                    const groupMembers = current?.sharedRewardGroupId
-                                      ? quotas.filter(x => x.sharedRewardGroupId === current.sharedRewardGroupId || x.schemeId === current.sharedRewardGroupId).map(x => x.schemeId)
-                                      : (current?.schemeId ? [current.schemeId] : []);
-                                    const preset = rootId
-                                      ? Array.from(new Set([rootId, ...groupMembers]))
+                                    const groupRoot = current?.sharedRewardGroupId || current?.schemeId;
+                                    const groupMembers = quotas
+                                      .filter(x => x.schemeId && (x.sharedRewardGroupId === groupRoot || x.schemeId === groupRoot))
+                                      .map(x => x.schemeId as string);
+                                    const preset = groupRoot
+                                      ? Array.from(new Set([groupRoot, ...groupMembers]))
                                       : groupMembers;
                                     setSelectedSharedGroups(preset);
+                                    setSelectedRootSchemeId(groupRoot ?? current?.schemeId ?? null);
                                   }}
                                   className="px-3 py-1 text-sm text-white rounded hover:opacity-90"
                                   style={{ backgroundColor: '#3B82F6' }}
@@ -703,7 +709,7 @@ export default function QuotaManagement() {
                     <input
                       type="checkbox"
                       checked={selectedSharedGroups.length === 0}
-                      onChange={() => setSelectedSharedGroups([])}
+                      onChange={() => { setSelectedSharedGroups([]); setSelectedRootSchemeId(null); }}
                     />
                     不綁定
                   </label>
@@ -713,14 +719,41 @@ export default function QuotaManagement() {
                         type="checkbox"
                         checked={selectedSharedGroups.includes(opt.id)}
                         onChange={() => {
-                          setSelectedSharedGroups(prev =>
-                            prev.includes(opt.id) ? prev.filter(id => id !== opt.id) : [...prev, opt.id]
-                          );
+                          setSelectedSharedGroups(prev => {
+                            const next = prev.includes(opt.id)
+                              ? prev.filter(id => id !== opt.id)
+                              : [...prev, opt.id];
+                            // 若原 root 被移除，重設 root 為新的第一個已選
+                            if (selectedRootSchemeId && !next.includes(selectedRootSchemeId)) {
+                              setSelectedRootSchemeId(next[0] ?? null);
+                            }
+                            return next;
+                          });
                         }}
                       />
                       <span>{opt.name}</span>
                     </label>
                   ))}
+                  {/* 勾選兩個以上方案時，顯示主方案選擇 */}
+                  {selectedSharedGroups.length >= 2 && (
+                    <div className="space-y-2 border rounded p-2">
+                      <div className="text-xs text-gray-600">選擇主方案</div>
+                      {candidates.map(opt => {
+                        const allowed = selectedSharedGroups.includes(opt.id);
+                        return (
+                          <label key={opt.id} className="flex items-center gap-2 text-sm">
+                            <input
+                              type="radio"
+                              disabled={!allowed}
+                              checked={allowed && selectedRootSchemeId === opt.id}
+                              onChange={() => allowed && setSelectedRootSchemeId(opt.id)}
+                            />
+                            <span className={!allowed ? 'text-gray-400' : ''}>{opt.name}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
                   {candidates.length === 0 && (
                     <div className="text-xs text-gray-500">此卡片無可綁定的其他方案</div>
                   )}
