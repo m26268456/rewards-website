@@ -384,6 +384,70 @@ router.delete('/:id', async (req: Request, res: Response, next: NextFunction) =>
       ? await resolveSharedRewardTargetSchemeId(schemeIdRaw, client)
       : null;
 
+    // 若追蹤已過期，重置用量並計算下一次刷新（在刪除區塊內定義）
+    const refreshTrackingIfExpired = async (row: any, reward: any) => {
+      const nextRefreshAt = row.next_refresh_at ? new Date(row.next_refresh_at) : null;
+      if (!nextRefreshAt || nextRefreshAt > new Date()) return row;
+
+      const quotaLimit = reward.quota_limit ? parseFloat(reward.quota_limit) : null;
+      const manualAdj = row.manual_adjustment ? parseFloat(row.manual_adjustment) : 0;
+      const remaining = quotaLimit !== null ? Math.max(0, quotaLimit - manualAdj) : null;
+
+      // 需要取得刷新設定
+      let refreshSettings: any = null;
+      if (reward.type === 'scheme') {
+        const settingResult = await client.query(
+          `SELECT sr.quota_refresh_type, sr.quota_refresh_value, sr.quota_refresh_date, cs.activity_end_date
+           FROM scheme_rewards sr
+           JOIN card_schemes cs ON sr.scheme_id = cs.id
+           WHERE sr.id = $1`,
+          [reward.id]
+        );
+        refreshSettings = settingResult.rows[0];
+      } else {
+        const settingResult = await client.query(
+          `SELECT quota_refresh_type, quota_refresh_value, quota_refresh_date
+           FROM payment_rewards
+           WHERE id = $1`,
+          [reward.id]
+        );
+        refreshSettings = settingResult.rows[0];
+      }
+
+      const nextRefresh = refreshSettings
+        ? calculateNextRefreshTime(
+            refreshSettings.quota_refresh_type,
+            refreshSettings.quota_refresh_value,
+            refreshSettings.quota_refresh_date
+              ? new Date(refreshSettings.quota_refresh_date).toISOString().split('T')[0]
+              : null,
+            refreshSettings.activity_end_date
+              ? new Date(refreshSettings.activity_end_date).toISOString().split('T')[0]
+              : null
+          )
+        : null;
+
+      await client.query(
+        `UPDATE quota_trackings
+         SET used_quota = 0,
+             current_amount = 0,
+             remaining_quota = $1,
+             last_refresh_at = NOW(),
+             next_refresh_at = $2,
+             updated_at = NOW()
+         WHERE id = $3`,
+        [remaining, nextRefresh, row.id]
+      );
+
+      return {
+        ...row,
+        used_quota: 0,
+        current_amount: 0,
+        remaining_quota: remaining,
+        next_refresh_at: nextRefresh,
+      };
+    };
+
     // 若有金額且有綁定方案或支付方式，需回補額度
     if (amountNum && (schemeId || paymentMethodId)) {
       // 取得相關回饋組成

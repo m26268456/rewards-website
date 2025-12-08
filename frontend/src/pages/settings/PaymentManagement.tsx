@@ -300,7 +300,6 @@ export default function PaymentManagement() {
                 </div>
               )}
             </div>
-            </div>
             {!isReordering && editingPayment?.id === pm.id && showForm && (
               <div className="p-3 bg-white border rounded shadow-sm mt-2">
                 <form onSubmit={handleSubmit} className="space-y-3">
