@@ -440,18 +440,36 @@ router.put('/:id/batch', async (req: Request, res: Response, next: NextFunction)
 router.delete('/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
 
-    const result = await pool.query(
-      'DELETE FROM card_schemes WHERE id = $1 RETURNING id',
-      [id]
-    );
+      // 清除關聯資料，避免 FK 衝突
+      await client.query('DELETE FROM payment_scheme_links WHERE scheme_id = $1', [id]);
+      await client.query('DELETE FROM scheme_channel_applications WHERE scheme_id = $1', [id]);
+      await client.query('DELETE FROM scheme_channel_exclusions WHERE scheme_id = $1', [id]);
+      await client.query('DELETE FROM scheme_rewards WHERE scheme_id = $1', [id]);
+      await client.query('DELETE FROM shared_reward_group_members WHERE scheme_id = $1 OR root_scheme_id = $1', [id]);
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, error: '方案不存在' });
+      const result = await client.query(
+        'DELETE FROM card_schemes WHERE id = $1 RETURNING id',
+        [id]
+      );
+
+      if (result.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ success: false, error: '方案不存在' });
+      }
+
+      await client.query('COMMIT');
+      logger.info(`刪除方案成功 ID ${id}`);
+      return res.json({ success: true, message: '方案已刪除' });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
     }
-
-    logger.info(`刪除方案成功 ID ${id}`);
-    return res.json({ success: true, message: '方案已刪除' });
   } catch (error) {
     logger.error(`刪除方案失敗 ID ${req.params.id}:`, error);
     return next(error);
