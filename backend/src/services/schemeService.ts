@@ -1,6 +1,6 @@
 import { pool } from '../config/database';
 import { RewardComposition } from '../utils/types';
-import { parseChannelName, matchesChannelName, getChannelCanonicalKey } from '../utils/channelUtils';
+import { matchesChannelName } from '../utils/channelUtils';
 import { logger } from '../utils/logger';
 
 /**
@@ -277,30 +277,28 @@ export async function queryChannelRewardsByKeywords(
         };
       }
 
-      // 為每個匹配的通路查詢回饋，並依通路同義詞（逗號分隔）聚合
-      const grouped = new Map<string, { channelId: string; channelName: string; results: any[] }>();
+      // 將所有匹配通路聚合到同一個 channel 區塊（以 keyword 為顯示名稱）
+      const channelResults = {
+        channelId: '',
+        channelName: keyword,
+        results: [] as any[],
+      };
+
       for (const match of matches) {
         const channelRewards = await queryChannelRewards([match.id]);
         if (channelRewards.length === 0) continue;
 
-        const key = getChannelCanonicalKey(match.name);
-        const { baseName } = parseChannelName(match.name);
-        const existing = grouped.get(key) || {
-          channelId: match.id,
-          channelName: baseName,
-          results: [],
-        };
-
         const enrichedResults = channelRewards[0].results.map((result: any) => ({
           ...result,
-          sourceChannelName: match.name, // 紀錄來源通路名稱，前端可顯示以分辨 A/B/C
+          schemeChannelName: result.schemeChannelName || match.name,
+          sourceChannelName: match.name,
         }));
 
-        existing.results.push(...enrichedResults);
-        grouped.set(key, existing);
+        channelResults.results.push(...enrichedResults);
+        if (!channelResults.channelId) channelResults.channelId = match.id;
       }
 
-      const channelRewardsList = Array.from(grouped.values());
+      const channelRewardsList = channelResults.results.length > 0 ? [channelResults] : [];
       
       // 如果找到匹配的通路，返回所有結果
       if (channelRewardsList.length > 0) {
@@ -369,7 +367,7 @@ export async function queryChannelRewards(
         [channelId]
       );
 
-      const exclusions = exclusionsResult.rows.map((r) => ({
+      const exclusions = exclusionsResult.rows.map((r: any) => ({
         schemeId: r.id,
         schemeName: r.name,
         cardName: r.card_name,
@@ -437,7 +435,7 @@ export async function queryChannelRewards(
       );
 
       // 組合結果
-      const schemeResults = schemeApplicationsResult.rows.map((row) => {
+      const schemeResults = schemeApplicationsResult.rows.map((row: any) => {
         const rewards = row.rewards || [];
         const totalPercentage = rewards.reduce(
           (sum: number, r: any) => sum + parseFloat(r.percentage),
@@ -462,7 +460,7 @@ export async function queryChannelRewards(
         };
       });
 
-      const paymentResults = paymentApplicationsResult.rows.map((row) => {
+      const paymentResults = paymentApplicationsResult.rows.map((row: any) => {
         const rewards = row.rewards || [];
         const totalPercentage = rewards.reduce(
           (sum: number, r: any) => sum + parseFloat(r.percentage),
@@ -482,7 +480,7 @@ export async function queryChannelRewards(
         };
       });
 
-      const paymentSchemeResults = paymentSchemeLinksResult.rows.map((row) => {
+      const paymentSchemeResults = paymentSchemeLinksResult.rows.map((row: any) => {
         const schemeRewards = row.scheme_rewards || [];
         // 修正：不再加總 Payment Rewards
         
@@ -507,7 +505,7 @@ export async function queryChannelRewards(
         };
       });
 
-      const exclusionResults = exclusions.map((ex) => ({
+      const exclusionResults = exclusions.map((ex: any) => ({
         isExcluded: true,
         excludedSchemeName: `${ex.cardName}-${ex.schemeName}`,
         totalRewardPercentage: 0,
