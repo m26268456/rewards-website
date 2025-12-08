@@ -280,36 +280,36 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
       rootRowsMap.get(rootId)!.push(row);
     });
 
-    // 將方案行展開：同一共同回饋群組的方案使用 root 行的 quota/used/remaining，避免 reward 被倍數複製
+    // 將方案行展開：同一共同回饋群組的方案使用 root 行的 quota/used/remaining，並帶出全部 reward rows
     const expandedSchemeRows: QuotaDbRow[] = [];
     rootRowsMap.forEach((sourceRows, rootId) => {
       if (!sourceRows || sourceRows.length === 0) return;
 
-      // 以 root 行為基底（若找不到 root 行則取第一筆）供整組共享
-      const rootSource =
-        sourceRows.find((s) => s.scheme_id === rootId) ||
-        sourceRows.find((s) => s.shared_reward_group_id === null) ||
-        sourceRows[0];
+      // root 範本（若找不到 root，使用 shared_reward_group_id 為 null 的或第一筆）
+      const templateRows =
+        sourceRows.filter((r) => r.scheme_id === rootId || r.shared_reward_group_id === null);
+      const rewardTemplateRows = templateRows.length > 0 ? templateRows : sourceRows;
 
-      // 每個 scheme 只展開一次，避免 reward 重複
+      // 方案列表（去重）
       const memberMap = new Map<string, QuotaDbRow>();
       sourceRows.forEach((member) => {
         const sid = member.scheme_id || '';
-        if (!memberMap.has(sid)) {
-          memberMap.set(sid, member);
-        }
+        if (!memberMap.has(sid)) memberMap.set(sid, member);
       });
 
+      // 每個方案帶上完整的 rewardTemplateRows
       memberMap.forEach((member) => {
-        expandedSchemeRows.push({
-          ...rootSource,
-          scheme_id: member.scheme_id, // 前端顯示用：各自方案 id
-          scheme_name: member.scheme_name,
-          name: member.name,
-          card_id: member.card_id,
-          card_name: member.card_name,
-          // 只有綁定時帶出 root；未綁定保持 null
-          shared_reward_group_id: member.shared_reward_group_id || null,
+        rewardTemplateRows.forEach((r) => {
+          expandedSchemeRows.push({
+            ...r,
+            scheme_id: member.scheme_id, // 前端顯示用：各自方案 id
+            scheme_name: member.scheme_name,
+            name: member.name,
+            card_id: member.card_id,
+            card_name: member.card_name,
+            // 只有綁定時帶出 root；未綁定保持 null
+            shared_reward_group_id: member.shared_reward_group_id || null,
+          });
         });
       });
     });
