@@ -46,18 +46,38 @@ async function recomputePaymentRewardTracking(paymentMethodId: string, rewardId:
     );
     const tracking = trackingRes.rows[0] || null;
 
-    const windowStart: Date | null = tracking?.last_refresh_at
-      ? new Date(tracking.last_refresh_at)
-      : tracking?.created_at
-      ? new Date(tracking.created_at)
-      : null;
-    const windowEnd: Date = tracking?.next_refresh_at ? new Date(tracking.next_refresh_at) : new Date();
+    const now = new Date();
+    let windowStart: Date;
+    let windowEnd: Date;
+
+    if (reward.quota_refresh_type === 'monthly' && reward.quota_refresh_value) {
+      const base = new Date(now);
+      base.setHours(0, 0, 0, 0);
+      const day = Number(reward.quota_refresh_value);
+      let cycleStart = new Date(base);
+      if (base.getDate() >= day) {
+        cycleStart.setDate(day);
+      } else {
+        cycleStart.setMonth(cycleStart.getMonth() - 1);
+        cycleStart.setDate(day);
+      }
+      const cycleEnd = new Date(cycleStart);
+      cycleEnd.setMonth(cycleEnd.getMonth() + 1);
+      cycleEnd.setDate(day);
+      cycleEnd.setMilliseconds(-1);
+      windowStart = cycleStart;
+      windowEnd = cycleEnd;
+    } else {
+      windowStart = new Date(now);
+      windowStart.setHours(0, 0, 0, 0);
+      windowEnd = now;
+    }
 
     const txRes = await client.query(
       `SELECT amount, transaction_date
          FROM transactions
         WHERE payment_method_id = $1
-          AND ($2::timestamptz IS NULL OR transaction_date >= $2)
+          AND transaction_date >= $2
           AND transaction_date <= $3`,
       [paymentMethodId, windowStart, windowEnd]
     );
