@@ -477,7 +477,7 @@ const [selectedRootSchemeId, setSelectedRootSchemeId] = useState<string | null>(
                 rewardIndices = [0];
               }
               // 若正在新增新的組成，非共享群組時增加一列空白
-              if (!isSharedGroup && isEditingR && isAddingReward && editingReward?.idx === primary.__index) {
+              if (!isSharedGroup && isAddingReward && editingReward?.idx === primary.__index) {
                 rewardIndices = [...rewardIndices, rewardIndices.length];
               }
               
