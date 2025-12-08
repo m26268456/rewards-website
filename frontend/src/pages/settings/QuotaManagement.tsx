@@ -677,26 +677,28 @@ const [selectedRootSchemeId, setSelectedRootSchemeId] = useState<string | null>(
                               共用回饋：此變更會影響同組方案
                             </div>
                           )}
-                          <div className="flex flex-wrap gap-2">
-                            <button onClick={handleSaveAll} className="bg-blue-500 text-white px-2 py-1 rounded text-xs">儲存</button>
-                            <button onClick={() => { 
-                              setEditingReward(null); 
-                              setEditingQuota(null); 
-                              setQuotaAdjust(''); 
-                            }} className="bg-gray-300 px-2 py-1 rounded text-xs">取消</button>
-                            <button
-                              onClick={() => handleRewardAdd(primary.__index, groupKey)}
-                              className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
-                            >
-                              新增組成
-                            </button>
-                            <button
-                              onClick={() => handleRewardDelete(primary.__index, rIdx, groupKey)}
-                              className="px-3 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600"
-                            >
-                              刪除組成
-                            </button>
-                          </div>
+                        <div className="flex flex-wrap gap-2">
+                          <button onClick={handleSaveAll} className="bg-blue-500 text-white px-2 py-1 rounded text-xs">儲存</button>
+                          <button onClick={() => { 
+                            setEditingReward(null); 
+                            setEditingQuota(null); 
+                            setQuotaAdjust(''); 
+                          }} className="bg-gray-300 px-2 py-1 rounded text-xs">取消</button>
+                        </div>
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          <button
+                            onClick={() => handleRewardAdd(primary.__index, groupKey)}
+                            className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                          >
+                            新增
+                          </button>
+                          <button
+                            onClick={() => handleRewardDelete(primary.__index, rIdx, groupKey)}
+                            className="px-3 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600"
+                          >
+                            刪除
+                          </button>
+                        </div>
                         </div>
                       ) : (
                         <div className="flex flex-col gap-1">
