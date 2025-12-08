@@ -165,13 +165,15 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
          qt.next_refresh_at
        FROM card_schemes cs
        INNER JOIN cards c ON cs.card_id = c.id
-       INNER JOIN scheme_rewards sr ON cs.id = sr.scheme_id
        LEFT JOIN shared_reward_group_members srgm ON srgm.scheme_id = cs.id
-       LEFT JOIN quota_trackings qt ON cs.id = qt.scheme_id 
+       LEFT JOIN scheme_rewards sr 
+         ON sr.scheme_id = COALESCE(srgm.root_scheme_id, cs.id) -- root 或自身的回饋
+       LEFT JOIN quota_trackings qt 
+         ON qt.scheme_id = COALESCE(srgm.root_scheme_id, cs.id) -- 共享群組統一用 root 的追蹤
          AND sr.id = qt.reward_id 
          AND qt.payment_method_id IS NULL
        WHERE cs.card_id IS NOT NULL
-       ORDER BY c.display_order, cs.display_order, sr.display_order`
+       ORDER BY c.display_order, cs.display_order, COALESCE(sr.display_order, 0)`
     );
 
     const paymentQuotasResult = await pool.query<QuotaDbRow>(
@@ -198,11 +200,11 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
          COALESCE(qt.manual_adjustment, 0) as manual_adjustment,
          qt.next_refresh_at
        FROM payment_methods pm
-       INNER JOIN payment_rewards pr ON pm.id = pr.payment_method_id
+       LEFT JOIN payment_rewards pr ON pm.id = pr.payment_method_id
        LEFT JOIN quota_trackings qt ON pm.id = qt.payment_method_id 
          AND pr.id = qt.payment_reward_id
          AND qt.scheme_id IS NULL
-       ORDER BY pm.display_order, pr.display_order`
+       ORDER BY pm.display_order, COALESCE(pr.display_order, 0)`
     );
 
     // 3. 資料轉換 (Mapping)
@@ -211,11 +213,21 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
     const processRow = (row: QuotaDbRow) => {
       const key = `${row.scheme_id || 'null'}_${row.payment_method_id || 'null'}`;
       const rootSchemeId = row.shared_reward_group_id || row.scheme_id || null;
-      const percentage = Number(row.reward_percentage);
-      const usedQuota = row.used_quota ? Number(row.used_quota) : 0; // a: 系統計算的額度
-      const manualAdjustment = row.manual_adjustment ? Number(row.manual_adjustment) : 0; // b: 人工調整值
-      const currentAmount = row.current_amount ? Number(row.current_amount) : 0;
-      const quotaLimit = row.quota_limit ? Number(row.quota_limit) : null;
+      const hasReward = !!row.reward_id;
+      const percentage =
+        row.reward_percentage !== null && row.reward_percentage !== undefined
+          ? Number(row.reward_percentage)
+          : 0;
+      const usedQuota =
+        row.used_quota !== null && row.used_quota !== undefined ? Number(row.used_quota) : 0; // a: 系統計算的額度
+      const manualAdjustment =
+        row.manual_adjustment !== null && row.manual_adjustment !== undefined
+          ? Number(row.manual_adjustment)
+          : 0; // b: 人工調整值
+      const currentAmount =
+        row.current_amount !== null && row.current_amount !== undefined ? Number(row.current_amount) : 0;
+      const quotaLimit =
+        row.quota_limit !== null && row.quota_limit !== undefined ? Number(row.quota_limit) : null;
       
       // c = a + b (顯示的總額度)
       const totalUsedQuota = usedQuota + manualAdjustment;
@@ -234,7 +246,7 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
           paymentMethodName: row.payment_method_name || null,
           schemeName: row.scheme_name || null,
           sharedRewardGroupId: row.shared_reward_group_id || null,
-        rewardSourceSchemeId: row.scheme_id ? rootSchemeId : null,
+          rewardSourceSchemeId: row.scheme_id ? rootSchemeId : null,
           rewards: [],
         });
       }
@@ -253,7 +265,7 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
 
       quota.rewards.push({
         percentage,
-        rewardId: row.reward_id || '',
+        rewardId: hasReward ? row.reward_id! : '',
         calculationMethod: row.calculation_method || 'round',
         quotaLimit,
         currentAmount,
@@ -320,6 +332,27 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
       const [schemeId, paymentMethodId] = key.split('_');
       quota.rewards.sort((a: any, b: any) => a.percentage - b.percentage);
       
+      // 若完全沒有回饋紀錄，給一筆 placeholder 讓前端可見並可新增
+      if (quota.rewards.length === 0) {
+        quota.rewards.push({
+          percentage: 0,
+          rewardId: '',
+          calculationMethod: 'round',
+          quotaLimit: null,
+          currentAmount: 0,
+          usedQuota: 0,
+          manualAdjustment: 0,
+          totalUsedQuota: 0,
+          remainingQuota: null,
+          referenceAmount: null,
+          refreshTime: null,
+          quotaRefreshType: null,
+          quotaRefreshValue: null,
+          quotaRefreshDate: null,
+          quotaCalculationBasis: 'transaction',
+        });
+      }
+      
       return {
         schemeId: schemeId !== 'null' ? schemeId : null,
         paymentMethodId: paymentMethodId !== 'null' ? paymentMethodId : null,
@@ -331,7 +364,9 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
         schemeName: quota.schemeName,
         sharedRewardGroupId: quota.sharedRewardGroupId,
         rewardSourceSchemeId: quota.rewardSourceSchemeId || null,
-        rewardComposition: quota.rewards.map((r: any) => `${r.percentage}%`).join('/'),
+        rewardComposition: quota.rewards
+          .map((r: any) => (r.rewardId ? `${r.percentage}%` : '尚未設定'))
+          .join('/'),
         calculationMethods: quota.rewards.map((r: any) => r.calculationMethod),
         quotaLimits: quota.rewards.map((r: any) => r.quotaLimit),
         currentAmounts: quota.rewards.map((r: any) => r.currentAmount),
