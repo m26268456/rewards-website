@@ -738,20 +738,18 @@ const [selectedRootSchemeId, setSelectedRootSchemeId] = useState<string | null>(
                   {selectedSharedGroups.length >= 2 && (
                     <div className="space-y-2 border rounded p-2">
                       <div className="text-xs text-gray-600">選擇主方案</div>
-                      {candidates.map(opt => {
-                        const allowed = selectedSharedGroups.includes(opt.id);
-                        return (
+                      {candidates
+                        .filter(opt => selectedSharedGroups.includes(opt.id)) // 只列出被組成回饋組的方案
+                        .map(opt => (
                           <label key={opt.id} className="flex items-center gap-2 text-sm">
                             <input
                               type="radio"
-                              disabled={!allowed}
-                              checked={allowed && selectedRootSchemeId === opt.id}
-                              onChange={() => allowed && setSelectedRootSchemeId(opt.id)}
+                              checked={selectedRootSchemeId === opt.id}
+                              onChange={() => setSelectedRootSchemeId(opt.id)}
                             />
-                            <span className={!allowed ? 'text-gray-400' : ''}>{opt.name}</span>
+                            <span>{opt.name}</span>
                           </label>
-                        );
-                      })}
+                        ))}
                     </div>
                   )}
                   {candidates.length === 0 && (
