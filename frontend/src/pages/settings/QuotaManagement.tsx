@@ -174,7 +174,10 @@ const [selectedRootSchemeId, setSelectedRootSchemeId] = useState<string | null>(
     const method = q.calculationMethods?.[rIdx] || 'round';
     const limit = q.quotaLimits?.[rIdx];
     // [修正] 從陣列中讀取正確的 basis，若無則預設 'transaction'
-    const basis = q.quotaCalculationBases?.[rIdx] || 'transaction';
+    const basisRaw = q.quotaCalculationBases?.[rIdx] || 'transaction';
+    const basis = typeof basisRaw === 'string'
+      ? basisRaw.trim().toLowerCase()
+      : 'transaction';
     
     // 從後端資料中獲取當前的調整值
     const currentAdjustment = q.manualAdjustments?.[rIdx] || 0;
@@ -518,9 +521,12 @@ const [selectedRootSchemeId, setSelectedRootSchemeId] = useState<string | null>(
                   methodRaw === 'round' ? '四捨五入' :
                   methodRaw === 'floor' ? '無條件捨去' :
                   methodRaw === 'ceil' ? '無條件進位' : (methodRaw || '四捨五入');
-                const basis = isTempNewRow
+                const rawBasis = isTempNewRow
                   ? rewardForm.calculationBasis || 'transaction'
                   : primary.quotaCalculationBases?.[rIdx] || 'transaction';
+                const basis = typeof rawBasis === 'string'
+                  ? rawBasis.trim().toLowerCase()
+                  : 'transaction';
                 const basisText = basis === 'statement' ? '帳單總額' : '單筆回饋';
 
                 const groupColorIdx = colorIndexMap?.get(sharedKey) || 0;
