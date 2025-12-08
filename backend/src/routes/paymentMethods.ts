@@ -6,8 +6,122 @@ import { getAllPaymentMethods } from '../services/paymentService';
 import { validate } from '../middleware/validate';
 import { createPaymentMethodSchema } from '../utils/validators';
 import { bulkInsertRewards } from '../utils/rewardBatchUpdate';
+import { calculateReward } from '../utils/rewardCalculation';
+import { calculateNextRefreshTime } from '../utils/quotaRefresh';
+import { CalculationMethod, QuotaCalculationBasis } from '../utils/types';
 
 const router = Router();
+
+/**
+ * 重新計算支付方式回饋的額度追蹤
+ */
+async function recomputePaymentRewardTracking(paymentMethodId: string, rewardId: string) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const rewardRes = await client.query(
+      `SELECT reward_percentage, calculation_method, quota_limit,
+              quota_calculation_basis, quota_refresh_type, quota_refresh_value, quota_refresh_date
+         FROM payment_rewards
+        WHERE id = $1`,
+      [rewardId]
+    );
+    if (rewardRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return;
+    }
+    const reward = rewardRes.rows[0];
+    const pct = parseFloat(reward.reward_percentage);
+    const method = (reward.calculation_method || 'round') as CalculationMethod;
+    const basis = (reward.quota_calculation_basis || 'transaction') as QuotaCalculationBasis;
+
+    const trackingRes = await client.query(
+      `SELECT id, used_quota, current_amount, remaining_quota, COALESCE(manual_adjustment,0) AS manual_adjustment,
+              next_refresh_at, last_refresh_at, created_at
+         FROM quota_trackings
+        WHERE payment_method_id = $1 AND payment_reward_id = $2 AND scheme_id IS NULL
+        LIMIT 1`,
+      [paymentMethodId, rewardId]
+    );
+    const tracking = trackingRes.rows[0] || null;
+
+    const windowStart: Date | null = tracking?.last_refresh_at
+      ? new Date(tracking.last_refresh_at)
+      : tracking?.created_at
+      ? new Date(tracking.created_at)
+      : null;
+    const windowEnd: Date = tracking?.next_refresh_at ? new Date(tracking.next_refresh_at) : new Date();
+
+    const txRes = await client.query(
+      `SELECT amount, transaction_date
+         FROM transactions
+        WHERE payment_method_id = $1
+          AND ($2::timestamptz IS NULL OR transaction_date >= $2)
+          AND transaction_date <= $3`,
+      [paymentMethodId, windowStart, windowEnd]
+    );
+
+    let currentAmount = 0;
+    let usedQuota = 0;
+    if (basis === 'transaction') {
+      txRes.rows.forEach((r) => {
+        const amt = parseFloat(r.amount);
+        currentAmount += amt;
+        usedQuota += calculateReward(amt, pct, method);
+      });
+    } else {
+      txRes.rows.forEach((r) => {
+        const amt = parseFloat(r.amount);
+        currentAmount += amt;
+      });
+      usedQuota = calculateReward(currentAmount, pct, method);
+    }
+
+    const manualAdj = tracking ? parseFloat(tracking.manual_adjustment) || 0 : 0;
+    const quotaLimit =
+      reward.quota_limit !== null && reward.quota_limit !== undefined
+        ? parseFloat(reward.quota_limit)
+        : null;
+    const remainingQuota =
+      quotaLimit !== null ? Math.max(0, quotaLimit - (usedQuota + manualAdj)) : null;
+
+    if (tracking) {
+      await client.query(
+        `UPDATE quota_trackings
+            SET used_quota = $1,
+                current_amount = $2,
+                remaining_quota = $3,
+                updated_at = NOW()
+          WHERE id = $4`,
+        [usedQuota, currentAmount, remainingQuota, tracking.id]
+      );
+    } else {
+      const nextRefreshAt = calculateNextRefreshTime(
+        reward.quota_refresh_type,
+        reward.quota_refresh_value,
+        reward.quota_refresh_date
+          ? new Date(reward.quota_refresh_date).toISOString().split('T')[0]
+          : null,
+        null
+      );
+      await client.query(
+        `INSERT INTO quota_trackings
+          (payment_method_id, payment_reward_id, used_quota, current_amount, remaining_quota, manual_adjustment,
+           last_refresh_at, next_refresh_at, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, 0, NOW(), $6, NOW(), NOW())`,
+        [paymentMethodId, rewardId, usedQuota, currentAmount, remainingQuota, nextRefreshAt]
+      );
+    }
+
+    await client.query('COMMIT');
+  } catch (err) {
+    await pool.query('ROLLBACK');
+    logger.error('recompute payment reward tracking failed:', err);
+  } finally {
+    client.release();
+  }
+}
 
 // 取得所有支付方式（用於管理）
 router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
@@ -348,6 +462,13 @@ router.put('/:id/rewards/:rewardId', async (req: Request, res: Response, next: N
 
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: '回饋組成不存在' });
+    }
+
+    // 重新計算額度追蹤，讓計算方式/計算基礎變更即時生效
+    try {
+      await recomputePaymentRewardTracking(id, rewardId);
+    } catch (err) {
+      logger.error('更新支付回饋後重算額度失敗（不阻斷流程）:', err);
     }
 
     return res.json({ success: true, data: result.rows[0] });
