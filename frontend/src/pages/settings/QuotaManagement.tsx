@@ -11,11 +11,15 @@ const formatQuotaInfo = (
   onEditingChange?: (val: string) => void, 
   manualAdjustment?: number // b: 人工調整值（從後端資料取得）
 ) => {
-  const adjustment = manualAdjustment !== undefined ? manualAdjustment : 0;
-  const totalUsed = used + adjustment; // c = a + b
-  const usedStr = used.toLocaleString();
-  const remainingStr = remaining === null ? '無上限' : remaining.toLocaleString();
-  const limitStr = limit === null ? '無上限' : limit.toLocaleString();
+  const baseUsed = Number.isFinite(used) ? used : 0;
+  const baseRemaining = remaining === null ? null : (Number.isFinite(remaining as number) ? (remaining as number) : 0);
+  const baseLimit = limit === null ? null : (Number.isFinite(limit as number) ? (limit as number) : 0);
+
+  const adjustment = Number.isFinite(manualAdjustment as number) ? (manualAdjustment as number) : 0;
+  const totalUsed = baseUsed + adjustment; // c = a + b
+  const usedStr = baseUsed.toLocaleString();
+  const remainingStr = baseRemaining === null ? '無上限' : baseRemaining.toLocaleString();
+  const limitStr = baseLimit === null ? '無上限' : baseLimit.toLocaleString();
   
   // 常態顯示 a+b=c 格式（如果有調整）
   const displayUsed = adjustment !== 0 
@@ -166,9 +170,9 @@ const [selectedRootSchemeId, setSelectedRootSchemeId] = useState<string | null>(
 
   const handleRewardEdit = (qIdx: number, rIdx: number, group: string) => {
     const q = quotas[qIdx];
-    const percentage = q.rewardComposition.split('/')[rIdx].replace('%', '');
-    const method = q.calculationMethods[rIdx] || 'round';
-    const limit = q.quotaLimits[rIdx];
+    const percentage = q.rewardComposition?.split('/')?.[rIdx]?.replace('%', '') || '';
+    const method = q.calculationMethods?.[rIdx] || 'round';
+    const limit = q.quotaLimits?.[rIdx];
     // [修正] 從陣列中讀取正確的 basis，若無則預設 'transaction'
     const basis = q.quotaCalculationBases?.[rIdx] || 'transaction';
     
@@ -468,14 +472,11 @@ const [selectedRootSchemeId, setSelectedRootSchemeId] = useState<string | null>(
               
               const primary = sortedItems[0];
               let rewardIndices: number[] = [];
-              if (primary.rewardIds && primary.rewardIds.length > 0) {
-                rewardIndices = primary.rewardIds.map((_: any, i: number) => i);
-              } else if (primary.rewardComposition && primary.rewardComposition.includes('/')) {
-                const count = primary.rewardComposition.split('/').length;
-                rewardIndices = Array.from({ length: count }, (_, i) => i);
-              } else {
-                rewardIndices = [0];
-              }
+              const rewardCount =
+                (primary.rewardIds && primary.rewardIds.length) ||
+                (primary.rewardComposition && primary.rewardComposition.split('/').length) ||
+                1;
+              rewardIndices = Array.from({ length: rewardCount }, (_, i) => i);
               // 若正在新增新的組成，非共享群組時增加一列空白
               if (!isSharedGroup && isAddingReward && editingReward?.idx === primary.__index) {
                 rewardIndices = [...rewardIndices, rewardIndices.length];
@@ -510,12 +511,16 @@ const [selectedRootSchemeId, setSelectedRootSchemeId] = useState<string | null>(
                 const sharedBound = primary.sharedRewardGroupId && primary.sharedRewardGroupId !== primary.schemeId ? primary.sharedRewardGroupId : null;
                 const isSharedChild = !!sharedBound;
 
-                const methodRaw = primary.calculationMethods[rIdx];
+                const isTempNewRow = isAddingReward && editingReward?.idx === primary.__index && editingReward?.rIdx === rIdx;
+
+                const methodRaw = isTempNewRow ? rewardForm.method : primary.calculationMethods?.[rIdx];
                 const methodText =
                   methodRaw === 'round' ? '四捨五入' :
                   methodRaw === 'floor' ? '無條件捨去' :
                   methodRaw === 'ceil' ? '無條件進位' : (methodRaw || '四捨五入');
-                const basis = primary.quotaCalculationBases?.[rIdx] || 'transaction';
+                const basis = isTempNewRow
+                  ? rewardForm.calculationBasis || 'transaction'
+                  : primary.quotaCalculationBases?.[rIdx] || 'transaction';
                 const basisText = basis === 'statement' ? '帳單總額' : '單筆回饋';
 
                 const groupColorIdx = colorIndexMap?.get(sharedKey) || 0;
@@ -554,7 +559,11 @@ const [selectedRootSchemeId, setSelectedRootSchemeId] = useState<string | null>(
                       {isEditingR ? (
                         <div className="space-y-2">
                           <input 
-                            value={isAddingReward && editingReward?.rIdx === rIdx ? rewardForm.percentage : rewardForm.percentage || primary.rewardComposition.split('/')[rIdx]?.replace('%','')}
+                            value={
+                              isTempNewRow
+                                ? rewardForm.percentage
+                                : (primary.rewardComposition?.split('/')?.[rIdx]?.replace('%','') || rewardForm.percentage)
+                            }
                             onChange={e => setRewardForm({...rewardForm, percentage: e.target.value})} 
                             className="w-full border p-1 rounded text-xs" 
                             placeholder="%" 
@@ -562,7 +571,7 @@ const [selectedRootSchemeId, setSelectedRootSchemeId] = useState<string | null>(
                         </div>
                       ) : (
                         <span className="bg-orange-100 px-1 rounded font-bold">
-                          {primary.rewardComposition.split('/')[rIdx] || (isAddingReward && editingReward?.rIdx === rIdx ? `${rewardForm.percentage || ''}%` : '-')}
+                          {primary.rewardComposition?.split('/')?.[rIdx] || (isTempNewRow ? `${rewardForm.percentage || ''}%` : '-')}
                         </span>
                       )}
                     </td>
@@ -602,9 +611,9 @@ const [selectedRootSchemeId, setSelectedRootSchemeId] = useState<string | null>(
                     </td>
                     <td className="px-3 py-2 text-sm align-top whitespace-normal break-words min-w-0">
                       {formatQuotaInfo(
-                        primary.usedQuotas[rIdx] || 0, // a: 系統計算的額度
-                        primary.remainingQuotas[rIdx], 
-                        primary.quotaLimits[rIdx],
+                        primary.usedQuotas?.[rIdx] ?? 0, // a: 系統計算的額度
+                        primary.remainingQuotas?.[rIdx] ?? null, 
+                        primary.quotaLimits?.[rIdx] ?? null,
                         isEditingR, // 使用 isEditingR 來控制編輯模式
                         quotaAdjust, 
                         setQuotaAdjust,
