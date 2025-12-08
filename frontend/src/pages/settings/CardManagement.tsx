@@ -395,10 +395,10 @@ function CardItem({ card, onEdit, onDelete, onReload }: { card: Card; onEdit: ()
     } else if (direction === 'bottom') {
       newArr.push(item);
     } else {
-      const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
       newArr.splice(Math.max(0, Math.min(targetIndex, newArr.length)), 0, item);
     }
-    setReorderedSchemes(newArr);
+      setReorderedSchemes(newArr);
   };
 
   return (
@@ -415,7 +415,7 @@ function CardItem({ card, onEdit, onDelete, onReload }: { card: Card; onEdit: ()
               e.stopPropagation(); 
               setShowSchemes(!showSchemes); 
               if (!showSchemes) loadSchemes(); 
-            }}
+            }} 
             onMouseDown={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -496,17 +496,17 @@ function CardItem({ card, onEdit, onDelete, onReload }: { card: Card; onEdit: ()
             {(isReorderingSchemes ? reorderedSchemes : schemes).map((s, idx) => (
               <div key={s.id} className="space-y-2">
                 <div className="flex gap-2 items-start flex-wrap">
-                  <div className="flex-1">
-                    <SchemeDetailManager 
-                      scheme={s} 
-                      isExpanded={expandedSchemeId === s.id}
-                      onExpand={() => !isReorderingSchemes && setExpandedSchemeId(expandedSchemeId === s.id ? null : s.id)}
-                      onEdit={() => !isReorderingSchemes && handleEditScheme(s)}
-                      onDelete={() => !isReorderingSchemes && handleSchemeDelete(s.id)}
-                    />
-                  </div>
-                  {isReorderingSchemes && (
-                    <div className="flex flex-col gap-1">
+                <div className="flex-1">
+                  <SchemeDetailManager 
+                    scheme={s} 
+                    isExpanded={expandedSchemeId === s.id}
+                    onExpand={() => !isReorderingSchemes && setExpandedSchemeId(expandedSchemeId === s.id ? null : s.id)}
+                    onEdit={() => !isReorderingSchemes && handleEditScheme(s)}
+                    onDelete={() => !isReorderingSchemes && handleSchemeDelete(s.id)}
+                  />
+                </div>
+                {isReorderingSchemes && (
+                  <div className="flex flex-col gap-1">
                       <button onClick={() => moveScheme(idx, 'top')} className="px-2 py-1 bg-gray-600 text-white rounded text-xs disabled:opacity-40" disabled={idx === 0}>⏫ 置頂</button>
                       <button onClick={() => moveScheme(idx, 'up')} className="px-2 py-1 bg-blue-600 text-white rounded text-xs disabled:opacity-40" disabled={idx === 0}>▲ 上移</button>
                       <button onClick={() => moveScheme(idx, 'down')} className="px-2 py-1 bg-blue-600 text-white rounded text-xs disabled:opacity-40" disabled={idx === (isReorderingSchemes ? reorderedSchemes.length - 1 : schemes.length - 1)}>▼ 下移</button>
@@ -651,10 +651,10 @@ export default function CardManagement() {
     if (direction === 'top') newArr.unshift(item);
     else if (direction === 'bottom') newArr.push(item);
     else {
-      const target = direction === 'up' ? index - 1 : index + 1;
+    const target = direction === 'up' ? index - 1 : index + 1;
       newArr.splice(Math.max(0, Math.min(target, newArr.length)), 0, item);
     }
-    setReorderedCards(newArr);
+      setReorderedCards(newArr);
   };
 
   // ESC / 點擊空白 收合/取消卡片編輯
@@ -665,8 +665,8 @@ export default function CardManagement() {
           setEditingCard(null);
           setShowCardForm(false);
         }
-      }
-    };
+    }
+  };
     const onClickOutside = (e: MouseEvent) => {
       if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
         if (editingCard || showCardForm) {
@@ -718,35 +718,37 @@ export default function CardManagement() {
 
       <div className="space-y-2">
         {(isReordering ? reorderedCards : cards).map((card, idx) => (
-              <div key={card.id} className="flex items-start gap-2">
-            <div className="flex-1">
-              <CardItem 
-                card={card} 
-                onEdit={() => !isReordering && (setEditingCard(card), setShowCardForm(true))}
-                onDelete={() => !isReordering && handleDeleteCard(card.id)}
-                onReload={loadCards}
-              />
-            </div>
-            {isReordering && (
-              <div className="flex flex-col gap-1">
-                <button onClick={() => moveCard(idx, 'top')} className="px-2 py-1 bg-gray-600 text-white rounded text-xs disabled:opacity-40" disabled={idx === 0}>⏫ 置頂</button>
-                <button onClick={() => moveCard(idx, 'up')} className="px-2 py-1 bg-blue-600 text-white rounded text-xs disabled:opacity-40" disabled={idx === 0}>▲ 上移</button>
-                <button onClick={() => moveCard(idx, 'down')} className="px-2 py-1 bg-blue-600 text-white rounded text-xs disabled:opacity-40" disabled={idx === (isReordering ? reorderedCards.length - 1 : cards.length - 1)}>▼ 下移</button>
-                <button onClick={() => moveCard(idx, 'bottom')} className="px-2 py-1 bg-gray-600 text-white rounded text-xs disabled:opacity-40" disabled={idx === (isReordering ? reorderedCards.length - 1 : cards.length - 1)}>⏬ 置底</button>
-              </div>
-            )}
-            {!isReordering && editingCard?.id === card.id && showCardForm && (
+          <div key={card.id} className="space-y-2">
+            {/* 卡片資訊與排序按鈕同一行 */}
+            <div className="flex items-start gap-2">
               <div className="flex-1">
-                <div className="p-3 bg-gray-50 border rounded mt-2">
-                  <form onSubmit={handleCardSubmit} className="space-y-3">
-                    <input name="name" defaultValue={editingCard?.name} placeholder="卡片名稱" required className="w-full border p-2 rounded text-sm" />
-                    <input name="note" defaultValue={editingCard?.note} placeholder="備註" className="w-full border p-2 rounded text-sm" />
-                    <div className="flex gap-2">
-                      <button type="submit" className="px-3 py-1 bg-blue-600 text-white rounded text-xs">儲存</button>
-                      <button type="button" onClick={() => { setShowCardForm(false); setEditingCard(null); }} className="px-3 py-1 bg-gray-400 text-white rounded text-xs">取消</button>
-                    </div>
-                  </form>
+                <CardItem 
+                  card={card} 
+                  onEdit={() => !isReordering && (setEditingCard(card), setShowCardForm(true))}
+                  onDelete={() => !isReordering && handleDeleteCard(card.id)}
+                  onReload={loadCards}
+                />
+              </div>
+              {isReordering && (
+                <div className="flex flex-col gap-1">
+                  <button onClick={() => moveCard(idx, 'top')} className="px-2 py-1 bg-gray-600 text-white rounded text-xs disabled:opacity-40" disabled={idx === 0}>⏫ 置頂</button>
+                  <button onClick={() => moveCard(idx, 'up')} className="px-2 py-1 bg-blue-600 text-white rounded text-xs disabled:opacity-40" disabled={idx === 0}>▲ 上移</button>
+                  <button onClick={() => moveCard(idx, 'down')} className="px-2 py-1 bg-blue-600 text-white rounded text-xs disabled:opacity-40" disabled={idx === (isReordering ? reorderedCards.length - 1 : cards.length - 1)}>▼ 下移</button>
+                  <button onClick={() => moveCard(idx, 'bottom')} className="px-2 py-1 bg-gray-600 text-white rounded text-xs disabled:opacity-40" disabled={idx === (isReordering ? reorderedCards.length - 1 : cards.length - 1)}>⏬ 置底</button>
                 </div>
+              )}
+            </div>
+            {/* 編輯表單向下延展 */}
+            {!isReordering && editingCard?.id === card.id && showCardForm && (
+              <div className="p-3 bg-gray-50 border rounded">
+                <form onSubmit={handleCardSubmit} className="space-y-3">
+                  <input name="name" defaultValue={editingCard?.name} placeholder="卡片名稱" required className="w-full border p-2 rounded text-sm" />
+                  <input name="note" defaultValue={editingCard?.note} placeholder="備註" className="w-full border p-2 rounded text-sm" />
+                  <div className="flex gap-2">
+                    <button type="submit" className="px-3 py-1 bg-blue-600 text-white rounded text-xs">儲存</button>
+                    <button type="button" onClick={() => { setShowCardForm(false); setEditingCard(null); }} className="px-3 py-1 bg-gray-400 text-white rounded text-xs">取消</button>
+                  </div>
+                </form>
               </div>
             )}
           </div>

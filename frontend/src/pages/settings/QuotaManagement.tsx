@@ -268,23 +268,35 @@ export default function QuotaManagement() {
       return;
     }
 
-    // 確保包含當前方案與既有 root，根據 sharedRewardGroupId 決定 root
-    const currentGroupRoot = current.sharedRewardGroupId || current.schemeId;
-    const preferredRoot = current.sharedRewardGroupId || ids[0] || currentSchemeId;
+    // 修正 root 選擇與綁定邏輯：
+    // 1) 必須包含當前方案
+    // 2) 若當前已有群組，沿用該群組的 root；否則以當前方案為 root
     const toBindSet = new Set(ids);
     toBindSet.add(currentSchemeId);
-    toBindSet.add(preferredRoot);
     const toBind = Array.from(toBindSet);
-    const rootId = preferredRoot;
+
+    let rootId: string;
+    if (current.sharedRewardGroupId) {
+      // 已有群組，沿用現有 root
+      rootId = current.sharedRewardGroupId;
+    } else {
+      // 沒有群組，以當前方案為 root
+      rootId = currentSchemeId;
+    }
+
+    // 找出原群組成員（僅限同一張卡、同一 root）
     const existingGroupMembers = quotas
-      .filter(q => q.schemeId && (q.sharedRewardGroupId === currentGroupRoot || q.schemeId === currentGroupRoot))
+      .filter(q => q.schemeId && (q.sharedRewardGroupId === rootId || q.schemeId === rootId))
       .map(q => q.schemeId);
+    // 需要移除的：原群組裡但不在新集合裡的
     const toRemove = existingGroupMembers.filter(id => !toBindSet.has(id));
 
     try {
       await Promise.all(
         [
+          // 先解除不再屬於群組的方案
           ...toRemove.map(id => api.put(`/schemes/${id}/shared-reward`, { sharedRewardGroupId: null })),
+          // 將新集合全部指向 root；root 本身 sharedRewardGroupId 設為 null
           ...toBind.map(id => api.put(`/schemes/${id}/shared-reward`, { sharedRewardGroupId: id === rootId ? null : rootId })),
         ]
       );
