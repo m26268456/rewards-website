@@ -498,6 +498,8 @@ export async function queryChannelRewards(
           note: row.note || undefined,
           rewardItems,
           totalCalculatedReward: null,
+          schemeChannelName: channelName,
+          sourceChannelName: channelName,
         };
       });
 
@@ -525,6 +527,8 @@ export async function queryChannelRewards(
           activityEndDate: row.activity_end_date || undefined,
           rewardItems,
           totalCalculatedReward: null,
+          schemeChannelName: channelName,
+          sourceChannelName: channelName,
         };
       });
 
