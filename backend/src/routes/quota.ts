@@ -315,7 +315,6 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
         cardName: quota.cardName,
         paymentMethodName: quota.paymentMethodName,
         schemeName: quota.schemeName,
-        sharedRewardGroupId: null,
         rewardSourceSchemeId: null,
         rewardComposition: quota.rewards
           .map((r: any) => (r.rewardId ? `${r.percentage}%` : '尚未設定'))

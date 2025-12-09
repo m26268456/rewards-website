@@ -126,13 +126,17 @@ export default function QuotaManagement() {
       return;
     }
     
-    // 解析調整值
+    // 解析調整值：允許正負數，僅接受數字
+    const cleaned = quotaAdjust.trim();
     let adjustment = 0;
-    if (quotaAdjust.startsWith('+')) adjustment = parseFloat(quotaAdjust.substring(1));
-    else if (quotaAdjust.startsWith('-')) adjustment = parseFloat(quotaAdjust);
-    else adjustment = parseFloat(quotaAdjust);
+    if (cleaned.startsWith('+')) adjustment = parseFloat(cleaned.substring(1));
+    else if (cleaned.startsWith('-')) adjustment = parseFloat(cleaned);
+    else adjustment = parseFloat(cleaned);
 
-    if (isNaN(adjustment)) return; // 如果無效，不執行（允許0）
+    if (!Number.isFinite(adjustment)) {
+      alert('人工干預請輸入數字');
+      return;
+    }
 
     try {
       // 發送 manualAdjustment 而非 usedQuota

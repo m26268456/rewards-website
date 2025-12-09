@@ -22,7 +22,6 @@ interface QuotaInfo {
   cardName?: string | null;
   paymentMethodName?: string | null;
   schemeName?: string | null;
-  sharedRewardGroupId?: string | null;
 }
 
 export default function QuotaQuery() {
