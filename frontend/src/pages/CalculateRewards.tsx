@@ -121,38 +121,46 @@ export default function CalculateRewards() {
         try {
           const res = await api.post('/schemes/query-channels', { keywords: [channelKeyword.trim()] });
           const data = res.data?.data || [];
-          const firstGroup = Array.isArray(data) && data.length > 0 ? data[0] : null;
-          const channels = firstGroup?.channels || [];
-          const channel = channels.length > 0 ? channels[0] : null;
-          const results = channel?.results || [];
 
-          // 將結果展開為回饋組成，依每個組成的計算方式計算回饋
-          const breakdown = results.map((r: any) => {
-            const items = Array.isArray(r.rewardItems)
+          // 展開所有群組與通路結果
+          const allResults = (Array.isArray(data) ? data : []).flatMap((g: any) =>
+            (g.channels || []).flatMap((ch: any) =>
+              (ch.results || []).map((r: any) => ({
+                ...r,
+                channelName: ch.channelName,
+                keyword: g.keyword,
+              }))
+            )
+          );
+
+          // 逐組成依計算方式計算
+          const breakdown = allResults.map((r: any) => {
+            const items = Array.isArray(r.rewardItems) && r.rewardItems.length > 0
               ? r.rewardItems
               : (r.rewardBreakdown || '').split('+').map((p: string) => ({
                   percentage: parseFloat(p.replace('%', '').trim()),
                   calculationMethod: r.calculationMethod || 'round',
                 }));
-            const perItem = items
+            const perItemRewards = items
               .map((it: any) => {
                 const pct = parseFloat(it.percentage);
                 if (!isFinite(pct)) return 0;
                 const method = (it.calculationMethod || 'round') as 'round' | 'floor' | 'ceil';
                 return calculateReward(parseFloat(amount), pct, method);
-              })
-              .reduce((a: number, b: number) => a + b, 0);
+              });
+            const totalReward = perItemRewards.reduce((a: number, b: number) => a + b, 0);
             const totalPct = items
               .map((it: any) => parseFloat(it.percentage))
               .filter((n: number) => isFinite(n))
               .reduce((a: number, b: number) => a + b, 0);
             return {
               percentage: totalPct,
-              calculatedReward: perItem,
-              originalReward: perItem,
+              calculatedReward: totalReward,
+              originalReward: totalReward,
               calculationMethod: 'mixed',
               isExcluded: r.isExcluded,
               schemeInfo: r.schemeInfo,
+              channelName: r.channelName,
             };
           });
 
