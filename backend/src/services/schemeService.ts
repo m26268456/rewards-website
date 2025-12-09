@@ -472,6 +472,7 @@ export async function queryChannelRewards(
           schemeChannelName,
           rewardItems,
           totalCalculatedReward: null,
+          sourceChannelName: channelName,
         };
       });
 
