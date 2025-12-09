@@ -387,7 +387,7 @@ export default function CalculateRewards() {
                       return (
                         <tr key={index} className="align-top">
                           <td className="px-4 py-3 text-sm font-semibold text-green-700">
-                            {(item.calculatedReward ?? 0).toFixed(2)}
+                            {item.isExcluded ? '排除' : (item.calculatedReward ?? 0).toFixed(2)}
                           </td>
                           <td className="px-4 py-3 text-sm space-y-1">
                             <div className="font-semibold text-gray-800">{item.schemeInfo || '—'}</div>
