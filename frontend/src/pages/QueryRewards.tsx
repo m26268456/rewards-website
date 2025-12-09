@@ -387,17 +387,17 @@ export default function QueryRewards() {
                                   <span className="text-xl font-bold text-green-600">{item.totalRewardPercentage}%</span>
                                   <span className="font-semibold text-gray-800">{item.schemeInfo}</span>
                                   <span className={`badge ${item.requiresSwitch ? 'badge-warning' : 'badge-success'}`}>{item.requiresSwitch ? '需切換' : '免切換'}</span>
-                                        {/* 顯示方案中的通路名稱與來源通路名稱（去除前綴文字） */}
-                                        {item.schemeChannelName && (
-                                          <span className="text-gray-500 text-xs bg-gray-100 px-2 py-0.5 rounded-full">
-                                            {item.schemeChannelName}
-                                          </span>
-                                        )}
-                                        {item.sourceChannelName && item.sourceChannelName !== item.schemeChannelName && (
-                                          <span className="text-gray-500 text-xs bg-gray-100 px-2 py-0.5 rounded-full">
-                                            {item.sourceChannelName}
-                                          </span>
-                                        )}
+                                  {/* 通路徽章：方案設定通路優先，再顯示來源通路 */}
+                                  {item.schemeChannelName && (
+                                    <span className="text-gray-500 text-xs bg-gray-100 px-2 py-0.5 rounded-full">
+                                      {item.schemeChannelName}
+                                    </span>
+                                  )}
+                                  {item.sourceChannelName && item.sourceChannelName !== item.schemeChannelName && (
+                                    <span className="text-gray-500 text-xs bg-gray-100 px-2 py-0.5 rounded-full">
+                                      {item.sourceChannelName}
+                                    </span>
+                                  )}
                                 </div>
                                 {item.note && <div className="text-xs text-gray-600 bg-white/50 px-2 py-1 rounded">💡 {item.note}</div>}
                                 <div className="text-xs text-gray-500 mt-1">
