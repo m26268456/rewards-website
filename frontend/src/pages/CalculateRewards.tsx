@@ -368,66 +368,49 @@ export default function CalculateRewards() {
               <h3 className="text-xl font-semibold mb-4 bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
                 ✨ 計算結果
               </h3>
-              {selectedScheme && (
-                <div className="mb-4 text-sm">
-                  <div className="font-semibold mb-2">
-                    {schemes.find((s) => s.id === selectedScheme)?.name} 金額 {parseFloat(amount).toLocaleString()}
-                  </div>
-                </div>
-              )}
-              
-              {/* 計算結果表格 */}
-              <div className="mb-4 overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200 bg-white rounded-lg">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">回饋%數</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">計算方式</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">計算結果</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-              {calculationResult.breakdown.map((item: any, index: number) => (
-                      <tr key={index}>
-                  <td className="px-4 py-3 text-sm">
-                    {item.schemeInfo && <div className="text-xs text-gray-600">{item.schemeInfo}</div>}
-                    {item.channelName && <div className="text-xs text-gray-500">{item.channelName}</div>}
-                  </td>
-                  <td className="px-4 py-3 text-sm">
-                    {item.rewardItems?.map((it: any, i: number) => (
-                      <div key={i}>{(it.percentage ?? 0).toFixed(2)}%</div>
-                    ))}
-                  </td>
-                        <td className="px-4 py-3 text-sm">
-                    {item.rewardItems?.map((it: any, i: number) => {
-                      const m = it.calculationMethod || 'round';
-                      return (
-                        <div key={i}>
-                          {m === 'round' ? '四捨五入' : m === 'floor' ? '無條件捨去' : m === 'ceil' ? '無條件進位' : m}
-                        </div>
-                      );
-                    })}
-                        </td>
-                        <td className="px-4 py-3 text-sm font-medium">
-                    {item.rewardItems?.map((it: any, i: number) => (
-                      <div key={i}>
-                        {(it.originalReward ?? 0).toFixed(2)} → {it.calculatedReward ?? 0}
-                      </div>
-                    ))}
-                    <div className="font-semibold text-green-700 mt-1">
-                      總計：{(item.calculatedReward ?? 0).toFixed(2)}
-                    </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
 
-              <div className="mt-4 pt-4 border-t-2 border-green-300">
-                <div className="text-2xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
-                  💰 總回饋: {calculationResult.totalReward}
-                </div>
+              <div className="flex flex-col gap-3 overflow-auto">
+                {calculationResult.breakdown.map((item: any, index: number) => {
+                  const methodText = (m: string) =>
+                    m === 'floor' ? '無條件捨去' : m === 'ceil' ? '無條件進位' : '四捨五入';
+                  return (
+                    <div
+                      key={index}
+                      className="bg-white border border-gray-200 rounded-lg shadow-sm p-3 min-w-max"
+                    >
+                      {/* 行1：總計 */}
+                      <div className="text-lg font-bold text-green-700">總計：{(item.calculatedReward ?? 0).toFixed(2)}</div>
+
+                      {/* 行2：方案/通路（通路優先用方案設定名稱） */}
+                      <div className="text-sm text-gray-700 mt-1">
+                        方案：{item.schemeInfo || '—'} / 通路：{item.schemeChannelName || item.channelName || item.keyword || '—'}
+                      </div>
+
+                      {/* 行3：組成 */}
+                      <div className="text-sm text-gray-700 mt-1">
+                        組成：{item.rewardItems?.map((it: any) => `${(it.percentage ?? 0).toFixed(2)}%`).join(' / ')}
+                      </div>
+
+                      {/* 行4：計算方式 */}
+                      <div className="text-sm text-gray-700 mt-1">
+                        計算方式：{item.rewardItems?.map((it: any) => methodText(it.calculationMethod || 'round')).join(' / ')}
+                      </div>
+
+                      {/* 行5：計算結果 */}
+                      <div className="text-sm text-gray-900 mt-1 space-y-0.5">
+                        計算結果：
+                        {item.rewardItems?.map((it: any, i: number) => (
+                          <div key={i} className="pl-2">
+                            {(it.originalReward ?? 0).toFixed(2)} → {it.calculatedReward ?? 0}
+                          </div>
+                        ))}
+                        <div className="font-semibold text-green-700 mt-1">
+                          總計：{(item.calculatedReward ?? 0).toFixed(2)}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
 
               {/* 額度資訊 */}
