@@ -160,7 +160,7 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
          qt.used_quota,
          qt.remaining_quota,
          qt.current_amount,
-         COALESCE(qt.manual_adjustment, 0) as manual_adjustment,
+         qt.manual_adjustment,
          qt.next_refresh_at
        FROM card_schemes cs
        INNER JOIN cards c ON cs.card_id = c.id
@@ -195,7 +195,7 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
          COALESCE(qt.used_quota, 0) as used_quota,
          qt.remaining_quota,
          COALESCE(qt.current_amount, 0) as current_amount,
-         COALESCE(qt.manual_adjustment, 0) as manual_adjustment,
+         qt.manual_adjustment,
          qt.next_refresh_at
        FROM payment_methods pm
        LEFT JOIN payment_rewards pr ON pm.id = pr.payment_method_id
@@ -217,17 +217,19 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
           : 0;
       const usedQuota =
         row.used_quota !== null && row.used_quota !== undefined ? Number(row.used_quota) : 0; // a: 系統計算的額度
+      const manualAdjustmentRaw = row.manual_adjustment;
       const manualAdjustment =
-        row.manual_adjustment !== null && row.manual_adjustment !== undefined
-          ? Number(row.manual_adjustment)
-          : 0; // b: 人工調整值
+        manualAdjustmentRaw !== null && manualAdjustmentRaw !== undefined
+          ? Number(manualAdjustmentRaw)
+          : null; // b: 人工調整值
+      const effectiveManualAdjustment = manualAdjustment ?? 0;
       const currentAmount =
         row.current_amount !== null && row.current_amount !== undefined ? Number(row.current_amount) : 0;
       const quotaLimit =
         row.quota_limit !== null && row.quota_limit !== undefined ? Number(row.quota_limit) : null;
       
       // c = a + b (顯示的總額度)
-      const totalUsedQuota = usedQuota + manualAdjustment;
+      const totalUsedQuota = usedQuota + effectiveManualAdjustment;
       
       let remainingQuota: number | null = null;
       if (quotaLimit !== null) {
@@ -265,7 +267,7 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
         quotaLimit,
         currentAmount,
         usedQuota, // a: 系統計算的額度
-        manualAdjustment, // b: 人工調整值
+        manualAdjustment, // b: 人工調整值（允許 null，前端顯示為空）
         totalUsedQuota, // c: a + b
         remainingQuota,
         referenceAmount,
@@ -294,7 +296,7 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
           quotaLimit: null,
           currentAmount: 0,
           usedQuota: 0,
-          manualAdjustment: 0,
+          manualAdjustment: null,
           totalUsedQuota: 0,
           remainingQuota: null,
           referenceAmount: null,
@@ -323,8 +325,12 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
         quotaLimits: quota.rewards.map((r: any) => r.quotaLimit),
         currentAmounts: quota.rewards.map((r: any) => r.currentAmount),
         usedQuotas: quota.rewards.map((r: any) => r.usedQuota), // a: 系統計算的額度
-        manualAdjustments: quota.rewards.map((r: any) => r.manualAdjustment || 0), // b: 人工調整值
-        totalUsedQuotas: quota.rewards.map((r: any) => r.totalUsedQuota || r.usedQuota), // c: a + b
+        manualAdjustments: quota.rewards.map((r: any) =>
+          r.manualAdjustment !== null && r.manualAdjustment !== undefined ? r.manualAdjustment : null
+        ), // b: 人工調整值
+        totalUsedQuotas: quota.rewards.map((r: any) =>
+          r.totalUsedQuota !== null && r.totalUsedQuota !== undefined ? r.totalUsedQuota : r.usedQuota
+        ), // c: a + b
         remainingQuotas: quota.rewards.map((r: any) => r.remainingQuota),
         referenceAmounts: quota.rewards.map((r: any) => r.referenceAmount),
         refreshTimes: quota.rewards.map((r: any) => r.refreshTime),
@@ -359,9 +365,20 @@ router.put('/:schemeId', async (req: Request, res: Response, next: NextFunction)
     }
 
     const actualSchemeId = schemeId === 'null' ? null : schemeId;
-    const adjustmentValue = manualAdjustment !== undefined && manualAdjustment !== null 
-      ? parseFloat(String(manualAdjustment)) 
-      : 0;
+    const adjustmentValue =
+      manualAdjustment === null
+        ? null
+        : manualAdjustment !== undefined
+          ? parseFloat(String(manualAdjustment))
+          : 0;
+    
+    if (adjustmentValue !== null && !Number.isFinite(adjustmentValue)) {
+      res.status(400).json({ success: false, error: 'manualAdjustment 必須為數字或 null' });
+      return;
+    }
+
+    // 用於計算的調整值（null 視為 0，但資料庫仍保存 null）
+    const adjustmentForCalculation = adjustmentValue ?? 0;
     
     // 檢查是否存在記錄
     let checkResult;
@@ -394,7 +411,7 @@ router.put('/:schemeId', async (req: Request, res: Response, next: NextFunction)
       // 計算新的 remaining_quota = quota_limit - (used_quota + manual_adjustment)
       let newRemainingQuota: number | null = null;
       if (quotaLimit !== null) {
-        newRemainingQuota = Math.max(0, quotaLimit - (currentUsedQuota + adjustmentValue));
+        newRemainingQuota = Math.max(0, quotaLimit - (currentUsedQuota + adjustmentForCalculation));
       }
       
       // 更新 manual_adjustment 和 remaining_quota
@@ -461,7 +478,7 @@ router.put('/:schemeId', async (req: Request, res: Response, next: NextFunction)
       let newRemainingQuota: number | null = null;
       if (quotaLimit !== null) {
         // 新記錄時 used_quota 為 0，所以 remaining = limit - adjustment
-        newRemainingQuota = Math.max(0, quotaLimit - adjustmentValue);
+        newRemainingQuota = Math.max(0, quotaLimit - adjustmentForCalculation);
       }
 
       if (actualSchemeId) {
