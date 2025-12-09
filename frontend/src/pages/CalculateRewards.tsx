@@ -401,7 +401,7 @@ export default function CalculateRewards() {
                             <div className="font-semibold text-gray-800">{item.schemeInfo || '—'}</div>
                             <div>
                               <span className="text-gray-500 text-xs bg-gray-100 px-2 py-0.5 rounded-full">
-                                {item.schemeChannelName || item.channelName || item.keyword || '—'}
+                                {item.schemeChannelName || '—'}
                               </span>
                             </div>
                           </td>
