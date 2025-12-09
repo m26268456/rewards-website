@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { isApp } from '../utils/isApp';
 import api from '../utils/api';
 import { calculateReward } from '../utils/rewardCalculation';
 
@@ -370,7 +371,14 @@ export default function CalculateRewards() {
               </h3>
 
               <div className="mb-4 overflow-x-auto w-full">
-                <table className="min-w-full divide-y divide-gray-200 bg-white rounded-lg">
+                <div className={isApp() ? 'inline-block min-w-max' : undefined}>
+                  <table
+                    className={
+                      isApp()
+                        ? 'w-auto min-w-max divide-y divide-gray-200 bg-white rounded-lg'
+                        : 'min-w-full divide-y divide-gray-200 bg-white rounded-lg'
+                    }
+                  >
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">總計</th>
@@ -418,7 +426,8 @@ export default function CalculateRewards() {
                       );
                     })}
                   </tbody>
-                </table>
+                  </table>
+                </div>
               </div>
 
               {/* 額度資訊 */}
