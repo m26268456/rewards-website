@@ -166,7 +166,7 @@ export default function Transactions() {
           alert('交易已新增');
         }
       } else {
-        alert('交易已新增');
+      alert('交易已新增');
       }
       loadTransactions();
       setFormData({

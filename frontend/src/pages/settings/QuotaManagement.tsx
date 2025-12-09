@@ -554,14 +554,14 @@ export default function QuotaManagement() {
                         </div>
                       ) : (
                         <div className="flex flex-col gap-1">
-                          <div className="flex flex-wrap gap-2">
-                            <button
-                              onClick={() => handleRewardEdit(primary.__index, rIdx, groupKey)} 
-                              className="px-3 py-1 text-sm bg-yellow-500 text-white rounded hover:bg-yellow-600"
-                            >
-                              編輯
-                            </button>
-                          </div>
+                              <div className="flex flex-wrap gap-2">
+                                <button
+                                  onClick={() => handleRewardEdit(primary.__index, rIdx, groupKey)} 
+                                  className="px-3 py-1 text-sm bg-yellow-500 text-white rounded hover:bg-yellow-600"
+                                >
+                                  編輯
+                                </button>
+                            </div>
                         </div>
                       )}
                     </td>

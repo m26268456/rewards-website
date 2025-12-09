@@ -386,7 +386,7 @@ export default function CalculateRewards() {
                         m === 'floor' ? '無條件捨去' : m === 'ceil' ? '無條件進位' : '四捨五入';
                       return (
                         <tr key={index} className="align-top">
-                          <td className="px-4 py-3 text-sm font-semibold text-green-700">
+                          <td className={`px-4 py-3 text-sm font-semibold ${item.isExcluded ? 'text-red-600' : 'text-green-700'}`}>
                             {item.isExcluded ? '排除' : (item.calculatedReward ?? 0).toFixed(2)}
                           </td>
                           <td className="px-4 py-3 text-sm space-y-1">
@@ -413,9 +413,6 @@ export default function CalculateRewards() {
                                 {(it.originalReward ?? 0).toFixed(2)} → {it.calculatedReward ?? 0}
                               </div>
                             ))}
-                          </td>
-                          <td className="px-4 py-3 text-sm font-semibold text-green-700">
-                            {(item.calculatedReward ?? 0).toFixed(2)}
                           </td>
                         </tr>
                       );

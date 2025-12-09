@@ -139,7 +139,7 @@ export default function QuotaQuery() {
     
     return (
       <div className="mb-4">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           {/* 表格可橫向捲動，列寬依內容展開 */}
           <div className="overflow-auto">
             <table className="min-w-max divide-y divide-gray-200">

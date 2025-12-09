@@ -62,7 +62,14 @@ function PaymentMethodItem({ payment, onEdit, onDelete, onReload }: any) {
           <div className="font-medium">{payment.name}</div>
           {payment.note && <div className="text-sm text-gray-600" dangerouslySetInnerHTML={{ __html: linkify(payment.note) }} />}
         </div>
-        <div className="flex gap-2 items-start">
+      </div>
+      <div className="mt-2 flex gap-2 flex-wrap justify-start">
+        <button onClick={() => setShowDetails(!showDetails)} className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">
+          {showDetails ? '隱藏詳細' : '管理詳細'}
+        </button>
+        <button onClick={onEdit} className="px-3 py-1 bg-yellow-500 text-white rounded text-sm hover:bg-yellow-600">編輯</button>
+        <button onClick={onDelete} className="px-3 py-1 bg-red-500 text-white rounded text-sm hover:bg-red-600">刪除</button>
+      </div>
           <button onClick={() => setShowDetails(!showDetails)} className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">
             {showDetails ? '隱藏詳細' : '管理詳細'}
           </button>
