@@ -123,12 +123,14 @@ export default function CalculateRewards() {
           const res = await api.post('/schemes/query-channels', { keywords: [channelKeyword.trim()] });
           const data = res.data?.data || [];
 
-          // 展開所有群組與通路結果
+          // 展開所有群組與通路結果，保留方案設定的通路名稱
           const allResults = (Array.isArray(data) ? data : []).flatMap((g: any) =>
             (g.channels || []).flatMap((ch: any) =>
               (ch.results || []).map((r: any) => ({
                 ...r,
                 channelName: ch.channelName,
+                schemeChannelName: r.schemeChannelName,
+                sourceChannelName: r.sourceChannelName,
                 keyword: g.keyword,
               }))
             )
@@ -164,6 +166,7 @@ export default function CalculateRewards() {
               isExcluded: r.isExcluded,
               schemeInfo: r.schemeInfo,
               channelName: r.channelName || r.sourceChannelName || r.keyword,
+              schemeChannelName: r.schemeChannelName,
               rewardItems: perItemRewards,
             };
           });
