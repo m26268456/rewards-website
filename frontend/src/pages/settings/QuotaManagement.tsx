@@ -117,9 +117,10 @@ export default function QuotaManagement() {
         await api.put(`/quota/${targetSchemeId || 'null'}`, {
           paymentMethodId: q.paymentMethodId,
           rewardId,
-          manualAdjustment: 0
+          manualAdjustment: 0,
         });
-        loadQuotas();
+        setQuotaAdjust('');   // 清空編輯欄位
+        await loadQuotas();   // 重新載入，反映 0
       } catch (e: any) {
         throw e;
       }
