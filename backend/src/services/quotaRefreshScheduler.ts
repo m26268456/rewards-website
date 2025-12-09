@@ -7,6 +7,11 @@ import { logger } from '../utils/logger';
  * 執行額度刷新檢查
  */
 async function checkAndRefreshQuotas() {
+  const startedAt = Date.now();
+  const startedIso = new Date().toISOString();
+  let refreshedCount = 0;
+  logger.info(`[quota-refresh] start at ${startedIso}`);
+
   try {
     // 先測試資料庫連接
     try {
@@ -90,14 +95,14 @@ async function checkAndRefreshQuotas() {
     `);
 
     const client = await pool.connect();
-    let refreshedCount = 0;
 
     try {
       await client.query('BEGIN');
 
       for (const quota of quotasResult.rows) {
-        // 檢查是否到達刷新時間
-        if (quota.next_refresh_at && shouldRefreshQuota(quota.next_refresh_at)) {
+        // 檢查是否到達刷新時間（轉成 Date 避免字串時區問題）
+        const nextRefreshAt = quota.next_refresh_at ? new Date(quota.next_refresh_at) : null;
+        if (nextRefreshAt && shouldRefreshQuota(nextRefreshAt)) {
           // 計算下一次刷新時間
           const nextRefresh = calculateNextRefreshTime(
             quota.quota_refresh_type,
@@ -136,15 +141,15 @@ async function checkAndRefreshQuotas() {
     } finally {
       client.release();
     }
-
-    if (refreshedCount > 0) {
-      console.log(`[${new Date().toISOString()}] 已刷新 ${refreshedCount} 個額度`);
-    }
+    
+    const elapsed = Date.now() - startedAt;
+    logger.info(`[quota-refresh] done at ${new Date().toISOString()}, refreshed=${refreshedCount}, elapsed=${elapsed}ms`);
   } catch (error: any) {
+    const elapsed = Date.now() - startedAt;
     if (error.code === 'ENOTFOUND' && error.hostname === 'postgres') {
       // 忽略
     } else {
-      logger.error(`[${new Date().toISOString()}] 額度刷新檢查失敗:`, error.message || error);
+      logger.error(`[quota-refresh] failed after ${elapsed}ms:`, error.message || error);
     }
   }
 }

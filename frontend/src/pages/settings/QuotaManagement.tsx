@@ -329,8 +329,8 @@ export default function QuotaManagement() {
 
   const renderTable = (list: any[], groupKey: string) => (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-      <div className="overflow-auto">
-        <table className="min-w-max divide-y divide-gray-200">
+      <div className="w-full overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gradient-to-r from-gray-50 to-gray-100 sticky top-0 z-20 shadow-sm">
             <tr>
               <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-normal break-words min-w-[140px] sticky left-0 bg-gray-50 z-30 border-r border-gray-200">名稱</th>

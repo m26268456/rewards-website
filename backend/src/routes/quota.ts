@@ -367,14 +367,16 @@ router.put('/:schemeId', async (req: Request, res: Response, next: NextFunction)
     let checkResult;
     if (actualSchemeId) {
       checkResult = await pool.query(
-        `SELECT id, used_quota, quota_limit FROM quota_trackings qt
+        `SELECT qt.id AS tracking_id, qt.used_quota, qt.quota_limit
+         FROM quota_trackings qt
          JOIN scheme_rewards sr ON qt.reward_id = sr.id
          WHERE qt.scheme_id = $1 AND qt.reward_id = $2 AND qt.payment_reward_id IS NULL`,
         [actualSchemeId, rewardId]
       );
     } else if (paymentMethodId) {
       checkResult = await pool.query(
-        `SELECT id, used_quota, quota_limit FROM quota_trackings qt
+        `SELECT qt.id AS tracking_id, qt.used_quota, qt.quota_limit
+         FROM quota_trackings qt
          JOIN payment_rewards pr ON qt.payment_reward_id = pr.id
          WHERE qt.payment_method_id = $1 AND qt.payment_reward_id = $2 AND qt.scheme_id IS NULL`,
         [paymentMethodId, rewardId]
@@ -398,7 +400,7 @@ router.put('/:schemeId', async (req: Request, res: Response, next: NextFunction)
       // 更新 manual_adjustment 和 remaining_quota
       await pool.query(
         `UPDATE quota_trackings SET manual_adjustment = $1, remaining_quota = $2, updated_at = NOW() WHERE id = $3`,
-        [adjustmentValue, newRemainingQuota, row.id]
+        [adjustmentValue, newRemainingQuota, row.tracking_id]
       );
     } else {
       // 新增並初始化 next_refresh_at
