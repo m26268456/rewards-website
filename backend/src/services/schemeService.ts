@@ -446,11 +446,15 @@ export async function queryChannelRewards(
       // 組合結果
       const schemeResults = schemeApplicationsResult.rows.map((row: any) => {
         const rewards = row.rewards || [];
-        const totalPercentage = rewards.reduce(
-          (sum: number, r: any) => sum + parseFloat(r.percentage),
+        const rewardItems = rewards.map((r: any) => ({
+          percentage: parseFloat(r.percentage),
+          calculationMethod: r.method || 'round',
+        }));
+        const totalPercentage = rewardItems.reduce(
+          (sum: number, r: any) => sum + (isFinite(r.percentage) ? r.percentage : 0),
           0
         );
-        const breakdown = rewards
+        const breakdown = rewardItems
           .map((r: any) => `${r.percentage}%`)
           .join('+');
 
@@ -466,16 +470,22 @@ export async function queryChannelRewards(
           note: row.note || undefined,
           activityEndDate: row.activity_end_date || undefined,
           schemeChannelName,
+          rewardItems,
+          totalCalculatedReward: null,
         };
       });
 
       const paymentResults = paymentApplicationsResult.rows.map((row: any) => {
         const rewards = row.rewards || [];
-        const totalPercentage = rewards.reduce(
-          (sum: number, r: any) => sum + parseFloat(r.percentage),
+        const rewardItems = rewards.map((r: any) => ({
+          percentage: parseFloat(r.percentage),
+          calculationMethod: r.method || 'round',
+        }));
+        const totalPercentage = rewardItems.reduce(
+          (sum: number, r: any) => sum + (isFinite(r.percentage) ? r.percentage : 0),
           0
         );
-        const breakdown = rewards
+        const breakdown = rewardItems
           .map((r: any) => `${r.percentage}%`)
           .join('+');
 
@@ -486,21 +496,23 @@ export async function queryChannelRewards(
           schemeInfo: row.name,
           requiresSwitch: false,
           note: row.note || undefined,
+          rewardItems,
+          totalCalculatedReward: null,
         };
       });
 
       const paymentSchemeResults = paymentSchemeLinksResult.rows.map((row: any) => {
         const schemeRewards = row.scheme_rewards || [];
-        // 修正：不再加總 Payment Rewards
-        
-        const schemeTotal = schemeRewards.reduce(
-          (sum: number, r: any) => sum + parseFloat(r.percentage),
+        const rewardItems = schemeRewards.map((r: any) => ({
+          percentage: parseFloat(r.percentage),
+          calculationMethod: r.method || 'round',
+        }));
+        const totalPercentage = rewardItems.reduce(
+          (sum: number, r: any) => sum + (isFinite(r.percentage) ? r.percentage : 0),
           0
         );
         
-        const totalPercentage = schemeTotal;
-        
-        const schemeBreakdown = schemeRewards.map((r: any) => `${r.percentage}%`).join('+');
+        const schemeBreakdown = rewardItems.map((r: any) => `${r.percentage}%`).join('+');
         const breakdown = schemeBreakdown || '0%';
 
         return {
@@ -511,6 +523,8 @@ export async function queryChannelRewards(
           requiresSwitch: row.requires_switch,
           note: row.note || undefined,
           activityEndDate: row.activity_end_date || undefined,
+          rewardItems,
+          totalCalculatedReward: null,
         };
       });
 
