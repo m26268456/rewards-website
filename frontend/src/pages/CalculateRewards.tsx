@@ -369,15 +369,15 @@ export default function CalculateRewards() {
                 ✨ 計算結果
               </h3>
 
-              <div className="mb-4 overflow-x-auto">
-                <table className="min-w-max divide-y divide-gray-200 bg-white rounded-lg">
+              <div className="mb-4 overflow-x-auto w-full">
+                <table className="min-w-full divide-y divide-gray-200 bg-white rounded-lg">
                   <thead className="bg-gray-50">
                     <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">總計</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">方案 / 通路</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">回饋%數</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">計算方式</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">計算結果</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">總計</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
@@ -386,8 +386,16 @@ export default function CalculateRewards() {
                         m === 'floor' ? '無條件捨去' : m === 'ceil' ? '無條件進位' : '四捨五入';
                       return (
                         <tr key={index} className="align-top">
-                          <td className="px-4 py-3 text-sm whitespace-pre-line">
-                            {(item.schemeInfo || '—') + '\n' + (item.schemeChannelName || item.channelName || item.keyword || '—')}
+                          <td className="px-4 py-3 text-sm font-semibold text-green-700">
+                            {(item.calculatedReward ?? 0).toFixed(2)}
+                          </td>
+                          <td className="px-4 py-3 text-sm space-y-1">
+                            <div className="font-semibold text-gray-800">{item.schemeInfo || '—'}</div>
+                            <div>
+                              <span className="text-gray-500 text-xs bg-gray-100 px-2 py-0.5 rounded-full">
+                                {item.schemeChannelName || item.channelName || item.keyword || '—'}
+                              </span>
+                            </div>
                           </td>
                           <td className="px-4 py-3 text-sm">
                             {item.rewardItems?.map((it: any, i: number) => (
