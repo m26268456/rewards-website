@@ -367,7 +367,7 @@ router.put('/:schemeId', async (req: Request, res: Response, next: NextFunction)
     let checkResult;
     if (actualSchemeId) {
       checkResult = await pool.query(
-        `SELECT qt.id AS tracking_id, qt.used_quota, qt.quota_limit
+        `SELECT qt.id AS tracking_id, qt.used_quota, sr.quota_limit
          FROM quota_trackings qt
          JOIN scheme_rewards sr ON qt.reward_id = sr.id
          WHERE qt.scheme_id = $1 AND qt.reward_id = $2 AND qt.payment_reward_id IS NULL`,
@@ -375,7 +375,7 @@ router.put('/:schemeId', async (req: Request, res: Response, next: NextFunction)
       );
     } else if (paymentMethodId) {
       checkResult = await pool.query(
-        `SELECT qt.id AS tracking_id, qt.used_quota, qt.quota_limit
+        `SELECT qt.id AS tracking_id, qt.used_quota, pr.quota_limit
          FROM quota_trackings qt
          JOIN payment_rewards pr ON qt.payment_reward_id = pr.id
          WHERE qt.payment_method_id = $1 AND qt.payment_reward_id = $2 AND qt.scheme_id IS NULL`,
