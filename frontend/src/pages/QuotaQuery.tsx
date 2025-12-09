@@ -123,47 +123,12 @@ export default function QuotaQuery() {
   const renderQuotaTable = (quotaList: QuotaInfo[]) => {
     if (quotaList.length === 0) return null;
     
-    // 將同一共同回饋群組的方案聚在一起（與 QuotaManagement 相同的邏輯）
+    // 簡化：不再有共同回饋群組，直接逐項呈現
     const groupByShared = (items: QuotaInfo[]) => {
-      const order: string[] = [];
-      const map = new Map<string, QuotaInfo[]>();
-      
-      // 先找出所有被綁定的 root schemeId（即其他方案的 sharedRewardGroupId）
-      const rootSchemeIds = new Set<string>();
-      items.forEach((item) => {
-        if (item.sharedRewardGroupId) {
-          rootSchemeIds.add(item.sharedRewardGroupId);
-        }
-      });
-      
-      items.forEach((item) => {
-        let key: string;
-        if (item.sharedRewardGroupId) {
-          // 被綁定的方案：使用 sharedRewardGroupId 作為 key
-          key = item.sharedRewardGroupId;
-        } else if (item.schemeId && rootSchemeIds.has(item.schemeId)) {
-          // Root 方案（被其他方案綁定）：使用自己的 schemeId 作為 key
-          key = item.schemeId;
-        } else {
-          // 獨立方案：使用 solo-${id} 作為 key
-          key = `solo-${item.schemeId || item.paymentMethodId || 'unknown'}`;
-        }
-        
-        if (!map.has(key)) {
-          map.set(key, []);
-          order.push(key);
-        }
-        map.get(key)!.push(item);
-      });
-      
-      // 將有共同回饋的群組置頂
-      const sorted = order.sort((a, b) => {
-        const aIsShared = a.startsWith('solo-') ? 1 : 0;
-        const bIsShared = b.startsWith('solo-') ? 1 : 0;
-        return aIsShared - bIsShared; // 共同回饋群組 (0) 排在前面，單獨項目 (1) 排在後面
-      });
-      
-      return sorted.map(k => ({ key: k, items: map.get(k)! }));
+      return items.map((item, idx) => ({
+        key: item.schemeId ? `scheme-${item.schemeId}` : `pay-${item.paymentMethodId || idx}`,
+        items: [item],
+      }));
     };
     
     const groupedQuotas = groupByShared(quotaList);
@@ -174,13 +139,13 @@ export default function QuotaQuery() {
     
     return (
       <div className="mb-4">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-          {/* [修正項目 5] 加入 overflow-x-auto */}
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+          {/* 表格可橫向捲動，列寬依內容展開 */}
+          <div className="overflow-auto">
+            <table className="min-w-max divide-y divide-gray-200">
               <thead className="bg-gradient-to-r from-gray-50 to-gray-100 sticky top-0 z-20 shadow-sm">
                 <tr>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-normal break-words min-w-0 sticky left-0 bg-gray-50 z-30 border-r border-gray-200">
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-normal break-words min-w-[140px] sticky left-0 bg-gray-50 z-30 border-r border-gray-200">
                     名稱
                   </th>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-normal break-words min-w-0">
@@ -212,12 +177,7 @@ export default function QuotaQuery() {
                   const colorIndex = colorIndexMap.get(sharedKey) || 0;
                   
                   // 排序：root 方案在前，被綁定方案在後
-                  const sortedItems = quotas.slice().sort((a, b) => {
-                    const isRootA = !a.sharedRewardGroupId || a.sharedRewardGroupId === a.schemeId;
-                    const isRootB = !b.sharedRewardGroupId || b.sharedRewardGroupId === b.schemeId;
-                    if (isRootA !== isRootB) return isRootA ? -1 : 1;
-                    return 0;
-                  });
+                  const sortedItems = quotas.slice();
                   
                   const primary = sortedItems[0];
                   let validRewardIndices: number[] = [];
@@ -231,7 +191,7 @@ export default function QuotaQuery() {
                   }
 
                   // 共享群組只渲染第一個回饋組成，非共享群組渲染所有回饋組成
-                  const rowsToRender = isSharedGroup ? [0] : validRewardIndices;
+                  const rowsToRender = validRewardIndices;
 
                   const bgPairShared = [['bg-blue-50', 'bg-blue-100'], ['bg-blue-100', 'bg-blue-50']];
                   const bgPairSolo = [['bg-white', 'bg-gray-50'], ['bg-gray-50', 'bg-white']];
@@ -239,20 +199,11 @@ export default function QuotaQuery() {
                   const borderColor = isSharedGroup ? 'border-blue-300' : 'border-gray-200';
 
                   // 找出 root 方案名稱和被綁定方案名稱
-                  const rootId = primary.sharedRewardGroupId || primary.schemeId;
-                  const rootScheme = sortedItems.find((it) => !it.sharedRewardGroupId || it.sharedRewardGroupId === it.schemeId) || primary;
-                  const rootName = rootScheme.schemeName || rootScheme.name || '';
+                  const rootName = primary.schemeName || primary.name || '';
                   const rootNameParts = rootName.split('-');
                   const rootNameDisplay = rootNameParts.length > 1 ? rootNameParts[rootNameParts.length - 1] : rootName;
                   
-                  const childNames = sortedItems
-                    .filter((it) => it.schemeId !== rootId)
-                    .map((it) => {
-                      const nm = it.schemeName || it.name || '';
-                      const parts = nm.split('-');
-                      return parts.length > 1 ? parts[parts.length - 1] : nm;
-                    })
-                    .filter(Boolean);
+                  const childNames: string[] = [];
 
                   return rowsToRender.map((rIdx: number) => {
                     const isFirst = rIdx === 0;
@@ -274,8 +225,7 @@ export default function QuotaQuery() {
                     const currentAmount = primary.currentAmounts?.[rIdx] || 0;
                     const referenceAmount = primary.referenceAmounts?.[rIdx] ?? null;
 
-                    // 共享群組只顯示一行，使用第一個顏色；非共享群組使用交替顏色
-                    const bgColor = isSharedGroup ? colorPair[0] : colorPair[rIdx % 2];
+                    const bgColor = colorPair[rIdx % 2];
                     
                     return (
                       <tr key={`${sharedKey}-${primary.schemeId || primary.paymentMethodId || 'q'}-${rIdx}`} className={`${bgColor} border-l-4 ${borderColor} hover:bg-blue-100 transition-colors`}>
@@ -291,11 +241,6 @@ export default function QuotaQuery() {
                                   {childNames.map((nm: string, i: number) => (
                                     <div key={i}>{nm}</div>
                                   ))}
-                                </div>
-                              )}
-                              {isSharedGroup && (
-                                <div className="text-[11px] text-blue-700 bg-blue-50 border border-blue-100 rounded px-2 py-1 inline-block mt-1">
-                                  共用回饋
                                 </div>
                               )}
                             </div>

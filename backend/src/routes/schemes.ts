@@ -3,10 +3,6 @@ import pool from '../config/database';
 import { logger } from '../utils/logger';
 // 確保您有這些 Services
 import { getAllCardsWithSchemes, queryChannelRewards, queryChannelRewardsByKeywords } from '../services/schemeService';
-import {
-  resolveSharedRewardTargetSchemeId,
-  setSharedRewardGroupMapping,
-} from '../services/sharedRewardMapping';
 import { bulkInsertRewards } from '../utils/rewardBatchUpdate';
 import { calculateNextRefreshTime } from '../utils/quotaRefresh';
 import { calculateReward } from '../utils/rewardCalculation';
@@ -49,13 +45,7 @@ async function recomputeSchemeRewardTracking(schemeId: string, rewardId: string)
     );
     const tracking = trackingRes.rows[0] || null;
 
-    // 取得同一共同回饋群組的所有方案 ID（包含 root 自己）
-    const memberRes = await client.query(
-      `SELECT scheme_id FROM shared_reward_group_members WHERE root_scheme_id = $1`,
-      [schemeId]
-    );
-    const memberIds: string[] = memberRes.rows.map((r) => r.scheme_id);
-    const schemeIdsToInclude = [schemeId, ...memberIds];
+    const schemeIdsToInclude = [schemeId];
 
     const now = new Date();
     let windowStart: Date;
@@ -218,10 +208,8 @@ router.get('/card/:cardId', async (req: Request, res: Response, next: NextFuncti
          cs.requires_switch,
          cs.activity_start_date,
          cs.activity_end_date,
-         cs.display_order,
-         srgm.root_scheme_id as shared_reward_group_id
+         cs.display_order
        FROM card_schemes cs
-       LEFT JOIN shared_reward_group_members srgm ON srgm.scheme_id = cs.id
        WHERE cs.card_id = $1
        ORDER BY cs.display_order, cs.name`,
       [cardId]
@@ -245,7 +233,6 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
       activityStartDate,
       activityEndDate,
       // displayOrder, // 移除手動傳入，改為自動計算
-      sharedRewardGroupId,
     } = req.body;
 
     if (!cardId || !name) {
@@ -267,27 +254,6 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
       );
       const nextDisplayOrder = (maxOrderResult.rows[0].max_order || 0) + 1;
 
-      // 驗證 sharedRewardGroupId（若提供需為同卡片方案）
-      if (sharedRewardGroupId) {
-        const groupCheck = await client.query(
-          `SELECT card_id FROM card_schemes WHERE id = $1`,
-          [sharedRewardGroupId]
-        );
-        if (groupCheck.rows.length === 0) {
-          await client.query('ROLLBACK');
-          return res.status(400).json({
-            success: false,
-            error: '指定的共同回饋方案不存在',
-          });
-        }
-        if (groupCheck.rows[0].card_id !== cardId) {
-          await client.query('ROLLBACK');
-          return res.status(400).json({
-            success: false,
-            error: '共同回饋方案必須屬於同一張卡片',
-          });
-        }
-      }
       const schemeResult = await client.query(
         `INSERT INTO card_schemes (
             card_id,
@@ -312,8 +278,6 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
       );
 
       const schemeId = schemeResult.rows[0].id;
-
-      await setSharedRewardGroupMapping(schemeId, sharedRewardGroupId || null, client);
 
       await client.query('COMMIT');
       logger.info(`新增方案成功 ID ${schemeId}`);
@@ -341,7 +305,6 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
       activityStartDate,
       activityEndDate,
       displayOrder,
-      sharedRewardGroupId,
     } = req.body;
 
     const schemeCheck = await pool.query(
@@ -351,26 +314,7 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
     if (schemeCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: '方案不存在' });
     }
-    const cardId = schemeCheck.rows[0].card_id;
-
-    if (sharedRewardGroupId) {
-      const groupCheck = await pool.query(
-        `SELECT card_id FROM card_schemes WHERE id = $1`,
-        [sharedRewardGroupId]
-      );
-      if (groupCheck.rows.length === 0) {
-        return res.status(400).json({
-          success: false,
-          error: '指定的共同回饋方案不存在',
-        });
-      }
-      if (groupCheck.rows[0].card_id !== cardId) {
-        return res.status(400).json({
-          success: false,
-          error: '共同回饋方案必須屬於同一張卡片',
-        });
-      }
-    }
+  const cardId = schemeCheck.rows[0].card_id;
 
     const values: Array<string | number | boolean | null> = [
       name,
@@ -403,58 +347,10 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
       return res.status(404).json({ success: false, error: '方案不存在' });
     }
 
-    await setSharedRewardGroupMapping(id, sharedRewardGroupId || null);
-
     logger.info(`更新方案成功 ID ${id}`);
     return res.json({ success: true, data: result.rows[0] });
   } catch (error) {
     logger.error(`更新方案失敗 ID ${req.params.id}:`, error);
-    return next(error);
-  }
-});
-
-// 單獨更新共同回饋綁定
-router.put('/:id/shared-reward', async (req: Request, res: Response, next: NextFunction) => {
-  const { id } = req.params;
-  const { sharedRewardGroupId } = req.body as { sharedRewardGroupId?: string | null };
-
-  try {
-    const schemeResult = await pool.query(
-      `SELECT id, card_id FROM card_schemes WHERE id = $1`,
-      [id]
-    );
-    if (schemeResult.rows.length === 0) {
-      return res.status(404).json({ success: false, error: '方案不存在' });
-    }
-
-    const cardId = schemeResult.rows[0].card_id;
-    let targetGroupId: string | null = sharedRewardGroupId || null;
-
-    if (targetGroupId) {
-      if (targetGroupId === id) {
-        targetGroupId = null;
-      } else {
-        const targetSchemeResult = await pool.query(
-          `SELECT id FROM card_schemes WHERE id = $1 AND card_id = $2`,
-          [targetGroupId, cardId]
-        );
-        if (targetSchemeResult.rows.length === 0) {
-          return res.status(400).json({
-            success: false,
-            error: '共同回饋僅能綁定同一卡片的其他方案',
-          });
-        }
-      }
-    }
-
-    await setSharedRewardGroupMapping(id, targetGroupId);
-
-    return res.json({
-      success: true,
-      data: { id, sharedRewardGroupId: targetGroupId },
-    });
-  } catch (error) {
-    logger.error(`更新共同回饋失敗 SchemeID ${id}:`, error);
     return next(error);
   }
 });
@@ -470,7 +366,6 @@ router.put('/:id/batch', async (req: Request, res: Response, next: NextFunction)
       activityStartDate,
       activityEndDate,
       displayOrder,
-      sharedRewardGroupId,
       applications,
       exclusions,
     } = req.body;
@@ -488,27 +383,6 @@ router.put('/:id/batch', async (req: Request, res: Response, next: NextFunction)
         return res.status(404).json({ success: false, error: '方案不存在' });
       }
       const cardId = schemeCheck.rows[0].card_id;
-
-      if (sharedRewardGroupId) {
-        const groupCheck = await client.query(
-          `SELECT card_id FROM card_schemes WHERE id = $1`,
-          [sharedRewardGroupId]
-        );
-        if (groupCheck.rows.length === 0) {
-          await client.query('ROLLBACK');
-          return res.status(400).json({
-            success: false,
-            error: '指定的共同回饋方案不存在',
-          });
-        }
-        if (groupCheck.rows[0].card_id !== cardId) {
-          await client.query('ROLLBACK');
-          return res.status(400).json({
-            success: false,
-            error: '共同回饋方案必須屬於同一張卡片',
-          });
-        }
-      }
 
       // 1. 更新方案基本資訊
       const updateValues: Array<string | number | boolean | null> = [
@@ -542,8 +416,6 @@ router.put('/:id/batch', async (req: Request, res: Response, next: NextFunction)
         await client.query('ROLLBACK');
         return res.status(404).json({ success: false, error: '方案不存在' });
       }
-
-      await setSharedRewardGroupMapping(id, sharedRewardGroupId || null, client);
 
       // 2. 批量更新通路設定
       await client.query('DELETE FROM scheme_channel_applications WHERE scheme_id = $1', [id]);
@@ -608,7 +480,6 @@ router.delete('/:id', async (req: Request, res: Response, next: NextFunction) =>
       await client.query('DELETE FROM scheme_channel_applications WHERE scheme_id = $1', [id]);
       await client.query('DELETE FROM scheme_channel_exclusions WHERE scheme_id = $1', [id]);
       await client.query('DELETE FROM scheme_rewards WHERE scheme_id = $1', [id]);
-      await client.query('DELETE FROM shared_reward_group_members WHERE scheme_id = $1 OR root_scheme_id = $1', [id]);
 
       const result = await client.query(
       'DELETE FROM card_schemes WHERE id = $1 RETURNING id',
@@ -648,10 +519,8 @@ router.get('/:id/details', async (req: Request, res: Response, next: NextFunctio
          cs.requires_switch,
          cs.activity_start_date,
          cs.activity_end_date,
-         cs.display_order,
-         srgm.root_scheme_id as shared_reward_group_id
+         cs.display_order
        FROM card_schemes cs
-       LEFT JOIN shared_reward_group_members srgm ON srgm.scheme_id = cs.id
        WHERE cs.id = $1`,
       [id]
     );
@@ -661,8 +530,7 @@ router.get('/:id/details', async (req: Request, res: Response, next: NextFunctio
     }
 
     const scheme = schemeResult.rows[0];
-
-    const targetSchemeId = scheme.shared_reward_group_id || id;
+    const targetSchemeId = id;
     const rewardsResult = await pool.query(
       `SELECT id, reward_percentage, calculation_method, quota_limit, 
               quota_refresh_type, quota_refresh_value, quota_refresh_date, 
@@ -809,7 +677,7 @@ router.post('/:id/rewards', async (req: Request, res: Response, next: NextFuncti
     try {
       const client = await pool.connect();
       try {
-        const targetSchemeId = await resolveSharedRewardTargetSchemeId(id, client);
+        const targetSchemeId = id;
         const newRewardId = result.rows[0].id;
 
         // 取得同方案任一既有追蹤紀錄，複用其刷新週期窗口
@@ -936,7 +804,7 @@ router.put('/:id/rewards', async (req: Request, res: Response, next: NextFunctio
         return res.status(404).json({ success: false, error: '方案不存在' });
       }
 
-      const targetSchemeId = await resolveSharedRewardTargetSchemeId(id, client);
+      const targetSchemeId = id;
 
       await client.query('DELETE FROM scheme_rewards WHERE scheme_id = $1', [targetSchemeId]);
 
@@ -979,8 +847,6 @@ router.put('/:id/rewards/:rewardId', async (req: Request, res: Response, next: N
       return res.status(404).json({ success: false, error: '方案不存在' });
     }
 
-    const targetSchemeId = await resolveSharedRewardTargetSchemeId(id);
-
     const result = await pool.query(
       `UPDATE scheme_rewards
        SET reward_percentage = $1, calculation_method = $2, quota_limit = $3,
@@ -997,7 +863,7 @@ router.put('/:id/rewards/:rewardId', async (req: Request, res: Response, next: N
         quotaRefreshDate || null,
         quotaCalculationBasis || 'transaction',
         rewardId,
-        targetSchemeId,
+        id,
       ]
     );
 
@@ -1007,7 +873,7 @@ router.put('/:id/rewards/:rewardId', async (req: Request, res: Response, next: N
 
     // 重新計算額度追蹤，讓計算方式/計算基礎變更即時生效
     try {
-      await recomputeSchemeRewardTracking(targetSchemeId, rewardId);
+      await recomputeSchemeRewardTracking(id, rewardId);
     } catch (err) {
       logger.error('更新回饋後重算額度失敗（不阻斷流程）:', err);
     }
@@ -1029,12 +895,11 @@ router.delete('/:id/rewards/:rewardId', async (req: Request, res: Response, next
       return res.status(404).json({ success: false, error: '方案不存在' });
     }
 
-    const targetSchemeId = await resolveSharedRewardTargetSchemeId(id);
     const result = await pool.query(
       `DELETE FROM scheme_rewards 
        WHERE id = $1 AND scheme_id = $2
        RETURNING id`,
-      [rewardId, targetSchemeId]
+      [rewardId, id]
     );
 
     if (result.rows.length === 0) {
@@ -1045,7 +910,7 @@ router.delete('/:id/rewards/:rewardId', async (req: Request, res: Response, next
     await pool.query(
       `DELETE FROM quota_trackings 
        WHERE reward_id = $1 AND scheme_id = $2`,
-      [rewardId, targetSchemeId]
+      [rewardId, id]
     );
 
     return res.json({ success: true, message: '回饋組成已刪除' });

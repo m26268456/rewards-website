@@ -6,6 +6,8 @@ interface LayoutProps {
   children: ReactNode;
 }
 
+const VERSION = 'Beta 3.0.0.001';
+
 const navItems = [
   { path: '/query', label: '回饋查詢' },
   { path: '/calculate', label: '回饋計算' },
@@ -59,7 +61,10 @@ export default function Layout({ children }: LayoutProps) {
   // App 模式：底部導航
   if (isAppMode) {
     return (
-      <div className="min-h-screen flex flex-col" style={{ paddingBottom: 'calc(4rem + env(safe-area-inset-bottom))' }}>
+      <div className="min-h-screen flex flex-col relative" style={{ paddingBottom: 'calc(4rem + env(safe-area-inset-bottom))' }}>
+        <div className="absolute top-2 right-3 text-[11px] text-gray-400 bg-white/80 border border-gray-200 rounded px-2 py-0.5 shadow-sm">
+          {VERSION}
+        </div>
         <main className="flex-1 overflow-y-auto px-4 py-4">
           {children}
         </main>
@@ -106,8 +111,9 @@ export default function Layout({ children }: LayoutProps) {
           <div className="flex justify-between h-16">
             <div className="flex">
               <div className="flex-shrink-0 flex items-center">
-                <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                  💳 回饋系統
+                <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent leading-tight">
+                  <span className="block">Rewards &</span>
+                  <span className="block">Track expenses</span>
                 </h1>
               </div>
               <div className="hidden sm:ml-6 sm:flex sm:space-x-2">
@@ -129,6 +135,11 @@ export default function Layout({ children }: LayoutProps) {
                   );
                 })}
               </div>
+            </div>
+            <div className="flex items-center">
+              <span className="text-xs text-gray-400 bg-gray-50 border border-gray-200 rounded px-2 py-0.5">
+                {VERSION}
+              </span>
             </div>
           </div>
         </div>

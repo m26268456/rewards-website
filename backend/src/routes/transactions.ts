@@ -3,7 +3,6 @@ import { pool } from '../config/database';
 import { calculateMarginalReward, calculateReward } from '../utils/rewardCalculation';
 import { calculateNextRefreshTime } from '../utils/quotaRefresh';
 import { CalculationMethod, QuotaCalculationBasis } from '../utils/types';
-import { resolveSharedRewardTargetSchemeId } from '../services/sharedRewardMapping';
 import { logger } from '../utils/logger';
 import { validate } from '../middleware/validate';
 import { createTransactionSchema } from '../utils/validators';
@@ -121,9 +120,8 @@ router.post('/', validate(createTransactionSchema), async (req: Request, res: Re
 
         // 取得 Scheme Rewards (如果有)
         let schemeRewards: any[] = [];
-        let targetSchemeId: string | null = null;
-        if (validSchemeId) {
-          targetSchemeId = await resolveSharedRewardTargetSchemeId(validSchemeId, client);
+        const targetSchemeId: string | null = validSchemeId || null;
+        if (targetSchemeId) {
           const res = await client.query(
             `SELECT sr.id, sr.reward_percentage, sr.calculation_method, sr.quota_limit, 
                     sr.quota_calculation_basis, sr.quota_refresh_type, sr.quota_refresh_value, sr.quota_refresh_date,
@@ -378,11 +376,8 @@ router.delete('/:id', async (req: Request, res: Response, next: NextFunction) =>
 
     const tx = txResult.rows[0];
     const amountNum = tx.amount ? parseFloat(tx.amount) : null;
-    const schemeIdRaw: string | null = tx.scheme_id || null;
+    const schemeId: string | null = tx.scheme_id || null;
     const paymentMethodId: string | null = tx.payment_method_id || null;
-    const schemeId: string | null = schemeIdRaw
-      ? await resolveSharedRewardTargetSchemeId(schemeIdRaw, client)
-      : null;
 
     // 若追蹤已過期，重置用量並計算下一次刷新（在刪除區塊內定義）
     const refreshTrackingIfExpired = async (row: any, reward: any) => {

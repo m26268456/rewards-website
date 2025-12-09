@@ -11,6 +11,9 @@ interface Scheme {
 }
 
 export default function CalculateRewards() {
+  type Mode = 'none' | 'channel' | 'scheme';
+  const [mode, setMode] = useState<Mode>('none');
+  const [channelKeyword, setChannelKeyword] = useState('');
   const [selectedScheme, setSelectedScheme] = useState<string>('');
   const [schemes, setSchemes] = useState<Scheme[]>([]);
   const [amount, setAmount] = useState('');
@@ -36,7 +39,7 @@ export default function CalculateRewards() {
     }>;
   }
   
-  const [calculationResult, setCalculationResult] = useState<CalculationResult | null>(null);
+  const [calculationResult, setCalculationResult] = useState<any>(null);
   const [quotaInfo, setQuotaInfo] = useState<CalculationResult['quotaInfo']>(null);
 
   useEffect(() => {
@@ -59,7 +62,7 @@ export default function CalculateRewards() {
     let cancelled = false;
     
     const performCalculation = async () => {
-      if (selectedScheme && amount) {
+      if (mode === 'scheme' && selectedScheme && amount) {
         if (!amount || parseFloat(amount) <= 0) {
           if (!cancelled) {
             setCalculationResult(null);
@@ -107,7 +110,63 @@ export default function CalculateRewards() {
             alert(err.response?.data?.error || '計算失敗');
           }
         }
-      } else if (amount) {
+      } else if (mode === 'channel' && channelKeyword.trim() && amount) {
+        if (parseFloat(amount) <= 0) {
+          if (!cancelled) {
+            setCalculationResult(null);
+            setQuotaInfo(null);
+          }
+          return;
+        }
+        try {
+          const res = await api.post('/schemes/query-channels', { keywords: [channelKeyword.trim()] });
+          const data = res.data?.data || [];
+          const firstGroup = Array.isArray(data) && data.length > 0 ? data[0] : null;
+          const channels = firstGroup?.channels || [];
+          const channel = channels.length > 0 ? channels[0] : null;
+          const results = channel?.results || [];
+
+          // 將結果展開為回饋組成，假設 rewardBreakdown 形如 "1%+2%"
+          const breakdown = results.map((r: any) => {
+            const parts = (r.rewardBreakdown || '').split('+')
+              .map((p: string) => parseFloat(p.replace('%', '').trim()))
+              .filter((n: number) => !isNaN(n));
+            const totalPct = parts.reduce((a: number, b: number) => a + b, 0);
+            const calc = calculateReward(parseFloat(amount), totalPct, 'round');
+            return {
+              percentage: totalPct,
+              calculatedReward: calc,
+              originalReward: (parseFloat(amount) * totalPct) / 100,
+              calculationMethod: 'round',
+              isExcluded: r.isExcluded,
+              schemeInfo: r.schemeInfo,
+            };
+          });
+
+          const sorted = breakdown
+            .sort((a: any, b: any) => {
+              // 排除優先，其次按回饋金額排序
+              if (a.isExcluded !== b.isExcluded) return a.isExcluded ? -1 : 1;
+              return (b.calculatedReward || 0) - (a.calculatedReward || 0);
+            });
+
+          const totalReward = sorted.length > 0 ? sorted[0].calculatedReward : 0;
+
+          if (!cancelled) {
+            setCalculationResult({
+              totalReward,
+              breakdown: sorted,
+            } as any);
+            setQuotaInfo(null);
+          }
+        } catch (error: unknown) {
+          if (!cancelled) {
+            console.error('通路計算錯誤:', error);
+            const err = error as { response?: { data?: { error?: string } } };
+            alert(err.response?.data?.error || '通路計算失敗');
+          }
+        }
+      } else if (mode === 'none' && amount) {
         if (!amount || parseFloat(amount) <= 0) {
           if (!cancelled) {
             setCalculationResult(null);
@@ -158,34 +217,72 @@ export default function CalculateRewards() {
 
       <div className="card bg-gradient-to-br from-white to-purple-50">
         <div className="space-y-4">
-          {/* 方案選擇 */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              方案選擇
-            </label>
-            <select
-              value={selectedScheme}
-              onChange={(e) => {
-                setSelectedScheme(e.target.value);
-                if (!e.target.value) {
-                  setRewards([
-                    { percentage: 0.3, calculationMethod: 'round' },
-                    { percentage: 2.7, calculationMethod: 'round' },
-                    { percentage: 0, calculationMethod: 'floor' },
-                  ]);
-                  setCalculationResult(null);
-                  setQuotaInfo(null);
-                }
-              }}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">不帶入方案</option>
-              {schemes.map((scheme) => (
-                <option key={scheme.id} value={scheme.id}>
-                  {scheme.name}
-                </option>
-              ))}
-            </select>
+          {/* 模式選擇 + 互斥欄位 */}
+          <div className="space-y-3">
+            <label className="block text-sm font-medium text-gray-700">方案選擇</label>
+            <div className="flex flex-wrap gap-4 text-sm text-gray-700">
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="mode"
+                  value="none"
+                  checked={mode === 'none'}
+                  onChange={() => { setMode('none'); setSelectedScheme(''); setChannelKeyword(''); setCalculationResult(null); setQuotaInfo(null); }}
+                />
+                不使用
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="mode"
+                  value="scheme"
+                  checked={mode === 'scheme'}
+                  onChange={() => { setMode('scheme'); setChannelKeyword(''); setCalculationResult(null); setQuotaInfo(null); }}
+                />
+                方案
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="mode"
+                  value="channel"
+                  checked={mode === 'channel'}
+                  onChange={() => { setMode('channel'); setSelectedScheme(''); setCalculationResult(null); setQuotaInfo(null); }}
+                />
+                通路
+              </label>
+            </div>
+
+            {mode === 'scheme' && (
+              <select
+                value={selectedScheme}
+                onChange={(e) => {
+                  setSelectedScheme(e.target.value);
+                  if (!e.target.value) {
+                    setCalculationResult(null);
+                    setQuotaInfo(null);
+                  }
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">不使用</option>
+                {schemes.map((scheme) => (
+                  <option key={scheme.id} value={scheme.id}>
+                    {scheme.name}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            {mode === 'channel' && (
+              <input
+                type="text"
+                value={channelKeyword}
+                onChange={(e) => setChannelKeyword(e.target.value)}
+                placeholder="輸入通路名稱（手動輸入，單一關鍵字）"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            )}
           </div>
 
           {/* 金額輸入 */}
@@ -202,8 +299,8 @@ export default function CalculateRewards() {
             />
           </div>
 
-          {/* 回饋組成設定 */}
-          {!selectedScheme && (
+          {/* 回饋組成設定（僅不使用方案/通路時可自訂） */}
+          {mode === 'none' && (
             <div className="space-y-3">
               <label className="block text-sm font-medium text-gray-700">回饋%數</label>
               <div className="grid grid-cols-3 gap-2">

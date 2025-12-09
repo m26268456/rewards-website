@@ -147,7 +147,7 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
          c.name || '-' || cs.name as name,
          c.name as card_name,
          cs.name as scheme_name,
-         srgm.root_scheme_id as shared_reward_group_id,
+         NULL::uuid as shared_reward_group_id,
          sr.id as reward_id,
          sr.reward_percentage,
          sr.calculation_method,
@@ -165,11 +165,10 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
          qt.next_refresh_at
        FROM card_schemes cs
        INNER JOIN cards c ON cs.card_id = c.id
-       LEFT JOIN shared_reward_group_members srgm ON srgm.scheme_id = cs.id
        LEFT JOIN scheme_rewards sr 
-         ON sr.scheme_id = COALESCE(srgm.root_scheme_id, cs.id) -- root 或自身的回饋
+         ON sr.scheme_id = cs.id
        LEFT JOIN quota_trackings qt 
-         ON qt.scheme_id = COALESCE(srgm.root_scheme_id, cs.id) -- 共享群組統一用 root 的追蹤
+         ON qt.scheme_id = cs.id
          AND sr.id = qt.reward_id 
          AND qt.payment_method_id IS NULL
        WHERE cs.card_id IS NOT NULL
@@ -212,7 +211,6 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
 
     const processRow = (row: QuotaDbRow) => {
       const key = `${row.scheme_id || 'null'}_${row.payment_method_id || 'null'}`;
-      const rootSchemeId = row.shared_reward_group_id || row.scheme_id || null;
       const hasReward = !!row.reward_id;
       const percentage =
         row.reward_percentage !== null && row.reward_percentage !== undefined
@@ -245,8 +243,6 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
           cardName: row.card_name || null,
           paymentMethodName: row.payment_method_name || null,
           schemeName: row.scheme_name || null,
-          sharedRewardGroupId: row.shared_reward_group_id || null,
-          rewardSourceSchemeId: row.scheme_id ? rootSchemeId : null,
           rewards: [],
         });
       }
@@ -282,51 +278,9 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
       });
     };
 
-    // 先建立 root rows 映射（scheme_id 為 root 的行）
     const schemeRows = schemeQuotasResult.rows;
     const paymentRows = paymentQuotasResult.rows;
-    const rootRowsMap = new Map<string, QuotaDbRow[]>();
-    schemeRows.forEach((row) => {
-      const rootId = row.shared_reward_group_id || row.scheme_id || '';
-      if (!rootRowsMap.has(rootId)) rootRowsMap.set(rootId, []);
-      rootRowsMap.get(rootId)!.push(row);
-    });
-
-    // 將方案行展開：同一共同回饋群組的方案使用 root 行的 quota/used/remaining，並帶出全部 reward rows
-    const expandedSchemeRows: QuotaDbRow[] = [];
-    rootRowsMap.forEach((sourceRows, rootId) => {
-      if (!sourceRows || sourceRows.length === 0) return;
-
-      // root 範本（若找不到 root，使用 shared_reward_group_id 為 null 的或第一筆）
-      const templateRows =
-        sourceRows.filter((r) => r.scheme_id === rootId || r.shared_reward_group_id === null);
-      const rewardTemplateRows = templateRows.length > 0 ? templateRows : sourceRows;
-
-      // 方案列表（去重）
-      const memberMap = new Map<string, QuotaDbRow>();
-      sourceRows.forEach((member) => {
-        const sid = member.scheme_id || '';
-        if (!memberMap.has(sid)) memberMap.set(sid, member);
-      });
-
-      // 每個方案帶上完整的 rewardTemplateRows
-      memberMap.forEach((member) => {
-        rewardTemplateRows.forEach((r) => {
-          expandedSchemeRows.push({
-            ...r,
-            scheme_id: member.scheme_id, // 前端顯示用：各自方案 id
-            scheme_name: member.scheme_name,
-            name: member.name,
-            card_id: member.card_id,
-            card_name: member.card_name,
-            // 只有綁定時帶出 root；未綁定保持 null
-            shared_reward_group_id: member.shared_reward_group_id || null,
-          });
-        });
-      });
-    });
-
-    [...expandedSchemeRows, ...paymentRows].forEach(processRow);
+    [...schemeRows, ...paymentRows].forEach(processRow);
 
     const result = Array.from(quotaMap.entries()).map(([key, quota]) => {
       const [schemeId, paymentMethodId] = key.split('_');
@@ -362,8 +316,8 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
         cardName: quota.cardName,
         paymentMethodName: quota.paymentMethodName,
         schemeName: quota.schemeName,
-        sharedRewardGroupId: quota.sharedRewardGroupId,
-        rewardSourceSchemeId: quota.rewardSourceSchemeId || null,
+        sharedRewardGroupId: null,
+        rewardSourceSchemeId: null,
         rewardComposition: quota.rewards
           .map((r: any) => (r.rewardId ? `${r.percentage}%` : '尚未設定'))
           .join('/'),

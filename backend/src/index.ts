@@ -4,9 +4,7 @@ import dotenv from 'dotenv';
 import { pool } from './config/database';
 import { env } from './config/env';
 import { errorHandler } from './middleware/errorHandler';
-import { apiLimiter } from './middleware/rateLimiter';
 import { startQuotaRefreshScheduler } from './services/quotaRefreshScheduler';
-import { ensureSharedRewardMappingInfrastructure } from './services/sharedRewardMapping';
 
 // 路由
 import cardsRouter from './routes/cards';
@@ -37,7 +35,6 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use('/api/', apiLimiter);
 
 // 根路徑
 app.get('/', (_req, res) => {
@@ -94,13 +91,6 @@ app.use((_req, res) => {
 app.use(errorHandler);
 
 const startServer = async () => {
-  try {
-    await ensureSharedRewardMappingInfrastructure();
-  } catch (error) {
-    console.error('❌ 初始化共同回饋資料結構失敗:', error);
-    process.exit(1);
-  }
-
   // 啟動伺服器
   // Railway 和其他雲端平台需要監聽 0.0.0.0 而不是 localhost
   const port = parseInt(env.PORT, 10);

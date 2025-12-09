@@ -129,13 +129,45 @@ export default function Transactions() {
         submitSchemeId = formData.schemeId; 
       }
 
-      await api.post('/transactions', {
+      const res = await api.post('/transactions', {
         ...formData,
         amount: amountNum,
         schemeId: submitSchemeId,
         paymentMethodId: submitPaymentMethodId,
       });
-      alert('交易已新增');
+      // 若選擇方案，取得最新額度資訊並提示警戒
+      if (submitSchemeId || submitPaymentMethodId) {
+        const quotaRes = await api.get('/quota');
+        const data: any[] = quotaRes.data?.data || [];
+        // 配對 key：schemeId + paymentMethodId
+        const match = data.find((q: any) =>
+          (submitSchemeId ? q.schemeId === submitSchemeId : !q.schemeId) &&
+          (submitPaymentMethodId ? q.paymentMethodId === submitPaymentMethodId : !q.paymentMethodId)
+        );
+        if (match && Array.isArray(match.remainingQuotas) && Array.isArray(match.quotaLimits)) {
+          const warnings: string[] = [];
+          match.remainingQuotas.forEach((rq: any, idx: number) => {
+            const limit = match.quotaLimits[idx];
+            if (limit === null || limit === undefined) return; // 無上限
+            const remaining = rq === null || rq === undefined ? limit : Number(rq);
+            const pct = (remaining / Number(limit)) * 100;
+            if (pct <= 0) warnings.push('⚠️ 剩餘額度 0%');
+            else if (pct <= 10) warnings.push('⚠️ 剩餘額度 <10%');
+            else if (pct <= 25) warnings.push('⚠️ 剩餘額度 <25%');
+            else if (pct <= 50) warnings.push('⚠️ 剩餘額度 <50%');
+          });
+          if (warnings.length > 0) {
+            // 取最低警戒線（已依條件序列判斷，最後一個為最嚴重）
+            alert(warnings[warnings.length - 1]);
+          } else {
+            alert('交易已新增');
+          }
+        } else {
+          alert('交易已新增');
+        }
+      } else {
+        alert('交易已新增');
+      }
       loadTransactions();
       setFormData({
         transactionDate: format(new Date(), 'yyyy-MM-dd'),

@@ -62,6 +62,13 @@ function PaymentMethodItem({ payment, onEdit, onDelete, onReload }: any) {
           <div className="font-medium">{payment.name}</div>
           {payment.note && <div className="text-sm text-gray-600" dangerouslySetInnerHTML={{ __html: linkify(payment.note) }} />}
         </div>
+        <div className="flex gap-2 items-start">
+          <button onClick={() => setShowDetails(!showDetails)} className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">
+            {showDetails ? '隱藏詳細' : '管理詳細'}
+          </button>
+          <button onClick={onEdit} className="px-3 py-1 bg-yellow-500 text-white rounded text-sm hover:bg-yellow-600">編輯</button>
+          <button onClick={onDelete} className="px-3 py-1 bg-red-500 text-white rounded text-sm hover:bg-red-600">刪除</button>
+        </div>
       </div>
 
       {showDetails && (
@@ -141,14 +148,6 @@ function PaymentMethodItem({ payment, onEdit, onDelete, onReload }: any) {
         </div>
       )}
 
-      {/* 底部操作按鈕，置於卡片下方 */}
-      <div className="flex gap-2 mt-3 justify-end">
-        <button onClick={() => setShowDetails(!showDetails)} className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">
-          {showDetails ? '隱藏詳細' : '管理詳細'}
-        </button>
-        <button onClick={onEdit} className="px-3 py-1 bg-yellow-500 text-white rounded text-sm hover:bg-yellow-600">編輯</button>
-        <button onClick={onDelete} className="px-3 py-1 bg-red-500 text-white rounded text-sm hover:bg-red-600">刪除</button>
-      </div>
     </div>
   );
 }

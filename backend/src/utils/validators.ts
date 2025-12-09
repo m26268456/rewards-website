@@ -20,7 +20,6 @@ export const createSchemeSchema = z.object({
   activityStartDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
   activityEndDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
   displayOrder: z.number().int().min(0).optional().default(0),
-  sharedRewardGroupId: z.string().uuid().optional().nullable(),
 });
 
 export const updateSchemeSchema = createSchemeSchema.omit({ cardId: true }).partial().extend({

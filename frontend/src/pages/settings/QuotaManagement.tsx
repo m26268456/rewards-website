@@ -85,16 +85,10 @@ export default function QuotaManagement() {
     refreshType: '', refreshValue: '', refreshDate: '',
     calculationBasis: 'transaction' 
   });
-  // 共同回饋綁定
-  const [sharedGroupOptions, setSharedGroupOptions] = useState<Array<{ id: string; name: string; cardId?: string }>>([]);
-  const [bindingTarget, setBindingTarget] = useState<{ idx: number; group: string } | null>(null);
-  const [selectedSharedGroups, setSelectedSharedGroups] = useState<string[]>([]);
-// 主方案（root）選擇
-const [selectedRootSchemeId, setSelectedRootSchemeId] = useState<string | null>(null);
+  // 已移除共同回饋綁定功能
 
   useEffect(() => {
     loadQuotas();
-    loadSharedGroups();
     const timer = setInterval(() => setCurrentTime(new Date().toLocaleString('zh-TW', { hour12: false })), 1000);
     return () => clearInterval(timer);
   }, []);
@@ -109,27 +103,11 @@ const [selectedRootSchemeId, setSelectedRootSchemeId] = useState<string | null>(
     } catch (e) { console.error(e); }
   };
 
-  const loadSharedGroups = async () => {
-    try {
-      // 從方案總覽取得所有方案，將名稱用於下拉（僅示意：共用回饋根方案列表）
-      const res = await api.get('/schemes/overview');
-      const data = res.data.data || [];
-      const options: Array<{ id: string; name: string; cardId?: string }> = [];
-      data.forEach((card: any) => {
-        card.schemes?.forEach((s: any) => {
-          options.push({ id: s.id, name: `${card.name}-${s.name}`, cardId: card.id });
-        });
-      });
-      setSharedGroupOptions(options);
-    } catch (e) {
-      console.error('載入共同回饋清單失敗', e);
-    }
-  };
 
   const handleQuotaSave = async () => {
     if (!editingQuota) return;
     const q = quotas[editingQuota.idx];
-    const targetSchemeId = q.rewardSourceSchemeId || q.sharedRewardGroupId || q.schemeId;
+    const targetSchemeId = q.schemeId;
     const rewardId = q.rewardIds[editingQuota.rIdx];
     
     // 如果沒有輸入調整值，設為 0（清除調整）
@@ -209,7 +187,7 @@ const [selectedRootSchemeId, setSelectedRootSchemeId] = useState<string | null>(
     }
     
     const q = quotas[editingReward.idx];
-    const targetSchemeId = q.rewardSourceSchemeId || q.sharedRewardGroupId || q.schemeId;
+    const targetSchemeId = q.schemeId;
     const rewardId = q.rewardIds[editingReward.rIdx];
     const isScheme = !!q.schemeId;
     const isNew = isAddingReward || !rewardId;
@@ -306,7 +284,7 @@ const [selectedRootSchemeId, setSelectedRootSchemeId] = useState<string | null>(
     }
     if (!confirm('確定刪除此回饋組成？')) return;
 
-    const targetSchemeId = q.rewardSourceSchemeId || q.sharedRewardGroupId || q.schemeId;
+    const targetSchemeId = q.schemeId;
     const isScheme = !!q.schemeId;
     const endpoint = isScheme
       ? `/schemes/${targetSchemeId}/rewards/${rewardId}`
@@ -321,74 +299,6 @@ const [selectedRootSchemeId, setSelectedRootSchemeId] = useState<string | null>(
     }
   };
 
-  // 綁定共同回饋群組（只對信用卡方案）
-  // 綁定共同回饋群組（多選）
-  const handleBindShared = async (overrideIds?: string[]) => {
-    if (!bindingTarget) return;
-    const current = quotas[bindingTarget.idx];
-    const currentSchemeId = current.schemeId;
-    if (!currentSchemeId) return alert('僅信用卡方案可綁定共同回饋');
-
-    const ids = overrideIds !== undefined ? overrideIds : selectedSharedGroups;
-    // 若沒選任何，僅解除當前方案
-    if (!ids || ids.length === 0) {
-      const groupRootId = current.sharedRewardGroupId || current.schemeId;
-      const groupMembers = quotas
-        .filter(q => q.schemeId && (q.sharedRewardGroupId === groupRootId || q.schemeId === groupRootId))
-        .map(q => q.schemeId);
-      await Promise.all(
-        groupMembers.map(id => api.put(`/schemes/${id}/shared-reward`, { sharedRewardGroupId: null }))
-      );
-      setBindingTarget(null);
-      setSelectedSharedGroups([]);
-      setSelectedRootSchemeId(null);
-      await loadQuotas();
-      alert('共同回饋已解除');
-      return;
-    }
-
-    // 修正 root 選擇與綁定邏輯：
-    // 1) 必須包含當前方案
-    // 2) 若使用者有選 root，且 root 在集合內，採用該 root；否則沿用既有群組 root；再否則以當前方案為 root
-    const toBindSet = new Set(ids);
-    toBindSet.add(currentSchemeId);
-
-    let rootId: string;
-    if (selectedRootSchemeId && toBindSet.has(selectedRootSchemeId)) {
-      rootId = selectedRootSchemeId;
-    } else if (current.sharedRewardGroupId) {
-      rootId = current.sharedRewardGroupId;
-    } else {
-      rootId = currentSchemeId;
-    }
-    toBindSet.add(rootId);
-    const toBind = Array.from(toBindSet);
-
-    // 找出原群組成員（僅限同一張卡、同一 root）
-    const existingGroupMembers = quotas
-      .filter(q => q.schemeId && (q.sharedRewardGroupId === rootId || q.schemeId === rootId))
-      .map(q => q.schemeId);
-    // 需要移除的：原群組裡但不在新集合裡的
-    const toRemove = existingGroupMembers.filter(id => !toBindSet.has(id));
-
-    try {
-      await Promise.all(
-        [
-          // 先解除不再屬於群組的方案
-          ...toRemove.map(id => api.put(`/schemes/${id}/shared-reward`, { sharedRewardGroupId: null })),
-          // 將新集合全部指向 root；root 本身 sharedRewardGroupId 設為 null
-          ...toBind.map(id => api.put(`/schemes/${id}/shared-reward`, { sharedRewardGroupId: id === rootId ? null : rootId })),
-        ]
-      );
-      alert('共同回饋綁定已更新');
-      setBindingTarget(null);
-      setSelectedSharedGroups([]);
-      setSelectedRootSchemeId(null);
-      loadQuotas();
-    } catch (e: any) {
-      alert(e.response?.data?.error || '更新失敗');
-    }
-  };
 
   const cardGroups = new Map();
   const paymentGroups = new Map();
@@ -403,57 +313,22 @@ const [selectedRootSchemeId, setSelectedRootSchemeId] = useState<string | null>(
     }
   });
 
-  // 將同一共同回饋群組的方案聚在一起（與 QuotaQuery 一致的邏輯）
+  // 簡化：不再有共同回饋群組，直接按項目分組
   const groupByShared = (items: any[]) => {
-    const order: string[] = [];
-    const map = new Map<string, any[]>();
-    
-    // 先找出所有被綁定的 root schemeId
-    const rootSchemeIds = new Set<string>();
-    items.forEach((item) => {
-      if (item.sharedRewardGroupId) {
-        rootSchemeIds.add(item.sharedRewardGroupId);
-      }
-    });
-    
-    items.forEach((item) => {
-      let key: string;
-      if (item.sharedRewardGroupId) {
-        // 被綁定的方案：使用 sharedRewardGroupId 作為 key
-        key = item.sharedRewardGroupId;
-      } else if (item.schemeId && rootSchemeIds.has(item.schemeId)) {
-        // Root 方案（被其他方案綁定）：使用自己的 schemeId 作為 key
-        key = item.schemeId;
-      } else {
-        // 獨立方案：使用 solo-${id} 作為 key
-        key = `solo-${item.schemeId || item.paymentMethodId || item.__index}`;
-      }
-      
-      if (!map.has(key)) {
-        map.set(key, []);
-        order.push(key);
-      }
-      map.get(key)!.push(item);
-    });
-    
-    // 將有共同回饋的群組置頂，並給群組分配顏色索引
-    const sorted = order.sort((a, b) => {
-      const aIsShared = a.startsWith('solo-') ? 1 : 0;
-      const bIsShared = b.startsWith('solo-') ? 1 : 0;
-      return aIsShared - bIsShared; // 共同回饋群組 (0) 排在前面，單獨項目 (1) 排在後面
-    });
-    const colorIndexMap = new Map<string, number>();
-    sorted.forEach((k, idx) => colorIndexMap.set(k, idx));
-    return sorted.map(k => ({ key: k, items: map.get(k)!, colorIndexMap }));
+    return items.map((item, idx) => ({
+      key: item.schemeId ? `scheme-${item.schemeId}` : `pay-${item.paymentMethodId || idx}`,
+      items: [item],
+      colorIndexMap: new Map<string, number>([[item.schemeId || item.paymentMethodId || String(idx), idx]]),
+    }));
   };
 
   const renderTable = (list: any[], groupKey: string) => (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
+      <div className="overflow-auto">
+        <table className="min-w-max divide-y divide-gray-200">
           <thead className="bg-gradient-to-r from-gray-50 to-gray-100 sticky top-0 z-20 shadow-sm">
             <tr>
-              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-normal break-words min-w-0 sticky left-0 bg-gray-50 z-30 border-r border-gray-200">名稱</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-normal break-words min-w-[140px] sticky left-0 bg-gray-50 z-30 border-r border-gray-200">名稱</th>
               <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-normal break-words min-w-0">回饋組成</th>
               <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-normal break-words min-w-0">計算方式</th>
               <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-normal break-words min-w-0">額度狀態</th>
@@ -463,15 +338,10 @@ const [selectedRootSchemeId, setSelectedRootSchemeId] = useState<string | null>(
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {groupByShared(list).map(({ key: sharedKey, items, colorIndexMap }) => {
-              const isSharedGroup = !sharedKey.startsWith('solo-');
+                const isSharedGroup = false;
               
               // 排序：root 方案在前，被綁定方案在後（與 QuotaQuery 一致）
-              const sortedItems = items.slice().sort((a, b) => {
-                const isRootA = !a.sharedRewardGroupId || a.sharedRewardGroupId === a.schemeId;
-                const isRootB = !b.sharedRewardGroupId || b.sharedRewardGroupId === b.schemeId;
-                if (isRootA !== isRootB) return isRootA ? -1 : 1;
-                return 0;
-              });
+                  const sortedItems = items.slice();
               
               const primary = sortedItems[0];
               let rewardIndices: number[] = [];
@@ -486,20 +356,11 @@ const [selectedRootSchemeId, setSelectedRootSchemeId] = useState<string | null>(
               }
               
               // 找出 root 方案名稱和被綁定方案名稱
-              const rootId = primary.sharedRewardGroupId || primary.schemeId;
-              const rootScheme = sortedItems.find((it) => !it.sharedRewardGroupId || it.sharedRewardGroupId === it.schemeId) || primary;
-              const rootName = rootScheme.schemeName || rootScheme.name || '';
+                  const rootName = primary.schemeName || primary.name || '';
               const rootNameParts = rootName.split('-');
               const rootNameDisplay = rootNameParts.length > 1 ? rootNameParts[rootNameParts.length - 1] : rootName;
               
-              const childNames = sortedItems
-                .filter((it) => it.schemeId !== rootId)
-                .map((it) => {
-                  const nm = it.schemeName || it.name || '';
-                  const parts = nm.split('-');
-                  return parts.length > 1 ? parts[parts.length - 1] : nm;
-                })
-                .filter(Boolean);
+                  const childNames: string[] = [];
               
               const schemeNames = [rootNameDisplay, ...childNames];
 
@@ -511,8 +372,8 @@ const [selectedRootSchemeId, setSelectedRootSchemeId] = useState<string | null>(
                 const isEditingQ = editingQuota?.idx === primary.__index && editingQuota?.rIdx === rIdx;
                 const isEditingR = editingReward?.idx === primary.__index && editingReward?.rIdx === rIdx;
                 const isCardScheme = primary.schemeId && !primary.paymentMethodId;
-                const sharedBound = primary.sharedRewardGroupId && primary.sharedRewardGroupId !== primary.schemeId ? primary.sharedRewardGroupId : null;
-                const isSharedChild = !!sharedBound;
+                const sharedBound = null;
+                const isSharedChild = false;
 
                 const isTempNewRow = isAddingReward && editingReward?.idx === primary.__index && editingReward?.rIdx === rIdx;
 
@@ -546,18 +407,6 @@ const [selectedRootSchemeId, setSelectedRootSchemeId] = useState<string | null>(
                       <td rowSpan={rowsToRender.length} className={`px-3 py-2 text-sm font-medium sticky left-0 ${rowBgColor} z-10 border-r border-gray-200 align-top whitespace-normal break-words min-w-0`}>
                         <div className="space-y-1">
                           <div className="font-semibold">{rootNameDisplay}</div>
-                          {childNames.length > 0 && (
-                            <div className="text-xs text-gray-600 space-y-0.5">
-                              {childNames.map((nm: string, i: number) => (
-                                <div key={i}>{nm}</div>
-                              ))}
-                            </div>
-                          )}
-                          {isSharedGroup && (
-                            <div className="text-[11px] text-blue-700 bg-blue-50 border border-blue-100 rounded px-2 py-1 inline-block mt-1">
-                              共用回饋
-                            </div>
-                          )}
                         </div>
                       </td>
                     )}
@@ -704,43 +553,14 @@ const [selectedRootSchemeId, setSelectedRootSchemeId] = useState<string | null>(
                         </div>
                       ) : (
                         <div className="flex flex-col gap-1">
-                          {!isSharedChild ? (
-                            <>
-                              <div className="flex flex-wrap gap-2">
-                                <button
-                                  onClick={() => handleRewardEdit(primary.__index, rIdx, groupKey)} 
-                                  className="px-3 py-1 text-sm bg-yellow-500 text-white rounded hover:bg-yellow-600"
-                                >
-                                  編輯
-                                </button>
-                                {isCardScheme && (
-                                  <button
-                                    onClick={() => { 
-                                      setBindingTarget({ idx: primary.__index, group: groupKey }); 
-                                      const current = quotas.find(q => q.__index === primary.__index);
-                                      const groupRoot = current?.sharedRewardGroupId || current?.schemeId;
-                                      const groupMembers = quotas
-                                        .filter(x => x.schemeId && (x.sharedRewardGroupId === groupRoot || x.schemeId === groupRoot))
-                                        .map(x => x.schemeId as string);
-                                      const preset = groupRoot
-                                        ? Array.from(new Set([groupRoot, ...groupMembers]))
-                                        : groupMembers;
-                                      setSelectedSharedGroups(preset);
-                                      setSelectedRootSchemeId(groupRoot ?? current?.schemeId ?? null);
-                                    }}
-                                    className="px-3 py-1 text-sm text-white rounded hover:opacity-90"
-                                    style={{ backgroundColor: '#3B82F6' }}
-                                  >
-                                    回饋綁定
-                                  </button>
-                                )}
-                              </div>
-                            </>
-                          ) : (
-                            <div className="text-xs text-blue-600 bg-blue-50 border border-blue-100 rounded px-2 py-1">
-                              共用回饋（由主方案管理）
-                            </div>
-                          )}
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              onClick={() => handleRewardEdit(primary.__index, rIdx, groupKey)} 
+                              className="px-3 py-1 text-sm bg-yellow-500 text-white rounded hover:bg-yellow-600"
+                            >
+                              編輯
+                            </button>
+                          </div>
                         </div>
                       )}
                     </td>
@@ -805,86 +625,7 @@ const [selectedRootSchemeId, setSelectedRootSchemeId] = useState<string | null>(
         </div>
       )}
 
-      {bindingTarget && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-lg p-4 w-96 max-h-[80vh] overflow-y-auto">
-            <h4 className="font-semibold mb-3 text-gray-800">回饋綁定</h4>
-            {(() => {
-              const current = quotas[bindingTarget.idx];
-              const currentCardId = current?.cardId;
-              const candidates = sharedGroupOptions.filter(opt => !currentCardId || opt.cardId === currentCardId);
-              return (
-                <div className="space-y-2">
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={selectedSharedGroups.length === 0}
-                      onChange={() => { setSelectedSharedGroups([]); setSelectedRootSchemeId(null); }}
-                    />
-                    不綁定
-                  </label>
-                  {candidates.map(opt => (
-                    <label key={opt.id} className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={selectedSharedGroups.includes(opt.id)}
-                        onChange={() => {
-                          setSelectedSharedGroups(prev => {
-                            const next = prev.includes(opt.id)
-                              ? prev.filter(id => id !== opt.id)
-                              : [...prev, opt.id];
-                            // 若原 root 被移除，重設 root 為新的第一個已選
-                            if (selectedRootSchemeId && !next.includes(selectedRootSchemeId)) {
-                              setSelectedRootSchemeId(next[0] ?? null);
-                            }
-                            return next;
-                          });
-                        }}
-                      />
-                      <span>{opt.name}</span>
-                    </label>
-                  ))}
-                  {/* 勾選兩個以上方案時，顯示主方案選擇 */}
-                  {selectedSharedGroups.length >= 2 && (
-                    <div className="space-y-2 border rounded p-2">
-                      <div className="text-xs text-gray-600">選擇主方案</div>
-                      {candidates
-                        .filter(opt => selectedSharedGroups.includes(opt.id)) // 只列出被組成回饋組的方案
-                        .map(opt => (
-                          <label key={opt.id} className="flex items-center gap-2 text-sm">
-                            <input
-                              type="radio"
-                              checked={selectedRootSchemeId === opt.id}
-                              onChange={() => setSelectedRootSchemeId(opt.id)}
-                            />
-                            <span>{opt.name}</span>
-                          </label>
-                        ))}
-                    </div>
-                  )}
-                  {candidates.length === 0 && (
-                    <div className="text-xs text-gray-500">此卡片無可綁定的其他方案</div>
-                  )}
-                </div>
-              );
-            })()}
-            <div className="flex justify-end gap-2 mt-4">
-              <button
-                onClick={() => { setBindingTarget(null); setSelectedSharedGroups([]); }}
-                className="px-3 py-1 bg-gray-300 text-gray-800 rounded text-sm"
-              >
-                取消
-              </button>
-                  <button
-                    onClick={() => handleBindShared(selectedSharedGroups)}
-                    className="px-3 py-1 bg-blue-600 text-white rounded text-sm"
-                  >
-                    確認
-                  </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* 共同回饋綁定功能已移除 */}
     </div>
   );
 }
