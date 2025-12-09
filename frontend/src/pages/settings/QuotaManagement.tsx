@@ -78,6 +78,7 @@ export default function QuotaManagement() {
   const [editingQuota, setEditingQuota] = useState<{ idx: number; rIdx: number; group: string } | null>(null);
   const [isAddingReward, setIsAddingReward] = useState(false); // 是否在新增組成
   const [quotaAdjust, setQuotaAdjust] = useState('');
+  const [quotaAdjustChanged, setQuotaAdjustChanged] = useState(false);
 
   // 編輯回饋組成狀態 (設定調整)
   const [editingReward, setEditingReward] = useState<{ idx: number; rIdx: number; group: string } | null>(null);
@@ -104,39 +105,32 @@ export default function QuotaManagement() {
     } catch (e) { console.error(e); }
   };
 
+  const handleQuotaAdjustChange = (val: string) => {
+    setQuotaAdjust(val);
+    setQuotaAdjustChanged(true);
+  };
+
 
   const handleQuotaSave = async () => {
     if (!editingQuota) return;
     const q = quotas[editingQuota.idx];
     const targetSchemeId = q.schemeId;
     const rewardId = q.rewardIds[editingQuota.rIdx];
-    
-    // 如果沒有輸入調整值，設為 0（清除調整）
-    if (!quotaAdjust || quotaAdjust.trim() === '') {
-      try {
-        await api.put(`/quota/${targetSchemeId || 'null'}`, {
-          paymentMethodId: q.paymentMethodId,
-          rewardId,
-          manualAdjustment: 0,
-        });
-        setQuotaAdjust('');   // 清空編輯欄位
-        await loadQuotas();   // 重新載入，反映 0
-      } catch (e: any) {
-        throw e;
-      }
-      return;
-    }
-    
-    // 解析調整值：允許正負數，僅接受數字
-    const cleaned = quotaAdjust.trim();
-    let adjustment = 0;
-    if (cleaned.startsWith('+')) adjustment = parseFloat(cleaned.substring(1));
-    else if (cleaned.startsWith('-')) adjustment = parseFloat(cleaned);
-    else adjustment = parseFloat(cleaned);
 
-    if (!Number.isFinite(adjustment)) {
-      alert('人工干預請輸入數字');
-      return;
+    const cleaned = quotaAdjust?.trim() || '';
+    const isEmpty = cleaned === '';
+
+    // 解析調整值：允許正負數，僅接受數字；空值視為 null（移除人工干預）
+    let adjustment: number | null = null;
+    if (!isEmpty) {
+      if (cleaned.startsWith('+')) adjustment = parseFloat(cleaned.substring(1));
+      else if (cleaned.startsWith('-')) adjustment = parseFloat(cleaned);
+      else adjustment = parseFloat(cleaned);
+
+      if (!Number.isFinite(adjustment)) {
+        alert('人工干預請輸入數字');
+        return;
+      }
     }
 
     try {
@@ -146,7 +140,9 @@ export default function QuotaManagement() {
         rewardId,
         manualAdjustment: adjustment
       });
-      loadQuotas();
+      await loadQuotas();
+      setQuotaAdjust('');          // 清空編輯欄位
+      setQuotaAdjustChanged(false);
     } catch (e: any) { 
       throw e; // 拋出錯誤，讓 handleSaveAll 處理
     }
@@ -164,7 +160,7 @@ export default function QuotaManagement() {
       : 'transaction';
     
     // 從後端資料中獲取當前的調整值
-    const currentAdjustment = q.manualAdjustments?.[rIdx] || 0;
+    const currentAdjustment = q.manualAdjustments?.[rIdx];
     
     setEditingReward({ idx: qIdx, rIdx: rIdx, group });
     setEditingQuota({ idx: qIdx, rIdx: rIdx, group });
@@ -179,7 +175,9 @@ export default function QuotaManagement() {
       calculationBasis: basis
     });
     // 將當前的調整值帶入編輯欄位
-    setQuotaAdjust(currentAdjustment !== 0 ? `${currentAdjustment >= 0 ? '+' : ''}${currentAdjustment}` : '');
+    const hasAdjustment = currentAdjustment !== null && currentAdjustment !== undefined && currentAdjustment !== 0;
+    setQuotaAdjust(hasAdjustment ? `${currentAdjustment >= 0 ? '+' : ''}${currentAdjustment}` : '');
+    setQuotaAdjustChanged(false);
   };
 
   const handleRewardSave = async () => {
@@ -230,7 +228,7 @@ export default function QuotaManagement() {
     
     try {
       // 如果有額度調整，先儲存額度
-      if (editingQuota && quotaAdjust && quotaAdjust.trim() !== '') {
+      if (editingQuota && quotaAdjustChanged) {
         await handleQuotaSave();
       }
       
@@ -241,6 +239,7 @@ export default function QuotaManagement() {
       setEditingReward(null);
       setEditingQuota(null);
       setQuotaAdjust('');
+      setQuotaAdjustChanged(false);
       setIsAddingReward(false);
       alert('設定已更新');
     } catch (e: any) {
@@ -269,6 +268,7 @@ export default function QuotaManagement() {
       calculationBasis: 'transaction',
     });
     setQuotaAdjust('');
+    setQuotaAdjustChanged(false);
   };
 
   // 刪除回饋組成
@@ -282,6 +282,7 @@ export default function QuotaManagement() {
       setEditingQuota(null);
       setIsAddingReward(false);
       setQuotaAdjust('');
+      setQuotaAdjustChanged(false);
       return;
     }
     if (!rewardId) {
@@ -473,7 +474,7 @@ export default function QuotaManagement() {
                         primary.quotaLimits?.[rIdx] ?? null,
                         isEditingR, // 使用 isEditingR 來控制編輯模式
                         quotaAdjust, 
-                        setQuotaAdjust,
+                        handleQuotaAdjustChange,
                         primary.manualAdjustments?.[rIdx] // b: 人工調整值（從後端資料取得）
                       )}
                     </td>
@@ -540,6 +541,7 @@ export default function QuotaManagement() {
                             setEditingReward(null); 
                             setEditingQuota(null); 
                             setQuotaAdjust(''); 
+                            setQuotaAdjustChanged(false);
                           }} className="bg-gray-300 px-2 py-1 rounded text-xs">取消</button>
                         </div>
                         <div className="flex flex-wrap gap-2 pt-1">
