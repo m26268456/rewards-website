@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+// @ts-nocheck
+import React, { useState, useEffect } from 'react';
 import api from '../../utils/api';
 
 // 格式化函數

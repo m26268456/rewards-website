@@ -126,18 +126,31 @@ export default function CalculateRewards() {
           const channel = channels.length > 0 ? channels[0] : null;
           const results = channel?.results || [];
 
-          // 將結果展開為回饋組成，假設 rewardBreakdown 形如 "1%+2%"
+          // 將結果展開為回饋組成，依每個組成的計算方式計算回饋
           const breakdown = results.map((r: any) => {
-            const parts = (r.rewardBreakdown || '').split('+')
-              .map((p: string) => parseFloat(p.replace('%', '').trim()))
-              .filter((n: number) => !isNaN(n));
-            const totalPct = parts.reduce((a: number, b: number) => a + b, 0);
-            const calc = calculateReward(parseFloat(amount), totalPct, 'round');
+            const items = Array.isArray(r.rewardItems)
+              ? r.rewardItems
+              : (r.rewardBreakdown || '').split('+').map((p: string) => ({
+                  percentage: parseFloat(p.replace('%', '').trim()),
+                  calculationMethod: r.calculationMethod || 'round',
+                }));
+            const perItem = items
+              .map((it: any) => {
+                const pct = parseFloat(it.percentage);
+                if (!isFinite(pct)) return 0;
+                const method = (it.calculationMethod || 'round') as 'round' | 'floor' | 'ceil';
+                return calculateReward(parseFloat(amount), pct, method);
+              })
+              .reduce((a: number, b: number) => a + b, 0);
+            const totalPct = items
+              .map((it: any) => parseFloat(it.percentage))
+              .filter((n: number) => isFinite(n))
+              .reduce((a: number, b: number) => a + b, 0);
             return {
               percentage: totalPct,
-              calculatedReward: calc,
-              originalReward: (parseFloat(amount) * totalPct) / 100,
-              calculationMethod: 'round',
+              calculatedReward: perItem,
+              originalReward: perItem,
+              calculationMethod: 'mixed',
               isExcluded: r.isExcluded,
               schemeInfo: r.schemeInfo,
             };

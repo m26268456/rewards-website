@@ -314,8 +314,6 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
     if (schemeCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: '方案不存在' });
     }
-  const cardId = schemeCheck.rows[0].card_id;
-
     const values: Array<string | number | boolean | null> = [
       name,
       note || null,
@@ -382,8 +380,6 @@ router.put('/:id/batch', async (req: Request, res: Response, next: NextFunction)
         await client.query('ROLLBACK');
         return res.status(404).json({ success: false, error: '方案不存在' });
       }
-      const cardId = schemeCheck.rows[0].card_id;
-
       // 1. 更新方案基本資訊
       const updateValues: Array<string | number | boolean | null> = [
         name,

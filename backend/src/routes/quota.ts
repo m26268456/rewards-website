@@ -147,7 +147,6 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
          c.name || '-' || cs.name as name,
          c.name as card_name,
          cs.name as scheme_name,
-         NULL::uuid as shared_reward_group_id,
          sr.id as reward_id,
          sr.reward_percentage,
          sr.calculation_method,

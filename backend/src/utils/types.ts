@@ -107,7 +107,6 @@ export interface QuotaDbRow {
   card_name: string | null;
   scheme_name: string | null;
   payment_method_name: string | null;
-  shared_reward_group_id: string | null;
   reward_id: string;
   reward_percentage: string | number;
   calculation_method: string;
