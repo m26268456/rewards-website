@@ -133,22 +133,24 @@ export default function CalculateRewards() {
             )
           );
 
-          // 逐組成依計算方式計算
+          // 逐組成依計算方式計算，並攜帶方案/通路資訊
           const breakdown = allResults.map((r: any) => {
+            const amountNum = parseFloat(amount);
             const items = Array.isArray(r.rewardItems) && r.rewardItems.length > 0
               ? r.rewardItems
               : (r.rewardBreakdown || '').split('+').map((p: string) => ({
                   percentage: parseFloat(p.replace('%', '').trim()),
                   calculationMethod: r.calculationMethod || 'round',
                 }));
-            const perItemRewards = items
-              .map((it: any) => {
-                const pct = parseFloat(it.percentage);
-                if (!isFinite(pct)) return 0;
-                const method = (it.calculationMethod || 'round') as 'round' | 'floor' | 'ceil';
-                return calculateReward(parseFloat(amount), pct, method);
-              });
-            const totalReward = perItemRewards.reduce((a: number, b: number) => a + b, 0);
+            const perItemRewards = items.map((it: any) => {
+              const pct = parseFloat(it.percentage);
+              if (!isFinite(pct)) return { ...it, originalReward: 0, calculatedReward: 0 };
+              const method = (it.calculationMethod || 'round') as 'round' | 'floor' | 'ceil';
+              const orig = (amountNum * pct) / 100;
+              const calc = calculateReward(amountNum, pct, method);
+              return { ...it, originalReward: orig, calculatedReward: calc };
+            });
+            const totalReward = perItemRewards.reduce((a: number, b: any) => a + (b.calculatedReward || 0), 0);
             const totalPct = items
               .map((it: any) => parseFloat(it.percentage))
               .filter((n: number) => isFinite(n))
@@ -156,11 +158,12 @@ export default function CalculateRewards() {
             return {
               percentage: totalPct,
               calculatedReward: totalReward,
-              originalReward: totalReward,
+              originalReward: perItemRewards.reduce((a: number, b: any) => a + (b.originalReward || 0), 0),
               calculationMethod: 'mixed',
               isExcluded: r.isExcluded,
               schemeInfo: r.schemeInfo,
-              channelName: r.channelName,
+              channelName: r.channelName || r.sourceChannelName || r.keyword,
+              rewardItems: perItemRewards,
             };
           });
 
@@ -384,16 +387,36 @@ export default function CalculateRewards() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {calculationResult.breakdown.map((item, index: number) => (
+              {calculationResult.breakdown.map((item: any, index: number) => (
                       <tr key={index}>
-                        <td className="px-4 py-3 text-sm">{item.percentage}%</td>
+                  <td className="px-4 py-3 text-sm">
+                    {item.schemeInfo && <div className="text-xs text-gray-600">{item.schemeInfo}</div>}
+                    {item.channelName && <div className="text-xs text-gray-500">{item.channelName}</div>}
+                  </td>
+                  <td className="px-4 py-3 text-sm">
+                    {item.rewardItems?.map((it: any, i: number) => (
+                      <div key={i}>{(it.percentage ?? 0).toFixed(2)}%</div>
+                    ))}
+                  </td>
                         <td className="px-4 py-3 text-sm">
-                          {item.calculationMethod === 'round' && '四捨五入'}
-                          {item.calculationMethod === 'floor' && '無條件捨去'}
-                          {item.calculationMethod === 'ceil' && '無條件進位'}
+                    {item.rewardItems?.map((it: any, i: number) => {
+                      const m = it.calculationMethod || 'round';
+                      return (
+                        <div key={i}>
+                          {m === 'round' ? '四捨五入' : m === 'floor' ? '無條件捨去' : m === 'ceil' ? '無條件進位' : m}
+                        </div>
+                      );
+                    })}
                         </td>
                         <td className="px-4 py-3 text-sm font-medium">
-                          {item.originalReward.toFixed(2)} → {item.calculatedReward}
+                    {item.rewardItems?.map((it: any, i: number) => (
+                      <div key={i}>
+                        {(it.originalReward ?? 0).toFixed(2)} → {it.calculatedReward ?? 0}
+                      </div>
+                    ))}
+                    <div className="font-semibold text-green-700 mt-1">
+                      總計：{(item.calculatedReward ?? 0).toFixed(2)}
+                    </div>
                         </td>
                       </tr>
                     ))}
