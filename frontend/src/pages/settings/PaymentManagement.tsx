@@ -61,14 +61,32 @@ function PaymentMethodItem({ payment, onEdit, onDelete, onReload }: any) {
         <div>
           <div className="font-medium">{payment.name}</div>
           {payment.note && <div className="text-sm text-gray-600" dangerouslySetInnerHTML={{ __html: linkify(payment.note) }} />}
+          {(payment.activity_start_date || payment.activity_end_date) && (
+            <div className="text-xs text-gray-600">
+              活動期間：{payment.activity_start_date || '未設'} ~ {payment.activity_end_date || '未設'}
+            </div>
+          )}
         </div>
       </div>
-      <div className="mt-2 flex gap-2 flex-wrap justify-start">
-        <button onClick={() => setShowDetails(!showDetails)} className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">
+      <div className="mt-2 flex flex-wrap gap-2 sm:gap-1 sm:justify-start sm:items-center">
+        <button
+          onClick={() => setShowDetails(!showDetails)}
+          className="px-2 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600"
+        >
           {showDetails ? '隱藏詳細' : '管理詳細'}
         </button>
-        <button onClick={onEdit} className="px-3 py-1 bg-yellow-500 text-white rounded text-sm hover:bg-yellow-600">編輯</button>
-        <button onClick={onDelete} className="px-3 py-1 bg-red-500 text-white rounded text-sm hover:bg-red-600">刪除</button>
+        <button
+          onClick={onEdit}
+          className="px-2 py-1 bg-yellow-500 text-white rounded text-xs hover:bg-yellow-600"
+        >
+          編輯
+        </button>
+        <button
+          onClick={onDelete}
+          className="px-2 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600"
+        >
+          刪除
+        </button>
       </div>
  
       {showDetails && (
@@ -224,7 +242,9 @@ export default function PaymentManagement() {
     const data = {
       name: (form.elements.namedItem('name') as HTMLInputElement).value,
       note: (form.elements.namedItem('note') as HTMLInputElement).value,
-      displayOrder: editingPayment ? editingPayment.display_order : 0
+      displayOrder: editingPayment ? editingPayment.display_order : 0,
+      activityStartDate: (form.elements.namedItem('activityStartDate') as HTMLInputElement)?.value || null,
+      activityEndDate: (form.elements.namedItem('activityEndDate') as HTMLInputElement)?.value || null,
     };
     
     if (editingPayment) await api.put(`/payment-methods/${editingPayment.id}`, data);
@@ -270,6 +290,16 @@ export default function PaymentManagement() {
           <form onSubmit={handleSubmit} className="space-y-3">
             <input name="name" defaultValue={editingPayment?.name} placeholder="名稱" required className="w-full border p-2 rounded" />
             <input name="note" defaultValue={editingPayment?.note} placeholder="備註" className="w-full border p-2 rounded" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <label className="text-xs text-gray-600 flex flex-col">
+                活動開始日
+                <input type="date" name="activityStartDate" className="border p-2 rounded text-sm" />
+              </label>
+              <label className="text-xs text-gray-600 flex flex-col">
+                活動結束日
+                <input type="date" name="activityEndDate" className="border p-2 rounded text-sm" />
+              </label>
+            </div>
             <div className="flex gap-2">
               <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded">儲存</button>
               <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 bg-gray-300 rounded">取消</button>
@@ -304,6 +334,16 @@ export default function PaymentManagement() {
                 <form onSubmit={handleSubmit} className="space-y-3">
                   <input name="name" defaultValue={editingPayment?.name} placeholder="名稱" required className="w-full border p-2 rounded text-sm" />
                   <input name="note" defaultValue={editingPayment?.note} placeholder="備註" className="w-full border p-2 rounded text-sm" />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <label className="text-xs text-gray-600 flex flex-col">
+                      活動開始日
+                      <input type="date" name="activityStartDate" defaultValue={editingPayment?.activity_start_date || ''} className="border p-2 rounded text-sm" />
+                    </label>
+                    <label className="text-xs text-gray-600 flex flex-col">
+                      活動結束日
+                      <input type="date" name="activityEndDate" defaultValue={editingPayment?.activity_end_date || ''} className="border p-2 rounded text-sm" />
+                    </label>
+                  </div>
                   <div className="flex gap-2">
                     <button type="submit" className="px-3 py-1 bg-blue-600 text-white rounded text-xs">儲存</button>
                     <button type="button" onClick={() => { setShowForm(false); setEditingPayment(null); }} className="px-3 py-1 bg-gray-400 text-white rounded text-xs">取消</button>

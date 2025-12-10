@@ -60,6 +60,8 @@ CREATE TABLE payment_methods (
     name VARCHAR(100) NOT NULL UNIQUE, -- 例如：LINE Pay、全支付
     note TEXT, -- 支付方式備註
     own_reward_percentage DECIMAL(5,2) DEFAULT 0, -- 支付方式本身的回饋%
+    activity_start_date DATE, -- 活動開始日期
+    activity_end_date DATE, -- 活動結束日期
     display_order INTEGER NOT NULL DEFAULT 0, -- 顯示順序
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP

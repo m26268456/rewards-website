@@ -117,10 +117,11 @@ async function checkAndRefreshQuotas() {
 
           const quotaLimit = quota.quota_limit ? parseFloat(quota.quota_limit) : null;
 
-          // 執行刷新：重置已用額度、更新剩餘額度、設定下次刷新時間
+          // 執行刷新：重置已用額度、人工干預、更新剩餘額度、設定下次刷新時間
           await client.query(
             `UPDATE quota_trackings
              SET used_quota = 0,
+                 manual_adjustment = 0,
                  remaining_quota = $1,
                  current_amount = 0,
                  next_refresh_at = $2,

@@ -2,9 +2,82 @@ import { Router, Request, Response, NextFunction } from 'express';
 import pool from '../config/database';
 import { shouldRefreshQuota, calculateNextRefreshTime, formatRefreshTime } from '../utils/quotaRefresh';
 import { logger } from '../utils/logger';
-import { QuotaDbRow, QuotaRefreshType } from '../utils/types';
+import { QuotaDbRow, QuotaRefreshType, QuotaCalculationBasis, CalculationMethod } from '../utils/types';
+import { calculateReward } from '../utils/rewardCalculation';
+import { addMonths } from 'date-fns';
 
 const router = Router();
+
+type QuotaWindowResult = {
+  start: Date | null;
+  end: Date | null;
+  error: boolean;
+};
+
+const MIN_DATE = new Date('1970-01-01T00:00:00Z');
+
+function parseDateValue(input: any): Date | null {
+  if (!input) return null;
+  if (input instanceof Date) return input;
+  const str = String(input);
+  if (!str) return null;
+  const d = new Date(str);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function buildMonthlyWindow(day: number): { start: Date; end: Date } {
+  const now = new Date();
+  const safeDay = Math.min(Math.max(day, 1), 28);
+  const nowDay = now.getDate();
+  // A. 當下已過 OO 號：本月 OO ~ 下月 OO-1
+  // B. 未到 OO 號：上月 OO ~ 本月 OO-1
+  let start: Date;
+  if (nowDay > safeDay) {
+    start = new Date(now.getFullYear(), now.getMonth(), safeDay, 0, 0, 0, 0);
+  } else {
+    start = new Date(now.getFullYear(), now.getMonth() - 1, safeDay, 0, 0, 0, 0);
+  }
+  const endBase = addMonths(start, 1);
+  const end = new Date(endBase.getFullYear(), endBase.getMonth(), safeDay, 0, 0, 0, 0);
+  end.setMilliseconds(end.getMilliseconds() - 1);
+  return { start, end };
+}
+
+function getQuotaWindow(
+  refreshType: QuotaRefreshType | null,
+  refreshValue: number | null,
+  _refreshDate: string | null,
+  activityStartDate: Date | string | null,
+  activityEndDate: Date | string | null
+): QuotaWindowResult {
+  // monthly: 依 day 規則
+  if (refreshType === 'monthly') {
+    if (refreshValue === null || refreshValue === undefined) {
+      return { start: null, end: null, error: true };
+    }
+    const { start, end } = buildMonthlyWindow(refreshValue);
+    return { start, end, error: false };
+  }
+
+  // 非 monthly: 依 st/end
+  const st = parseDateValue(activityStartDate);
+  const ed = parseDateValue(activityEndDate);
+
+  if (!st && !ed) {
+    return { start: null, end: null, error: true };
+  }
+
+  if (st && !ed) {
+    return { start: st, end: new Date(), error: false };
+  }
+
+  if (!st && ed) {
+    return { start: MIN_DATE, end: ed, error: false };
+  }
+
+  // st & ed
+  return { start: st!, end: ed!, error: false };
+}
 
 // 取得所有額度資訊
 router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
@@ -74,35 +147,17 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
 
           const quotaLimit = quota.quota_limit ? Number(quota.quota_limit) : null;
 
-          // 刷新時需要考慮 manual_adjustment
-          // remaining_quota = quota_limit - (0 + manual_adjustment)
+          // 刷新時重置 manual_adjustment = 0
           let refreshRemainingQuota: number | null = null;
           if (quotaLimit !== null) {
-            // 需要先取得當前的 manual_adjustment
-            let currentManualAdjustment = 0;
-            if (quota.scheme_id) {
-              const adjResult = await client.query(
-                `SELECT COALESCE(manual_adjustment, 0) as manual_adjustment FROM quota_trackings
-                 WHERE scheme_id = $1 AND reward_id = $2 AND payment_reward_id IS NULL
-                   AND (payment_method_id = $3 OR (payment_method_id IS NULL AND $3 IS NULL))`,
-                [quota.scheme_id, quota.reward_id, quota.payment_method_id]
-              );
-              currentManualAdjustment = adjResult.rows[0] ? parseFloat(adjResult.rows[0].manual_adjustment) || 0 : 0;
-            } else if (quota.payment_method_id && quota.payment_reward_id) {
-              const adjResult = await client.query(
-                `SELECT COALESCE(manual_adjustment, 0) as manual_adjustment FROM quota_trackings
-                 WHERE payment_method_id = $1 AND payment_reward_id = $2 AND scheme_id IS NULL`,
-                [quota.payment_method_id, quota.payment_reward_id]
-              );
-              currentManualAdjustment = adjResult.rows[0] ? parseFloat(adjResult.rows[0].manual_adjustment) || 0 : 0;
-            }
-            refreshRemainingQuota = Math.max(0, quotaLimit - currentManualAdjustment);
+            refreshRemainingQuota = Math.max(0, quotaLimit - 0);
           }
 
           if (quota.scheme_id) {
             await client.query(
               `UPDATE quota_trackings
                SET used_quota = 0,
+                   manual_adjustment = 0,
                    remaining_quota = $1,
                    current_amount = 0,
                    next_refresh_at = $2,
@@ -118,6 +173,7 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
             await client.query(
               `UPDATE quota_trackings
                SET used_quota = 0,
+                   manual_adjustment = 0,
                    remaining_quota = $1,
                    current_amount = 0,
                    next_refresh_at = $2,
@@ -155,6 +211,7 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
          sr.quota_refresh_value,
          sr.quota_refresh_date,
          sr.quota_calculation_basis,
+         cs.activity_start_date,
          cs.activity_end_date,
          sr.display_order,
          qt.used_quota,
@@ -190,7 +247,8 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
          pr.quota_refresh_value,
          pr.quota_refresh_date,
          pr.quota_calculation_basis,
-         NULL::date as activity_end_date,
+         pm.activity_start_date,
+         pm.activity_end_date,
          pr.display_order,
          COALESCE(qt.used_quota, 0) as used_quota,
          qt.remaining_quota,
@@ -205,32 +263,87 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
        ORDER BY pm.display_order, COALESCE(pr.display_order, 0)`
     );
 
-    // 3. 資料轉換 (Mapping)
+    // 3. 資料轉換 (Mapping) + 動態重新計算額度
     const quotaMap = new Map<string, any>(); 
 
-    const processRow = (row: QuotaDbRow) => {
+    const schemeRows = schemeQuotasResult.rows as any[];
+    const paymentRows = paymentQuotasResult.rows as any[];
+    const allRows = [...schemeRows, ...paymentRows];
+
+    for (const row of allRows) {
       const key = `${row.scheme_id || 'null'}_${row.payment_method_id || 'null'}`;
       const hasReward = !!row.reward_id;
       const percentage =
         row.reward_percentage !== null && row.reward_percentage !== undefined
           ? Number(row.reward_percentage)
           : 0;
-      const usedQuota =
-        row.used_quota !== null && row.used_quota !== undefined ? Number(row.used_quota) : 0; // a: 系統計算的額度
+      const method = (row.calculation_method || 'round') as CalculationMethod;
+      const basis = (row.quota_calculation_basis || 'transaction') as QuotaCalculationBasis;
+      const quotaLimit =
+        row.quota_limit !== null && row.quota_limit !== undefined ? Number(row.quota_limit) : null;
       const manualAdjustmentRaw = row.manual_adjustment;
       const manualAdjustment =
         manualAdjustmentRaw !== null && manualAdjustmentRaw !== undefined
           ? Number(manualAdjustmentRaw)
-          : null; // b: 人工調整值
-      const effectiveManualAdjustment = manualAdjustment ?? 0;
-      const currentAmount =
-        row.current_amount !== null && row.current_amount !== undefined ? Number(row.current_amount) : 0;
-      const quotaLimit =
-        row.quota_limit !== null && row.quota_limit !== undefined ? Number(row.quota_limit) : null;
-      
-      // c = a + b (顯示的總額度)
-      const totalUsedQuota = usedQuota + effectiveManualAdjustment;
-      
+          : 0;
+
+      const window = getQuotaWindow(
+        (row.quota_refresh_type as QuotaRefreshType | null) || null,
+        row.quota_refresh_value || null,
+        row.quota_refresh_date ? new Date(row.quota_refresh_date).toISOString().split('T')[0] : null,
+        row.activity_start_date || null,
+        row.activity_end_date || null
+      );
+
+      let usedQuota = 0;
+      let currentAmount = 0;
+      let windowError = window.error;
+
+      if (hasReward && !window.error && window.start && window.end) {
+        if (row.scheme_id) {
+          const txRes = await pool.query(
+            `SELECT amount FROM transactions 
+             WHERE scheme_id = $1 
+               AND transaction_date >= $2 
+               AND transaction_date <= $3`,
+            [row.scheme_id, window.start, window.end]
+          );
+          if (basis === 'transaction') {
+            txRes.rows.forEach((r: any) => {
+              const amt = parseFloat(r.amount);
+              currentAmount += amt;
+              usedQuota += calculateReward(amt, percentage, method);
+            });
+          } else {
+            txRes.rows.forEach((r: any) => {
+              currentAmount += parseFloat(r.amount);
+            });
+            usedQuota = calculateReward(currentAmount, percentage, method);
+          }
+        } else if (row.payment_method_id) {
+          const txRes = await pool.query(
+            `SELECT amount FROM transactions 
+             WHERE payment_method_id = $1 
+               AND transaction_date >= $2 
+               AND transaction_date <= $3`,
+            [row.payment_method_id, window.start, window.end]
+          );
+          if (basis === 'transaction') {
+            txRes.rows.forEach((r: any) => {
+              const amt = parseFloat(r.amount);
+              currentAmount += amt;
+              usedQuota += calculateReward(amt, percentage, method);
+            });
+          } else {
+            txRes.rows.forEach((r: any) => {
+              currentAmount += parseFloat(r.amount);
+            });
+            usedQuota = calculateReward(currentAmount, percentage, method);
+          }
+        }
+      }
+
+      const totalUsedQuota = usedQuota + manualAdjustment;
       let remainingQuota: number | null = null;
       if (quotaLimit !== null) {
         remainingQuota = Math.max(0, quotaLimit - totalUsedQuota);
@@ -266,8 +379,8 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
         calculationMethod: row.calculation_method || 'round',
         quotaLimit,
         currentAmount,
-        usedQuota, // a: 系統計算的額度
-        manualAdjustment, // b: 人工調整值（允許 null，前端顯示為空）
+        usedQuota, // a: 系統計算的額度（動態）
+        manualAdjustment, // b: 人工調整值
         totalUsedQuota, // c: a + b
         remainingQuota,
         referenceAmount,
@@ -276,12 +389,9 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
         quotaRefreshValue: row.quota_refresh_value || null,
         quotaRefreshDate: row.quota_refresh_date ? new Date(row.quota_refresh_date).toISOString().split('T')[0] : null,
         quotaCalculationBasis: row.quota_calculation_basis || 'transaction',
+        windowError,
       });
-    };
-
-    const schemeRows = schemeQuotasResult.rows;
-    const paymentRows = paymentQuotasResult.rows;
-    [...schemeRows, ...paymentRows].forEach(processRow);
+    }
 
     const result = Array.from(quotaMap.entries()).map(([key, quota]) => {
       const [schemeId, paymentMethodId] = key.split('_');
@@ -305,6 +415,7 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
           quotaRefreshValue: null,
           quotaRefreshDate: null,
           quotaCalculationBasis: 'transaction',
+          windowError: false,
         });
       }
       
@@ -339,6 +450,7 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
         quotaRefreshValues: quota.rewards.map((r: any) => r.quotaRefreshValue),
         quotaRefreshDates: quota.rewards.map((r: any) => r.quotaRefreshDate),
         quotaCalculationBases: quota.rewards.map((r: any) => r.quotaCalculationBasis),
+        windowErrors: quota.rewards.map((r: any) => r.windowError || false),
       };
     });
 

@@ -115,6 +115,7 @@ export interface QuotaDbRow {
   quota_refresh_value: number;
   quota_refresh_date: Date | null;
   quota_calculation_basis: string;
+  activity_start_date?: Date | null;
   activity_end_date: Date | null;
   display_order: number;
   used_quota: string | number | null;

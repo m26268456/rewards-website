@@ -148,6 +148,7 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
   try {
     const result = await pool.query(
       `SELECT pm.id, pm.name, pm.note, pm.own_reward_percentage, pm.display_order,
+              pm.activity_start_date, pm.activity_end_date,
               (SELECT json_agg(
                 json_build_object(
                   'schemeId', cs.id,
@@ -184,17 +185,17 @@ router.get('/overview', async (_req: Request, res: Response, next: NextFunction)
 // 新增支付方式
 router.post('/', validate(createPaymentMethodSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { name, note, displayOrder } = req.body;
+    const { name, note, displayOrder, activityStartDate, activityEndDate } = req.body;
 
     if (!name) {
       return res.status(400).json({ success: false, error: '支付方式名稱必填' });
     }
 
     const result = await pool.query(
-      `INSERT INTO payment_methods (name, note, own_reward_percentage, display_order)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, name, note, own_reward_percentage, display_order`,
-      [name, note || null, 0, displayOrder || 0]
+      `INSERT INTO payment_methods (name, note, own_reward_percentage, display_order, activity_start_date, activity_end_date)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, name, note, own_reward_percentage, display_order, activity_start_date, activity_end_date`,
+      [name, note || null, 0, displayOrder || 0, activityStartDate || null, activityEndDate || null]
     );
 
     logger.info(`新增支付方式: ${name}`);
@@ -209,15 +210,16 @@ router.post('/', validate(createPaymentMethodSchema), async (req: Request, res: 
 router.put('/:id', validate(createPaymentMethodSchema.partial()), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
-    const { name, note, displayOrder } = req.body;
+    const { name, note, displayOrder, activityStartDate, activityEndDate } = req.body;
 
     const result = await pool.query(
       `UPDATE payment_methods
        SET name = $1, note = $2, display_order = $3,
+           activity_start_date = $4, activity_end_date = $5,
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $4
-       RETURNING id, name, note, own_reward_percentage, display_order`,
-      [name, note || null, displayOrder, id]
+       WHERE id = $6
+       RETURNING id, name, note, own_reward_percentage, display_order, activity_start_date, activity_end_date`,
+      [name, note || null, displayOrder, activityStartDate || null, activityEndDate || null, id]
     );
 
     if (result.rows.length === 0) {
