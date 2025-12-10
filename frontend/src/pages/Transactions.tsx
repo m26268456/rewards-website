@@ -99,6 +99,13 @@ export default function Transactions() {
     }
   };
 
+  // 僅接受空字串或帶號整數輸入
+  const handleAmountChange = (value: string) => {
+    if (value === '' || /^-?\d+$/.test(value)) {
+      setFormData({ ...formData, amount: value });
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -260,11 +267,12 @@ export default function Transactions() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">金額</label>
             <input
-              type="number"
-              step="1"
+              type="text"
+              inputMode="numeric"
               value={formData.amount}
-              onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+              onChange={(e) => handleAmountChange(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="可輸入正負整數"
             />
           </div>
 
@@ -334,58 +342,41 @@ export default function Transactions() {
           </button>
         </div>
 
-        {/* [修正項目 5] 表格容器加入 overflow-x-auto */}
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
+          <table className="table-auto w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase whitespace-normal break-words min-w-0">
-                  時間
-                </th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase whitespace-normal break-words min-w-0">
-                  日期
-                </th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase whitespace-normal break-words min-w-0">
-                  事由
-                </th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase whitespace-normal break-words min-w-0">
-                  金額
-                </th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase whitespace-normal break-words min-w-0">
-                  類型
-                </th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase whitespace-normal break-words min-w-0">
-                  使用方案
-                </th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase whitespace-normal break-words min-w-0">
-                  備註
-                </th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase whitespace-normal break-words min-w-0">
-                  操作
-                </th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">時間</th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">日期</th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">事由</th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">金額</th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">類型</th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">使用方案</th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">備註</th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">操作</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {transactions.map((transaction) => (
                 <tr key={transaction.id}>
-                  <td className="px-3 py-2 text-sm whitespace-normal break-words min-w-0">
+                  <td className="px-3 py-2 text-sm whitespace-nowrap">
                     {formatTz(utcToZonedTime(new Date(transaction.created_at), TIMEZONE), 'yyyy/MM/dd HH:mm', { timeZone: TIMEZONE })}
                   </td>
-                  <td className="px-3 py-2 text-sm whitespace-normal break-words min-w-0">
+                  <td className="px-3 py-2 text-sm whitespace-nowrap">
                     {transaction.transaction_date 
                       ? formatTz(utcToZonedTime(new Date(transaction.transaction_date), TIMEZONE), 'yyyy/MM/dd', { timeZone: TIMEZONE })
                       : '-'}
                   </td>
-                  <td className="px-3 py-2 text-sm whitespace-normal break-words min-w-0">{transaction.reason}</td>
-                  <td className="px-3 py-2 text-sm whitespace-normal break-words min-w-0">
+                  <td className="px-3 py-2 text-sm">{transaction.reason}</td>
+                  <td className="px-3 py-2 text-sm">
                     {transaction.amount !== null && transaction.amount !== undefined
                       ? Math.trunc(transaction.amount).toLocaleString()
                       : '-'}
                   </td>
-                  <td className="px-3 py-2 text-sm whitespace-normal break-words min-w-0">{transaction.type_name}</td>
-                  <td className="px-3 py-2 text-sm whitespace-normal break-words min-w-0">{transaction.scheme_name || '-'}</td>
-                  <td className="px-3 py-2 text-sm whitespace-pre-wrap break-words min-w-0">{transaction.note || '-'}</td>
-                  <td className="px-3 py-2 text-sm whitespace-normal break-words min-w-0">
+                  <td className="px-3 py-2 text-sm">{transaction.type_name}</td>
+                  <td className="px-3 py-2 text-sm">{transaction.scheme_name || '-'}</td>
+                  <td className="px-3 py-2 text-sm whitespace-pre-wrap break-words">{transaction.note || '-'}</td>
+                  <td className="px-3 py-2 text-sm">
                     <button
                       onClick={() => handleDelete(transaction.id)}
                       className="text-red-600 hover:text-red-800"
