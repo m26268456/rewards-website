@@ -6,6 +6,7 @@ import { CalculationMethod, QuotaCalculationBasis } from '../utils/types';
 import { logger } from '../utils/logger';
 import { validate } from '../middleware/validate';
 import { createTransactionSchema } from '../utils/validators';
+import * as XLSX from 'xlsx';
 
 const router = Router();
 
@@ -553,6 +554,52 @@ router.delete('/:id', async (req: Request, res: Response, next: NextFunction) =>
     return next(error);
   } finally {
     client.release();
+  }
+});
+
+// 導出交易記錄為 Excel
+router.get('/export', async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await pool.query(
+      `SELECT t.transaction_date, t.reason, t.amount, t.note, t.created_at,
+              tt.name as type_name,
+              CASE 
+                WHEN t.scheme_id IS NOT NULL AND t.payment_method_id IS NOT NULL THEN 
+                  c.name || '-' || cs.name || '-' || pm.name
+                WHEN t.scheme_id IS NOT NULL THEN 
+                  c.name || '-' || cs.name
+                WHEN t.payment_method_id IS NOT NULL THEN 
+                  pm.name
+                ELSE NULL
+              END as scheme_name
+       FROM transactions t
+       LEFT JOIN transaction_types tt ON t.type_id = tt.id
+       LEFT JOIN card_schemes cs ON t.scheme_id = cs.id
+       LEFT JOIN cards c ON cs.card_id = c.id
+       LEFT JOIN payment_methods pm ON t.payment_method_id = pm.id
+       ORDER BY t.created_at DESC`
+    );
+
+    const rows = result.rows.map((r: any) => ({
+      建立時間: r.created_at,
+      交易日期: r.transaction_date,
+      事由: r.reason,
+      金額: r.amount,
+      類型: r.type_name,
+      使用方案: r.scheme_name || '',
+      備註: r.note || '',
+    }));
+
+    const sheet = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, sheet, 'Transactions');
+    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+    res.setHeader('Content-Disposition', 'attachment; filename="transactions.xlsx"');
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.send(buffer);
+  } catch (error) {
+    next(error);
   }
 });
 
