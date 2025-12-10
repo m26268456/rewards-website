@@ -99,13 +99,6 @@ export default function Transactions() {
     }
   };
 
-  // 僅接受空字串或帶號整數輸入
-  const handleAmountChange = (value: string) => {
-    if (value === '' || /^-?\d+$/.test(value)) {
-      setFormData({ ...formData, amount: value });
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -270,7 +263,7 @@ export default function Transactions() {
               type="text"
               inputMode="numeric"
               value={formData.amount}
-              onChange={(e) => handleAmountChange(e.target.value)}
+              onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="可輸入正負整數"
             />
@@ -346,7 +339,7 @@ export default function Transactions() {
           <table className="table-auto w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">時間</th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">時間戳記</th>
                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">日期</th>
                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">事由</th>
                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">金額</th>
