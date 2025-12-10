@@ -411,13 +411,13 @@ export default function QuotaManagement() {
                     className={`${rowBgColor} border-l-4 ${rowBorder} hover:bg-blue-50 transition-colors`}
                   >
                     {isFirst && (
-                      <td rowSpan={rowsToRender.length} className={`px-3 py-2 text-sm font-medium sticky left-0 ${rowBgColor} z-10 border-r border-gray-200 align-top whitespace-normal break-words min-w-0`}>
+                      <td rowSpan={rowsToRender.length} className={`px-3 py-2 text-sm font-medium sticky left-0 ${rowBgColor} z-10 border-r border-gray-200 align-top whitespace-nowrap min-w-[140px]`}>
                         <div className="space-y-1">
                           <div className="font-semibold">{rootNameDisplay}</div>
                         </div>
                       </td>
                     )}
-                    <td className="px-3 py-2 text-sm align-top whitespace-normal break-words min-w-0">
+                    <td className="px-3 py-2 text-sm align-top whitespace-nowrap min-w-[120px]">
                       {isEditingR ? (
                         <div className="space-y-2">
                           <input 
@@ -433,7 +433,7 @@ export default function QuotaManagement() {
                         </span>
                       )}
                     </td>
-                    <td className="px-3 py-2 text-xs align-top space-y-1 text-gray-700 whitespace-normal break-words min-w-0">
+                    <td className="px-3 py-2 text-xs align-top space-y-1 text-gray-700 whitespace-nowrap min-w-[140px]">
                       {isEditingR ? (
                         <div className="space-y-2">
                           <select 
@@ -467,7 +467,7 @@ export default function QuotaManagement() {
                         </>
                       )}
                     </td>
-                    <td className="px-3 py-2 text-sm align-top whitespace-normal break-words min-w-0">
+                    <td className="px-3 py-2 text-sm align-top whitespace-nowrap min-w-[160px]">
                       {formatQuotaInfo(
                         primary.usedQuotas?.[rIdx] ?? 0, // a: 系統計算的額度
                         primary.remainingQuotas?.[rIdx] ?? null, 
@@ -478,7 +478,7 @@ export default function QuotaManagement() {
                         primary.manualAdjustments?.[rIdx] // b: 人工調整值（從後端資料取得）
                       )}
                     </td>
-                    <td className="px-3 py-2 text-sm align-top whitespace-normal break-words min-w-0">
+                    <td className="px-3 py-2 text-sm align-top whitespace-nowrap min-w-[140px]">
                       {isEditingR ? (
                         <div className="space-y-2">
                           <select 

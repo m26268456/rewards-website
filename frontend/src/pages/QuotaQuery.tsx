@@ -140,32 +140,32 @@ export default function QuotaQuery() {
       <div className="mb-4">
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           {/* 表格可橫向捲動，列寬依內容展開 */}
-          <div className="overflow-auto">
-            <table className="min-w-max divide-y divide-gray-200">
+          <div className="overflow-x-auto w-full">
+            <table className="table-auto min-w-full divide-y divide-gray-200 text-sm">
               <thead className="bg-gradient-to-r from-gray-50 to-gray-100 sticky top-0 z-20 shadow-sm">
                 <tr>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-normal break-words min-w-[140px] sticky left-0 bg-gray-50 z-30 border-r border-gray-200">
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap min-w-[140px] sticky left-0 bg-gray-50 z-30 border-r border-gray-200">
                     名稱
                   </th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-normal break-words min-w-0">
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap min-w-[120px]">
                     回饋組成
                   </th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-normal break-words min-w-0">
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap min-w-[140px]">
                     計算方式
                   </th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-normal break-words min-w-0">
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap min-w-[160px]">
                     額度狀態
                     <div className="text-[10px] font-normal text-gray-500 mt-1">
                       已用/剩餘/上限
                     </div>
                   </th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-normal break-words min-w-0">
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap min-w-[160px]">
                     消費資訊
                     <div className="text-[10px] font-normal text-gray-500 mt-1">
                       消費/參考餘額
                     </div>
                   </th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-normal break-words min-w-0">
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap min-w-[140px]">
                     刷新時間
                   </th>
                 </tr>
@@ -231,7 +231,7 @@ export default function QuotaQuery() {
                         {isFirst && (
                           <td
                             rowSpan={rowsToRender.length}
-                            className={`px-3 py-2 text-sm font-medium sticky left-0 ${bgColor} z-10 border-r border-gray-200 align-top whitespace-normal break-words min-w-0`}
+                            className={`px-3 py-2 text-sm font-medium sticky left-0 ${bgColor} z-10 border-r border-gray-200 align-top whitespace-nowrap min-w-[140px]`}
                           >
                             <div className="space-y-1">
                               <div className="font-semibold">{rootNameDisplay}</div>
@@ -245,10 +245,10 @@ export default function QuotaQuery() {
                             </div>
                           </td>
                         )}
-                        <td className="px-3 py-2 text-sm align-top whitespace-normal break-words min-w-0">
+                        <td className="px-3 py-2 text-sm align-top whitespace-nowrap min-w-[120px]">
                           <span className="bg-orange-100 px-1 rounded font-bold">{rewardPercentage ? `${rewardPercentage}%` : '-'}</span>
                         </td>
-                        <td className="px-3 py-2 text-xs text-gray-700 space-y-1 whitespace-normal break-words min-w-0">
+                        <td className="px-3 py-2 text-xs text-gray-700 space-y-1 whitespace-nowrap min-w-[140px]">
                           <div>{calculationMethodText}</div>
                           <div className={`text-[11px] rounded px-1 inline-block ${
                             basis === 'statement' 
@@ -258,7 +258,7 @@ export default function QuotaQuery() {
                             {basisText}
                           </div>
                         </td>
-                        <td className="px-3 py-2 text-sm align-top whitespace-normal break-words min-w-0">
+                        <td className="px-3 py-2 text-sm align-top whitespace-nowrap min-w-[160px]">
                           {formatQuotaInfo(
                             usedQuota, 
                             remainingQuota, 
@@ -266,10 +266,10 @@ export default function QuotaQuery() {
                             primary.manualAdjustments?.[rIdx]
                           )}
                         </td>
-                        <td className="px-3 py-2 text-sm align-top whitespace-normal break-words min-w-0">
+                        <td className="px-3 py-2 text-sm align-top whitespace-nowrap min-w-[160px]">
                           {formatConsumptionInfo(currentAmount, referenceAmount)}
                         </td>
-                        <td className="px-3 py-2 text-sm align-top whitespace-normal break-words min-w-0">
+                        <td className="px-3 py-2 text-sm align-top whitespace-nowrap min-w-[140px]">
                           <div>{primary.refreshTimes?.[rIdx] || '-'}</div>
                         </td>
                       </tr>

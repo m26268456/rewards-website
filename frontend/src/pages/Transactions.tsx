@@ -335,18 +335,18 @@ export default function Transactions() {
           </button>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="table-auto w-full divide-y divide-gray-200">
+        <div className="overflow-x-auto w-full">
+          <table className="table-auto min-w-max divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">時間戳記</th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">日期</th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">事由</th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">金額</th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">類型</th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">使用方案</th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">備註</th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">操作</th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">時間戳記</th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">日期</th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">事由</th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">金額</th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">類型</th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">使用方案</th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">備註</th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">操作</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -360,16 +360,16 @@ export default function Transactions() {
                       ? formatTz(utcToZonedTime(new Date(transaction.transaction_date), TIMEZONE), 'yyyy/MM/dd', { timeZone: TIMEZONE })
                       : '-'}
                   </td>
-                  <td className="px-3 py-2 text-sm">{transaction.reason}</td>
-                  <td className="px-3 py-2 text-sm">
+                  <td className="px-3 py-2 text-sm whitespace-nowrap">{transaction.reason}</td>
+                  <td className="px-3 py-2 text-sm whitespace-nowrap">
                     {transaction.amount !== null && transaction.amount !== undefined
                       ? Math.trunc(transaction.amount).toLocaleString()
                       : '-'}
                   </td>
-                  <td className="px-3 py-2 text-sm">{transaction.type_name}</td>
-                  <td className="px-3 py-2 text-sm">{transaction.scheme_name || '-'}</td>
-                  <td className="px-3 py-2 text-sm whitespace-pre-wrap break-words">{transaction.note || '-'}</td>
-                  <td className="px-3 py-2 text-sm">
+                  <td className="px-3 py-2 text-sm whitespace-nowrap">{transaction.type_name}</td>
+                  <td className="px-3 py-2 text-sm whitespace-nowrap">{transaction.scheme_name || '-'}</td>
+                  <td className="px-3 py-2 text-sm whitespace-nowrap">{transaction.note || '-'}</td>
+                  <td className="px-3 py-2 text-sm whitespace-nowrap">
                     <button
                       onClick={() => handleDelete(transaction.id)}
                       className="text-red-600 hover:text-red-800"

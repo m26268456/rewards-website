@@ -68,7 +68,7 @@ function PaymentMethodItem({ payment, onEdit, onDelete, onReload }: any) {
           )}
         </div>
       </div>
-      <div className="mt-2 flex flex-wrap gap-2 sm:gap-1 sm:justify-start sm:items-center">
+      <div className="mt-2 flex flex-wrap gap-2 sm:gap-1 sm:items-center sm:justify-start w-full">
         <button
           onClick={() => setShowDetails(!showDetails)}
           className="px-2 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600"
