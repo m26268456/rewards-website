@@ -149,12 +149,13 @@ export default function Transactions() {
           match.remainingQuotas.forEach((rq: any, idx: number) => {
             const limit = match.quotaLimits[idx];
             if (limit === null || limit === undefined) return; // 無上限
-            const remaining = rq === null || rq === undefined ? limit : Number(rq);
+            const remaining = rq === null || rq === undefined ? Number(limit) : Number(rq);
             const pct = (remaining / Number(limit)) * 100;
-            if (pct <= 0) warnings.push('⚠️ 剩餘額度 0%');
-            else if (pct <= 10) warnings.push('⚠️ 剩餘額度 <10%');
-            else if (pct <= 25) warnings.push('⚠️ 剩餘額度 <25%');
-            else if (pct <= 50) warnings.push('⚠️ 剩餘額度 <50%');
+            const msgBase = `剩餘 ${Math.round(remaining)} 點`;
+            if (pct <= 0) warnings.push(`⚠️ 剩餘額度 0% (${msgBase})`);
+            else if (pct <= 10) warnings.push(`⚠️ 剩餘額度 <10% (${msgBase})`);
+            else if (pct <= 25) warnings.push(`⚠️ 剩餘額度 <25% (${msgBase})`);
+            else if (pct <= 50) warnings.push(`⚠️ 剩餘額度 <50% (${msgBase})`);
           });
           if (warnings.length > 0) {
             // 取最低警戒線（已依條件序列判斷，最後一個為最嚴重）

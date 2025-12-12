@@ -6,7 +6,7 @@ interface LayoutProps {
   children: ReactNode;
 }
 
-const VERSION = 'Beta 3.0.0.007';
+const VERSION = 'Beta 3.0.0.008';
 
 const navItems = [
   { path: '/query', label: '回饋查詢' },

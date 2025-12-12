@@ -1,5 +1,6 @@
 // path: main/frontend/src/pages/settings/PaymentManagement.tsx
 import { useState, useEffect, useRef, FormEvent } from 'react';
+import { isApp } from '../../utils/isApp';
 import api from '../../utils/api';
 
 // 輔助函數 (與 CardManagement 相同，可考慮提取到 utils)
@@ -13,6 +14,8 @@ function linkify(text: string): string {
 
 // 支付方式項目組件
 function PaymentMethodItem({ payment, onEdit, onDelete, onReload }: any) {
+  const isAppMode = isApp();
+  const btnSize = isAppMode ? 'px-3 py-2 text-sm' : 'px-2 py-1 text-xs';
   const [showDetails, setShowDetails] = useState(false);
   const [channels, setChannels] = useState<any[]>([]);
   const [rewards, setRewards] = useState<any[]>([]);
@@ -71,19 +74,19 @@ function PaymentMethodItem({ payment, onEdit, onDelete, onReload }: any) {
       <div className="mt-2 flex flex-wrap gap-2 sm:gap-1 sm:items-center sm:justify-start w-full">
         <button
           onClick={() => setShowDetails(!showDetails)}
-          className="px-2 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600"
+          className={`${btnSize} bg-blue-500 text-white rounded hover:bg-blue-600`}
         >
           {showDetails ? '隱藏詳細' : '管理詳細'}
         </button>
         <button
           onClick={onEdit}
-          className="px-2 py-1 bg-yellow-500 text-white rounded text-xs hover:bg-yellow-600"
+          className={`${btnSize} bg-yellow-500 text-white rounded hover:bg-yellow-600`}
         >
           編輯
         </button>
         <button
           onClick={onDelete}
-          className="px-2 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600"
+          className={`${btnSize} bg-red-500 text-white rounded hover:bg-red-600`}
         >
           刪除
         </button>
