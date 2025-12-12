@@ -293,6 +293,7 @@ export default function CalculateRewards() {
                 }}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
+                <option value="">不使用</option>
                 {schemes.map((scheme) => (
                   <option key={scheme.id} value={scheme.id}>
                     {scheme.name}
@@ -374,66 +375,60 @@ export default function CalculateRewards() {
 
               <div className="mb-4 overflow-x-auto w-full">
                 <div className={isApp() ? 'inline-block min-w-max' : undefined}>
-                  <table className="table-auto min-w-full divide-y divide-gray-200 bg-white rounded-lg">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">總計</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">方案 / 通路</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">回饋%數</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">計算方式</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">計算結果</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {(calculationResult.breakdown || []).map((item: any, index: number) => {
-                        const methodText = (m: string) =>
-                          m === 'floor' ? '無條件捨去' : m === 'ceil' ? '無條件進位' : '四捨五入';
-                        const rewardItems = item.rewardItems || [];
-                        return (
-                          <tr key={index} className="align-top">
-                            <td className={`px-4 py-3 text-sm font-semibold ${item.isExcluded ? 'text-red-600' : 'text-green-700'}`}>
-                              {item.isExcluded ? '排除' : (item.calculatedReward ?? 0).toFixed(2)}
-                            </td>
-                            <td className="px-4 py-3 text-sm space-y-1">
-                              <div className="font-semibold text-gray-800">{item.schemeInfo || '—'}</div>
-                              <div>
-                                <span className="text-gray-500 text-xs bg-gray-100 px-2 py-0.5 rounded-full">
-                                  {item.schemeChannelName || item.channelName || '—'}
-                                </span>
+                  <table
+                    className={
+                      isApp()
+                        ? 'w-auto min-w-max divide-y divide-gray-200 bg-white rounded-lg'
+                        : 'min-w-full divide-y divide-gray-200 bg-white rounded-lg'
+                    }
+                  >
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">總計</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">方案 / 通路</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">回饋%數</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">計算方式</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">計算結果</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {calculationResult.breakdown.map((item: any, index: number) => {
+                      const methodText = (m: string) =>
+                        m === 'floor' ? '無條件捨去' : m === 'ceil' ? '無條件進位' : '四捨五入';
+                      return (
+                        <tr key={index} className="align-top">
+                          <td className={`px-4 py-3 text-sm font-semibold ${item.isExcluded ? 'text-red-600' : 'text-green-700'}`}>
+                            {item.isExcluded ? '排除' : (item.calculatedReward ?? 0).toFixed(2)}
+                          </td>
+                          <td className="px-4 py-3 text-sm space-y-1">
+                            <div className="font-semibold text-gray-800">{item.schemeInfo || '—'}</div>
+                            <div>
+                              <span className="text-gray-500 text-xs bg-gray-100 px-2 py-0.5 rounded-full">
+                                {item.schemeChannelName || '—'}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-sm">
+                            {item.rewardItems?.map((it: any, i: number) => (
+                              <div key={i}>{(it.percentage ?? 0).toFixed(2)}%</div>
+                            ))}
+                          </td>
+                          <td className="px-4 py-3 text-sm">
+                            {item.rewardItems?.map((it: any, i: number) => (
+                              <div key={i}>{methodText(it.calculationMethod || 'round')}</div>
+                            ))}
+                          </td>
+                          <td className="px-4 py-3 text-sm font-medium">
+                            {item.rewardItems?.map((it: any, i: number) => (
+                              <div key={i}>
+                                {(it.originalReward ?? 0).toFixed(2)} → {it.calculatedReward ?? 0}
                               </div>
-                            </td>
-                            <td className="px-4 py-3 text-sm">
-                              {rewardItems.length > 0
-                                ? rewardItems.map((it: any, i: number) => (
-                                    <div key={i}>{(it.percentage ?? 0).toFixed(2)}%</div>
-                                  ))
-                                : <div className="text-xs text-gray-400">-</div>}
-                            </td>
-                            <td className="px-4 py-3 text-sm">
-                              {rewardItems.length > 0
-                                ? rewardItems.map((it: any, i: number) => (
-                                    <div key={i}>{methodText(it.calculationMethod || 'round')}</div>
-                                  ))
-                                : <div className="text-xs text-gray-400">-</div>}
-                            </td>
-                            <td className="px-4 py-3 text-sm font-medium">
-                              {rewardItems.length > 0
-                                ? rewardItems.map((it: any, i: number) => (
-                                    <div key={i}>
-                                      {(it.originalReward ?? 0).toFixed(2)} → {it.calculatedReward ?? 0}
-                                    </div>
-                                  ))
-                                : <div className="text-xs text-gray-400">-</div>}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                      {(!calculationResult.breakdown || calculationResult.breakdown.length === 0) && (
-                        <tr>
-                          <td className="px-4 py-3 text-sm text-center text-gray-400" colSpan={5}>-</td>
+                            ))}
+                          </td>
                         </tr>
-                      )}
-                    </tbody>
+                      );
+                    })}
+                  </tbody>
                   </table>
                 </div>
               </div>
@@ -442,8 +437,8 @@ export default function CalculateRewards() {
               {quotaInfo && quotaInfo.length > 0 && (
                 <div className="mt-4 pt-4 border-t">
                   <h4 className="font-semibold mb-2">預計消費後餘額</h4>
-                  <div className="overflow-x-auto w-full">
-                    <table className="table-auto min-w-full divide-y divide-gray-200 bg-white rounded-lg">
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200 bg-white rounded-lg">
                       <thead className="bg-gray-50">
                         <tr>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">回饋%數</th>

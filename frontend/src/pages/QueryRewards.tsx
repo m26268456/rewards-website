@@ -30,18 +30,6 @@ const formatBasis = (basis?: string) => {
   return basis === 'statement' ? '帳單總額' : '單筆回饋';
 };
 
-// 過期與額度滿判斷
-const isExpired = (activityEndDate?: string) =>
-  !!activityEndDate && new Date(activityEndDate) < new Date();
-
-const isQuotaFull = (reward: any) =>
-  reward &&
-  reward.quotaLimit !== null &&
-  reward.quotaLimit !== undefined &&
-  reward.remainingQuota !== null &&
-  reward.remainingQuota !== undefined &&
-  Number(reward.remainingQuota) <= 0;
-
 interface Channel {
   id: string;
   name: string;
@@ -460,30 +448,6 @@ export default function QueryRewards() {
                         </div>
                         
                         {scheme.note && <div className="text-sm text-gray-600 mb-2 bg-gray-50 p-2 rounded" dangerouslySetInnerHTML={{ __html: linkify(scheme.note) }} />}
-
-                        {/* 總額摘要：總%（紅字）+ 過期/超額 + 有效總額 */}
-                        {(() => {
-                          const rewards = scheme.rewards || [];
-                          if (!rewards.length) return null;
-                          const totalAll = rewards.reduce((sum: number, r: any) => sum + (Number(r.percentage) || 0), 0);
-                          const totalExpired = rewards
-                            .filter(() => isExpired(scheme.activityEndDate))
-                            .reduce((sum: number, r: any) => sum + (Number(r.percentage) || 0), 0);
-                          const totalFull = rewards
-                            .filter((r: any) => isQuotaFull(r))
-                            .reduce((sum: number, r: any) => sum + (Number(r.percentage) || 0), 0);
-                          const totalValid = Math.max(0, totalAll - totalExpired - totalFull);
-                          return (
-                            <div className="mb-2 px-2 py-1 rounded bg-yellow-50 text-[12px] text-gray-800 flex flex-col gap-1">
-                              <div className="flex flex-wrap gap-2 items-center">
-                                <span className="font-semibold text-red-600">{totalAll}%</span>
-                                {totalExpired > 0 && <span className="text-orange-700">{totalExpired}% 已過期</span>}
-                                {totalFull > 0 && <span className="text-orange-700">{totalFull}% 已超額</span>}
-                              </div>
-                              <div className="text-green-700 font-semibold">{totalValid}%</div>
-                            </div>
-                          );
-                        })()}
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                           <div>
