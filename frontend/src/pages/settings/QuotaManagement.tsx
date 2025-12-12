@@ -69,7 +69,6 @@ const formatQuotaInfo = (
 };
 
 export default function QuotaManagement() {
-  const isAppMode = isApp();
   const [quotas, setQuotas] = useState<any[]>([]);
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [expandedPayments, setExpandedPayments] = useState<Set<string>>(new Set());
@@ -434,13 +433,13 @@ export default function QuotaManagement() {
                         </span>
                       )}
                     </td>
-                    <td className="px-3 py-2 text-xs align-top text-gray-700 whitespace-nowrap min-w-[160px]">
+                    <td className="px-3 py-2 text-xs align-top space-y-1 text-gray-700 whitespace-nowrap min-w-[140px]">
                       {isEditingR ? (
-                        <div className="flex flex-col gap-2">
+                        <div className="space-y-2">
                           <select 
                             value={rewardForm.method} 
                             onChange={e => setRewardForm({...rewardForm, method: e.target.value})} 
-                            className="w-[140px] border p-1 rounded text-xs"
+                            className="w-full border p-1 rounded text-xs"
                           >
                             <option value="round">四捨五入</option>
                             <option value="floor">無條件捨去</option>
@@ -449,7 +448,7 @@ export default function QuotaManagement() {
                           <select 
                             value={rewardForm.calculationBasis} 
                             onChange={e => setRewardForm({...rewardForm, calculationBasis: e.target.value})} 
-                            className="w-[140px] border p-1 rounded text-xs bg-yellow-50"
+                            className="w-full border p-1 rounded text-xs bg-yellow-50"
                           >
                             <option value="transaction">單筆回饋</option>
                             <option value="statement">帳單總額</option>
@@ -479,13 +478,13 @@ export default function QuotaManagement() {
                         primary.manualAdjustments?.[rIdx] // b: 人工調整值（從後端資料取得）
                       )}
                     </td>
-                    <td className="px-3 py-2 text-sm align-top whitespace-nowrap min-w-[180px]">
+                    <td className="px-3 py-2 text-sm align-top whitespace-nowrap min-w-[140px]">
                       {isEditingR ? (
-                        <div className="flex flex-col gap-2">
+                        <div className="space-y-2">
                           <select 
                             value={rewardForm.refreshType} 
                             onChange={e => setRewardForm({...rewardForm, refreshType: e.target.value, refreshValue: '', refreshDate: ''})} 
-                            className="w-[140px] border p-1 rounded text-xs"
+                            className="w-full border p-1 rounded text-xs"
                           >
                             <option value="">不刷新</option>
                             <option value="monthly">每月OO號</option>
@@ -505,7 +504,7 @@ export default function QuotaManagement() {
                                   setRewardForm({...rewardForm, refreshValue: val});
                                 }
                               }} 
-                              className="w-[140px] border p-1 rounded text-xs" 
+                              className="w-full border p-1 rounded text-xs" 
                               placeholder="1-28號" 
                             />
                           )}
@@ -514,13 +513,13 @@ export default function QuotaManagement() {
                               type="date" 
                               value={rewardForm.refreshDate} 
                               onChange={e => setRewardForm({...rewardForm, refreshDate: e.target.value})} 
-                              className="w-[160px] border p-1 rounded text-xs" 
+                              className="w-full border p-1 rounded text-xs" 
                             />
                           )}
                           <input 
                             value={rewardForm.limit} 
                             onChange={e => setRewardForm({...rewardForm, limit: e.target.value})} 
-                            className="w-[140px] border p-1 rounded text-xs" 
+                            className="w-full border p-1 rounded text-xs" 
                             placeholder="上限" 
                           />
                         </div>
@@ -537,24 +536,24 @@ export default function QuotaManagement() {
                             </div>
                           )}
                         <div className="flex flex-wrap gap-2">
-                          <button onClick={handleSaveAll} className={`${isAppMode ? 'px-2 py-1 text-xs' : 'px-3 py-1 text-sm'} bg-blue-500 text-white rounded hover:bg-blue-600`}>儲存</button>
+                          <button onClick={handleSaveAll} className="bg-blue-500 text-white px-2 py-1 rounded text-xs">儲存</button>
                           <button onClick={() => { 
                             setEditingReward(null); 
                             setEditingQuota(null); 
                             setQuotaAdjust(''); 
                             setQuotaAdjustChanged(false);
-                          }} className={`${isAppMode ? 'px-2 py-1 text-xs' : 'px-3 py-1 text-sm'} bg-gray-300 rounded`}>取消</button>
+                          }} className="bg-gray-300 px-2 py-1 rounded text-xs">取消</button>
                         </div>
                         <div className="flex flex-wrap gap-2 pt-1">
                           <button
                             onClick={() => handleRewardAdd(primary.__index, groupKey)}
-                            className={`${isAppMode ? 'px-2 py-1 text-xs' : 'px-3 py-1 text-sm'} bg-blue-600 text-white rounded hover:bg-blue-700`}
+                            className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
                           >
                             新增
                           </button>
                           <button
                             onClick={() => handleRewardDelete(primary.__index, rIdx, groupKey)}
-                            className={`${isAppMode ? 'px-2 py-1 text-xs' : 'px-3 py-1 text-sm'} bg-red-500 text-white rounded hover:bg-red-600`}
+                            className="px-3 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600"
                           >
                             刪除
                           </button>
@@ -565,7 +564,7 @@ export default function QuotaManagement() {
                               <div className="flex flex-wrap gap-2">
                                 <button
                                   onClick={() => handleRewardEdit(primary.__index, rIdx, groupKey)} 
-                                  className={`${isAppMode ? 'px-2 py-1 text-xs' : 'px-3 py-1 text-sm'} bg-yellow-500 text-white rounded hover:bg-yellow-600`}
+                                  className="px-3 py-1 text-sm bg-yellow-500 text-white rounded hover:bg-yellow-600"
                                 >
                                   編輯
                                 </button>

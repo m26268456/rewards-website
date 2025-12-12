@@ -12,8 +12,8 @@ interface Scheme {
 }
 
 export default function CalculateRewards() {
-  type Mode = 'channel' | 'scheme';
-  const [mode, setMode] = useState<Mode>('scheme');
+  type Mode = 'none' | 'channel' | 'scheme';
+  const [mode, setMode] = useState<Mode>('none');
   const [channelKeyword, setChannelKeyword] = useState('');
   const [selectedScheme, setSelectedScheme] = useState<string>('');
   const [schemes, setSchemes] = useState<Scheme[]>([]);
@@ -53,12 +53,7 @@ export default function CalculateRewards() {
   const loadSchemes = async () => {
     try {
       const res = await api.get('/calculation/schemes');
-      const data = res.data.data || [];
-      setSchemes(data);
-      // 預設選最高順位（第一筆）
-      if (data.length > 0 && !selectedScheme) {
-        setSelectedScheme(data[0].id);
-      }
+      setSchemes(res.data.data);
     } catch (error) {
       console.error('載入方案錯誤:', error);
     }
@@ -199,6 +194,28 @@ export default function CalculateRewards() {
             alert(err.response?.data?.error || '通路計算失敗');
           }
         }
+      } else if (mode === 'none' && amount) {
+        if (!amount || parseFloat(amount) <= 0) {
+          if (!cancelled) {
+            setCalculationResult(null);
+          }
+          return;
+        }
+
+        try {
+          const res = await api.post('/calculation/calculate', {
+            amount: parseFloat(amount),
+            rewards,
+          });
+          if (!cancelled) {
+            setCalculationResult(res.data.data);
+            setQuotaInfo(null);
+          }
+        } catch (error) {
+          if (!cancelled) {
+            console.error('計算錯誤:', error);
+          }
+        }
       } else {
         if (!cancelled) {
           setCalculationResult(null);
@@ -232,6 +249,16 @@ export default function CalculateRewards() {
           <div className="space-y-3">
             <label className="block text-sm font-medium text-gray-700">方案選擇</label>
             <div className="flex flex-wrap gap-4 text-sm text-gray-700">
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="mode"
+                  value="none"
+                  checked={mode === 'none'}
+                  onChange={() => { setMode('none'); setSelectedScheme(''); setChannelKeyword(''); setCalculationResult(null); setQuotaInfo(null); }}
+                />
+                不使用
+              </label>
               <label className="flex items-center gap-2">
                 <input
                   type="radio"
@@ -347,60 +374,66 @@ export default function CalculateRewards() {
 
               <div className="mb-4 overflow-x-auto w-full">
                 <div className={isApp() ? 'inline-block min-w-max' : undefined}>
-                  <table
-                    className={
-                      isApp()
-                        ? 'w-auto min-w-max divide-y divide-gray-200 bg-white rounded-lg'
-                        : 'min-w-full divide-y divide-gray-200 bg-white rounded-lg'
-                    }
-                  >
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">總計</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">方案 / 通路</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">回饋%數</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">計算方式</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">計算結果</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {calculationResult.breakdown.map((item: any, index: number) => {
-                      const methodText = (m: string) =>
-                        m === 'floor' ? '無條件捨去' : m === 'ceil' ? '無條件進位' : '四捨五入';
-                      return (
-                        <tr key={index} className="align-top">
-                          <td className={`px-4 py-3 text-sm font-semibold ${item.isExcluded ? 'text-red-600' : 'text-green-700'}`}>
-                            {item.isExcluded ? '排除' : (item.calculatedReward ?? 0).toFixed(2)}
-                          </td>
-                          <td className="px-4 py-3 text-sm space-y-1">
-                            <div className="font-semibold text-gray-800">{item.schemeInfo || '—'}</div>
-                            <div>
-                              <span className="text-gray-500 text-xs bg-gray-100 px-2 py-0.5 rounded-full">
-                                {item.schemeChannelName || '—'}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-sm">
-                            {item.rewardItems?.map((it: any, i: number) => (
-                              <div key={i}>{(it.percentage ?? 0).toFixed(2)}%</div>
-                            ))}
-                          </td>
-                          <td className="px-4 py-3 text-sm">
-                            {item.rewardItems?.map((it: any, i: number) => (
-                              <div key={i}>{methodText(it.calculationMethod || 'round')}</div>
-                            ))}
-                          </td>
-                          <td className="px-4 py-3 text-sm font-medium">
-                            {item.rewardItems?.map((it: any, i: number) => (
-                              <div key={i}>
-                                {(it.originalReward ?? 0).toFixed(2)} → {it.calculatedReward ?? 0}
+                  <table className="table-auto min-w-full divide-y divide-gray-200 bg-white rounded-lg">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">總計</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">方案 / 通路</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">回饋%數</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">計算方式</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">計算結果</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {(calculationResult.breakdown || []).map((item: any, index: number) => {
+                        const methodText = (m: string) =>
+                          m === 'floor' ? '無條件捨去' : m === 'ceil' ? '無條件進位' : '四捨五入';
+                        const rewardItems = item.rewardItems || [];
+                        return (
+                          <tr key={index} className="align-top">
+                            <td className={`px-4 py-3 text-sm font-semibold ${item.isExcluded ? 'text-red-600' : 'text-green-700'}`}>
+                              {item.isExcluded ? '排除' : (item.calculatedReward ?? 0).toFixed(2)}
+                            </td>
+                            <td className="px-4 py-3 text-sm space-y-1">
+                              <div className="font-semibold text-gray-800">{item.schemeInfo || '—'}</div>
+                              <div>
+                                <span className="text-gray-500 text-xs bg-gray-100 px-2 py-0.5 rounded-full">
+                                  {item.schemeChannelName || item.channelName || '—'}
+                                </span>
                               </div>
-                            ))}
-                          </td>
+                            </td>
+                            <td className="px-4 py-3 text-sm">
+                              {rewardItems.length > 0
+                                ? rewardItems.map((it: any, i: number) => (
+                                    <div key={i}>{(it.percentage ?? 0).toFixed(2)}%</div>
+                                  ))
+                                : <div className="text-xs text-gray-400">-</div>}
+                            </td>
+                            <td className="px-4 py-3 text-sm">
+                              {rewardItems.length > 0
+                                ? rewardItems.map((it: any, i: number) => (
+                                    <div key={i}>{methodText(it.calculationMethod || 'round')}</div>
+                                  ))
+                                : <div className="text-xs text-gray-400">-</div>}
+                            </td>
+                            <td className="px-4 py-3 text-sm font-medium">
+                              {rewardItems.length > 0
+                                ? rewardItems.map((it: any, i: number) => (
+                                    <div key={i}>
+                                      {(it.originalReward ?? 0).toFixed(2)} → {it.calculatedReward ?? 0}
+                                    </div>
+                                  ))
+                                : <div className="text-xs text-gray-400">-</div>}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {(!calculationResult.breakdown || calculationResult.breakdown.length === 0) && (
+                        <tr>
+                          <td className="px-4 py-3 text-sm text-center text-gray-400" colSpan={5}>-</td>
                         </tr>
-                      );
-                    })}
-                  </tbody>
+                      )}
+                    </tbody>
                   </table>
                 </div>
               </div>

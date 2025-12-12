@@ -278,10 +278,7 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
           ? Number(row.reward_percentage)
           : 0;
       const method = (row.calculation_method || 'round') as CalculationMethod;
-      const basis = (() => {
-        const raw = row.quota_calculation_basis || 'transaction';
-        return typeof raw === 'string' ? (raw as string).trim().toLowerCase() as QuotaCalculationBasis : 'transaction';
-      })();
+      const basis = (row.quota_calculation_basis || 'transaction') as QuotaCalculationBasis;
       const quotaLimit =
         row.quota_limit !== null && row.quota_limit !== undefined ? Number(row.quota_limit) : null;
       const manualAdjustmentRaw = row.manual_adjustment;
@@ -380,7 +377,6 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
         percentage,
         rewardId: hasReward ? row.reward_id! : '',
         calculationMethod: row.calculation_method || 'round',
-        displayOrder: row.display_order ?? 0,
         quotaLimit,
         currentAmount,
         usedQuota, // a: 系統計算的額度（動態）
@@ -399,15 +395,14 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
 
     const result = Array.from(quotaMap.entries()).map(([key, quota]) => {
       const [schemeId, paymentMethodId] = key.split('_');
-      quota.rewards.sort((a: any, b: any) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
+      quota.rewards.sort((a: any, b: any) => a.percentage - b.percentage);
       
       // 若完全沒有回饋紀錄，給一筆 placeholder 讓前端可見並可新增
       if (quota.rewards.length === 0) {
         quota.rewards.push({
           percentage: 0,
           rewardId: '',
-        calculationMethod: 'round',
-        displayOrder: 0,
+          calculationMethod: 'round',
           quotaLimit: null,
           currentAmount: 0,
           usedQuota: 0,
