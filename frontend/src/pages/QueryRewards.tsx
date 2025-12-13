@@ -435,6 +435,19 @@ export default function QueryRewards() {
                                   <span className={`text-xl font-bold ${isExpired ? 'text-red-600' : hasPartialQuotaFull ? 'text-orange-600' : 'text-green-600'}`}>{item.totalRewardPercentage}%</span>
                                   <span className="font-semibold text-gray-800">{item.schemeInfo}</span>
                                   <span className={`badge ${item.requiresSwitch ? 'badge-warning' : 'badge-success'}`}>{item.requiresSwitch ? '需切換' : '免切換'}</span>
+                                  {/* 過期/超額徽章 */}
+                                  {(() => {
+                                    const totalExpired = item.totalExpired || 0;
+                                    const totalFull = item.totalFull || 0;
+                                    const badges = [];
+                                    if (totalExpired > 0) {
+                                      badges.push(<span key="expired" className="badge-danger">{Math.round(totalExpired)}% 已過期</span>);
+                                    }
+                                    if (totalFull > 0) {
+                                      badges.push(<span key="full" className="badge-warning">{Math.round(totalFull)}% 已超額</span>);
+                                    }
+                                    return badges;
+                                  })()}
                                   {/* 通路徽章：方案設定通路優先，再顯示來源通路 */}
                                   {item.schemeChannelName && (
                                     <span className="text-gray-500 text-xs bg-gray-100 px-2 py-0.5 rounded-full">
@@ -452,25 +465,8 @@ export default function QueryRewards() {
                                   {item.rewardBreakdown && <span>📊 組成：{item.rewardBreakdown}</span>}
                                   {item.activityEndDate && <span className="ml-2">📅 期限：{new Date(item.activityEndDate).toLocaleDateString()}</span>}
                                 </div>
-                                {/* 過期/超額提示 */}
-                                {(() => {
-                                  const totalExpired = item.totalExpired || 0;
-                                  const totalFull = item.totalFull || 0;
-                                  const hasBadge = totalExpired > 0 || totalFull > 0;
-                                  
-                                  if (hasBadge) {
-                                    return (
-                                      <div className="mt-1 text-sm text-gray-800 space-x-2">
-                                        <span className={`font-semibold ${isExpired ? 'text-red-600' : hasPartialQuotaFull ? 'text-orange-600' : 'text-green-600'}`}>{item.totalRewardPercentage}%</span>
-                                        {totalExpired > 0 && <span className="text-orange-700">{Math.round(totalExpired)}% 已過期</span>}
-                                        {totalFull > 0 && <span className="text-orange-700">{Math.round(totalFull)}% 已超額</span>}
-                                      </div>
-                                    );
-                                  }
-                                  return null;
-                                })()}
-                                {/* 有效總額（排除所有超額的） */}
-                                {!item.isExcluded && totalValid > 0 && totalValid < totalPercentage && (
+                                {/* 有效總額（僅在未過期且有超額時顯示） */}
+                                {!item.isExcluded && !isExpired && totalValid > 0 && totalValid < totalPercentage && (
                                   <div className="mt-1 text-sm">
                                     <span className="font-semibold text-green-600">有效：{Math.round(totalValid)}%</span>
                                   </div>

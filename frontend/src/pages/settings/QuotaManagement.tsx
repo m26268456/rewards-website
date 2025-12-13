@@ -433,13 +433,13 @@ export default function QuotaManagement() {
                         </span>
                       )}
                     </td>
-                    <td className="px-3 py-2 text-xs align-top space-y-1 text-gray-700 whitespace-nowrap min-w-[140px]">
+                    <td className="px-3 py-2 text-xs align-top text-gray-700 whitespace-nowrap min-w-[160px]">
                       {isEditingR ? (
-                        <div className="space-y-2">
+                        <div className="flex flex-col gap-2">
                           <select 
                             value={rewardForm.method} 
                             onChange={e => setRewardForm({...rewardForm, method: e.target.value})} 
-                            className="w-full border p-1 rounded text-xs"
+                            className="w-[140px] border p-1 rounded text-xs"
                           >
                             <option value="round">四捨五入</option>
                             <option value="floor">無條件捨去</option>
@@ -448,7 +448,7 @@ export default function QuotaManagement() {
                           <select 
                             value={rewardForm.calculationBasis} 
                             onChange={e => setRewardForm({...rewardForm, calculationBasis: e.target.value})} 
-                            className="w-full border p-1 rounded text-xs bg-yellow-50"
+                            className="w-[140px] border p-1 rounded text-xs bg-yellow-50"
                           >
                             <option value="transaction">單筆回饋</option>
                             <option value="statement">帳單總額</option>
@@ -478,13 +478,13 @@ export default function QuotaManagement() {
                         primary.manualAdjustments?.[rIdx] // b: 人工調整值（從後端資料取得）
                       )}
                     </td>
-                    <td className="px-3 py-2 text-sm align-top whitespace-nowrap min-w-[140px]">
+                    <td className="px-3 py-2 text-sm align-top whitespace-nowrap min-w-[180px]">
                       {isEditingR ? (
-                        <div className="space-y-2">
+                        <div className="flex flex-col gap-2">
                           <select 
                             value={rewardForm.refreshType} 
                             onChange={e => setRewardForm({...rewardForm, refreshType: e.target.value, refreshValue: '', refreshDate: ''})} 
-                            className="w-full border p-1 rounded text-xs"
+                            className="w-[140px] border p-1 rounded text-xs"
                           >
                             <option value="">不刷新</option>
                             <option value="monthly">每月OO號</option>
@@ -504,7 +504,7 @@ export default function QuotaManagement() {
                                   setRewardForm({...rewardForm, refreshValue: val});
                                 }
                               }} 
-                              className="w-full border p-1 rounded text-xs" 
+                              className="w-[140px] border p-1 rounded text-xs" 
                               placeholder="1-28號" 
                             />
                           )}
@@ -513,14 +513,14 @@ export default function QuotaManagement() {
                               type="date" 
                               value={rewardForm.refreshDate} 
                               onChange={e => setRewardForm({...rewardForm, refreshDate: e.target.value})} 
-                              className="w-full border p-1 rounded text-xs"
+                              className="w-[140px] border p-1 rounded text-xs"
                               onClick={(e) => (e.currentTarget as HTMLInputElement).showPicker?.()}
                             />
                           )}
                           <input 
                             value={rewardForm.limit} 
                             onChange={e => setRewardForm({...rewardForm, limit: e.target.value})} 
-                            className="w-full border p-1 rounded text-xs" 
+                            className="w-[140px] border p-1 rounded text-xs" 
                             placeholder="上限" 
                           />
                         </div>

@@ -57,36 +57,36 @@ function PaymentMethodItem({ payment, onEdit, onDelete, onReload }: any) {
 
   return (
     <div className="p-3 bg-gray-50 rounded border">
-      <div className="flex justify-between">
-        <div>
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2">
+        <div className="flex-1 min-w-0">
           <div className="font-medium">{payment.name}</div>
-          {payment.note && <div className="text-sm text-gray-600" dangerouslySetInnerHTML={{ __html: linkify(payment.note) }} />}
+          {payment.note && <div className="text-sm text-gray-600 mt-1" dangerouslySetInnerHTML={{ __html: linkify(payment.note) }} />}
           {(payment.activity_start_date || payment.activity_end_date) && (
-            <div className="text-xs text-gray-600">
+            <div className="text-xs text-gray-600 mt-1">
               活動期間：{payment.activity_start_date || '未設'} ~ {payment.activity_end_date || '未設'}
             </div>
           )}
         </div>
-      </div>
-      <div className="mt-2 flex gap-2 flex-wrap">
-        <button
-          onClick={() => setShowDetails(!showDetails)}
-          className="px-2 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 whitespace-nowrap"
-        >
-          {showDetails ? '隱藏詳細' : '管理詳細'}
-        </button>
-        <button
-          onClick={onEdit}
-          className="px-2 py-1 bg-yellow-500 text-white rounded text-xs hover:bg-yellow-600 whitespace-nowrap"
-        >
-          編輯
-        </button>
-        <button
-          onClick={onDelete}
-          className="px-2 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600 whitespace-nowrap"
-        >
-          刪除
-        </button>
+        <div className="flex gap-2 flex-wrap">
+          <button
+            onClick={() => setShowDetails(!showDetails)}
+            className="px-2 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 whitespace-nowrap"
+          >
+            {showDetails ? '隱藏詳細' : '管理詳細'}
+          </button>
+          <button
+            onClick={onEdit}
+            className="px-2 py-1 bg-yellow-500 text-white rounded text-xs hover:bg-yellow-600 whitespace-nowrap"
+          >
+            編輯
+          </button>
+          <button
+            onClick={onDelete}
+            className="px-2 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600 whitespace-nowrap"
+          >
+            刪除
+          </button>
+        </div>
       </div>
  
       {showDetails && (
