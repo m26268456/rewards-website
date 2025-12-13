@@ -550,7 +550,8 @@ router.get('/:id/details', async (req: Request, res: Response, next: NextFunctio
       `SELECT c.id, c.name
        FROM scheme_channel_exclusions sce
        JOIN channels c ON sce.channel_id = c.id
-       WHERE sce.scheme_id = $1`,
+       WHERE sce.scheme_id = $1
+       ORDER BY sce.created_at`,
       [id]
     );
 

@@ -463,7 +463,17 @@ export default function QueryRewards() {
                                     <div key={`${type}-${idx}`} className={`p-3 rounded-lg ${bgClass}`}>
                                       {item.isExcluded ? (
                                         <div className="text-sm">
-                                          <span className="badge-danger font-medium">排除</span> <span className="font-semibold">{item.excludedSchemeName}</span>
+                                          <div className="flex flex-wrap items-center gap-2 mb-1">
+                                            <span className="badge-danger font-medium">排除</span>
+                                            <span className="font-semibold">{item.excludedSchemeName}</span>
+                                            {/* 通路徽章 */}
+                                            {item.channelName && (
+                                              <span className="text-gray-500 text-xs bg-gray-100 px-2 py-0.5 rounded-full">
+                                                {item.channelName}
+                                              </span>
+                                            )}
+                                          </div>
+                                          {/* 排除通路沒有備註 */}
                                         </div>
                                       ) : (
                                         <div className="text-sm">

@@ -14,11 +14,16 @@ type ChannelRow = {
   display_order: number;
 };
 
-const buildChannelMatches = (keyword: string, channels: ChannelRow[]) => {
+const buildChannelMatches = (keyword: string, channels: ChannelRow[], exactOnly: boolean = false) => {
   const matches: Array<{ channel: ChannelRow; matchScore: number }> = [];
   for (const channel of channels) {
     const match = matchesChannelName(keyword, channel.name);
     if (match.matched) {
+      // 如果要求完全匹配，只接受 isExact 的結果
+      if (exactOnly && !match.isExact) {
+        continue;
+      }
+      
       let score = 3;
       if (match.isExact) {
         score = match.isAlias ? 1 : 0;
@@ -138,7 +143,8 @@ router.post('/batch-resolve', async (req: Request, res: Response, next: NextFunc
         continue;
       }
 
-      const matches = buildChannelMatches(inputName, channels);
+      // 儲存通路時使用完全匹配，避免部分匹配導致錯誤匹配
+      const matches = buildChannelMatches(inputName, channels, true); // exactOnly: true
       let resolvedChannel: ChannelRow | null = matches.length > 0 ? matches[0] : null;
 
       if (!resolvedChannel && createIfMissing) {

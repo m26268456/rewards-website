@@ -56,9 +56,11 @@ export async function getAllCardsWithSchemes(): Promise<
         sr.display_order as reward_display_order,
         excl_ch.id as exclusion_channel_id,
         excl_ch.name as exclusion_channel_name,
+        sce.created_at as exclusion_created_at,
         app_ch.id as application_channel_id,
         app_ch.name as application_channel_name,
         sca.note as application_note,
+        sca.created_at as application_created_at,
         qt.used_quota,
         qt.remaining_quota
       FROM cards c
@@ -71,7 +73,7 @@ export async function getAllCardsWithSchemes(): Promise<
       LEFT JOIN quota_trackings qt ON cs.id = qt.scheme_id 
         AND sr.id = qt.reward_id 
         AND qt.payment_method_id IS NULL
-      ORDER BY c.display_order, c.created_at, cs.display_order, cs.created_at, sr.display_order, sca.created_at
+      ORDER BY c.display_order, c.created_at, cs.display_order, cs.created_at, sr.display_order, sce.created_at, sca.created_at
     `);
 
     // 組織資料結構
@@ -88,11 +90,12 @@ export async function getAllCardsWithSchemes(): Promise<
         activityStartDate?: string;
         activityEndDate?: string;
         rewards: RewardComposition[];
-        exclusions: Set<string>;
+        exclusions: Map<string, { channelName: string; createdAt: Date }>;
         applications: Map<string, {
           channelId: string;
           channelName: string;
           note?: string;
+          createdAt: Date;
         }>;
       }>;
     }>();
@@ -128,7 +131,7 @@ export async function getAllCardsWithSchemes(): Promise<
                 : String(row.activity_end_date).split('T')[0])
             : undefined,
           rewards: [],
-          exclusions: new Set(),
+          exclusions: new Map(),
           applications: new Map(),
         });
       }
@@ -161,18 +164,24 @@ export async function getAllCardsWithSchemes(): Promise<
           }
         }
 
-        // 處理排除通路
+        // 處理排除通路（保持順序）
         if (row.exclusion_channel_id) {
-          scheme.exclusions.add(row.exclusion_channel_name);
+          if (!scheme.exclusions.has(row.exclusion_channel_id)) {
+            scheme.exclusions.set(row.exclusion_channel_id, {
+              channelName: row.exclusion_channel_name,
+              createdAt: row.exclusion_created_at || new Date(),
+            });
+          }
         }
 
-        // 處理適用通路
+        // 處理適用通路（保持順序）
         if (row.application_channel_id) {
           if (!scheme.applications.has(row.application_channel_id)) {
             scheme.applications.set(row.application_channel_id, {
               channelId: row.application_channel_id,
               channelName: row.application_channel_name,
               note: row.application_note || undefined,
+              createdAt: row.application_created_at || new Date(),
             });
           }
         }
@@ -196,8 +205,10 @@ export async function getAllCardsWithSchemes(): Promise<
           // 按原始順序排序（如果有 display_order）
           return 0;
         }),
-        exclusions: Array.from(scheme.exclusions),
-        applications: Array.from(scheme.applications.values()),
+        exclusions: Array.from(scheme.exclusions.values()).map(ex => ex.channelName),
+        applications: Array.from(scheme.applications.values()).sort((a, b) => 
+          a.createdAt.getTime() - b.createdAt.getTime()
+        ).map(({ channelId, channelName, note }) => ({ channelId, channelName, note })),
       })),
     }));
   } catch (error) {
@@ -368,10 +379,11 @@ export async function queryChannelRewards(
 
       // 1. 找出排除此通路的方案
       const exclusionsResult = await pool.query(
-        `SELECT cs.id, cs.name, c.name as card_name
+        `SELECT cs.id, cs.name, c.name as card_name, ch.name as channel_name
          FROM scheme_channel_exclusions sce
          JOIN card_schemes cs ON sce.scheme_id = cs.id
          JOIN cards c ON cs.card_id = c.id
+         JOIN channels ch ON sce.channel_id = ch.id
          WHERE sce.channel_id = $1`,
         [channelId]
       );
@@ -380,6 +392,7 @@ export async function queryChannelRewards(
         schemeId: r.id,
         schemeName: r.name,
         cardName: r.card_name,
+        channelName: r.channel_name,
       }));
 
       // 2. 找出適用此通路的卡片方案
@@ -670,6 +683,8 @@ export async function queryChannelRewards(
         rewardBreakdown: '',
         schemeInfo: `${ex.cardName}-${ex.schemeName}`,
         requiresSwitch: false,
+        channelName: ex.channelName, // 排除通路的通路名稱
+        note: undefined, // 排除通路沒有備註
       }));
 
       // 合併所有結果並排序（排除的置頂，然後按回饋%數降序）
