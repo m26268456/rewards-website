@@ -406,109 +406,111 @@ export default function QueryRewards() {
                               {channel.channelName}
                             </h5>
                       <div className="space-y-2">
-                              {(channel.results || []).map((item, idx) => {
-                                // 判斷背景顏色
-                                const isExpired = !item.isExcluded && item.activityEndDate && isExpiredScheme(item.activityEndDate);
-                                const totalFull = item.totalFull || 0;
-                                const totalPercentage = item.totalRewardPercentage || 0;
-                                const hasPartialQuotaFull = totalFull > 0 && totalFull < totalPercentage;
+                              {(() => {
+                                // 合併所有結果（包括有效額度）
+                                const allResults: Array<{ item: any; type: 'normal' | 'valid'; percentage: number }> = [];
                                 
-                                let bgClass = 'bg-green-50 border-l-4 border-green-500';
-                                if (item.isExcluded || isExpired) {
-                                  bgClass = 'bg-red-50 border-l-4 border-red-500';
-                                } else if (hasPartialQuotaFull) {
-                                  bgClass = 'bg-orange-50 border-l-4 border-orange-500';
-                                }
+                                // 先加入一般搜尋結果
+                                (channel.results || []).forEach((item, idx) => {
+                                  allResults.push({
+                                    item,
+                                    type: 'normal',
+                                    percentage: item.totalRewardPercentage || 0
+                                  });
+                                });
                                 
-                                // 計算有效總額（排除所有超額的）
-                                const totalValid = !item.isExcluded ? Math.max(0, totalPercentage - (item.totalFull || 0)) : 0;
+                                // 再加入有效額度區塊
+                                (channel.results || []).forEach((item, idx) => {
+                                  const isExpired = !item.isExcluded && item.activityEndDate && isExpiredScheme(item.activityEndDate);
+                                  const totalFull = item.totalFull || 0;
+                                  const totalPercentage = item.totalRewardPercentage || 0;
+                                  const totalValid = !item.isExcluded ? Math.max(0, totalPercentage - totalFull) : 0;
+                                  
+                                  if (!item.isExcluded && !isExpired && totalValid > 0 && totalValid < totalPercentage) {
+                                    allResults.push({
+                                      item: { ...item, totalRewardPercentage: totalValid },
+                                      type: 'valid',
+                                      percentage: totalValid
+                                    });
+                                  }
+                                });
                                 
-                                return (
-                          <div key={idx} className={`p-3 rounded-lg ${bgClass}`}>
-                            {item.isExcluded ? (
-                              <div className="text-sm">
-                                <span className="badge-danger font-medium">排除</span> <span className="font-semibold">{item.excludedSchemeName}</span>
-                              </div>
-                            ) : (
-                              <div className="text-sm">
-                                <div className="flex flex-wrap items-center gap-2 mb-1">
-                                  <span className={`text-xl font-bold ${isExpired ? 'text-red-600' : hasPartialQuotaFull ? 'text-orange-600' : 'text-green-600'}`}>{item.totalRewardPercentage}%</span>
-                                  <span className="font-semibold text-gray-800">{item.schemeInfo}</span>
-                                  <span className={`badge ${item.requiresSwitch ? 'badge-warning' : 'badge-success'}`}>{item.requiresSwitch ? '需切換' : '免切換'}</span>
-                                  {/* 過期/超額徽章 */}
-                                  {(() => {
-                                    const totalExpired = item.totalExpired || 0;
-                                    const totalFull = item.totalFull || 0;
-                                    const badges = [];
-                                    if (totalExpired > 0) {
-                                      badges.push(<span key="expired" className="badge-danger">{Math.round(totalExpired)}% 已過期</span>);
-                                    }
-                                    if (totalFull > 0) {
-                                      badges.push(<span key="full" className="badge-warning">{Math.round(totalFull)}% 已超額</span>);
-                                    }
-                                    return badges;
-                                  })()}
-                                  {/* 通路徽章：方案設定通路優先，再顯示來源通路 */}
-                                  {item.schemeChannelName && (
-                                    <span className="text-gray-500 text-xs bg-gray-100 px-2 py-0.5 rounded-full">
-                                      {item.schemeChannelName}
-                                    </span>
-                                  )}
-                                  {item.sourceChannelName && item.sourceChannelName !== item.schemeChannelName && (
-                                    <span className="text-gray-500 text-xs bg-gray-100 px-2 py-0.5 rounded-full">
-                                      {item.sourceChannelName}
-                                    </span>
-                                  )}
-                                </div>
-                                {item.note && <div className="text-xs text-gray-600 bg-white/50 px-2 py-1 rounded">💡 {item.note}</div>}
-                                <div className="text-xs text-gray-500 mt-1">
-                                  {item.rewardBreakdown && <span>📊 組成：{item.rewardBreakdown}</span>}
-                                  {item.activityEndDate && <span className="ml-2">📅 期限：{new Date(item.activityEndDate).toLocaleDateString()}</span>}
-                                </div>
-                              </div>
-                            )}
-                                </div>
-                              );
-                              })}
-                              {/* 有效總額獨立區塊（僅在未過期且有超額時顯示） */}
-                              {(channel.results || []).map((item, idx) => {
-                                const isExpired = !item.isExcluded && item.activityEndDate && isExpiredScheme(item.activityEndDate);
-                                const totalFull = item.totalFull || 0;
-                                const totalPercentage = item.totalRewardPercentage || 0;
-                                const totalValid = !item.isExcluded ? Math.max(0, totalPercentage - totalFull) : 0;
+                                // 排序：排除的置頂，然後按百分比降序
+                                allResults.sort((a, b) => {
+                                  const aExcluded = a.item.isExcluded;
+                                  const bExcluded = b.item.isExcluded;
+                                  if (aExcluded && !bExcluded) return -1;
+                                  if (!aExcluded && bExcluded) return 1;
+                                  return b.percentage - a.percentage;
+                                });
                                 
-                                if (item.isExcluded || isExpired || totalValid <= 0 || totalValid >= totalPercentage) {
-                                  return null;
-                                }
-                                
-                                return (
-                                  <div key={`valid-${idx}`} className="p-3 rounded-lg bg-green-50 border-l-4 border-green-500">
-                                    <div className="text-sm">
-                                      <div className="flex flex-wrap items-center gap-2 mb-1">
-                                        <span className="text-xl font-bold text-green-600">{Math.round(totalValid)}%</span>
-                                        <span className="font-semibold text-gray-800">{item.schemeInfo}</span>
-                                        <span className={`badge ${item.requiresSwitch ? 'badge-warning' : 'badge-success'}`}>{item.requiresSwitch ? '需切換' : '免切換'}</span>
-                                        {/* 通路徽章：方案設定通路優先，再顯示來源通路 */}
-                                        {item.schemeChannelName && (
-                                          <span className="text-gray-500 text-xs bg-gray-100 px-2 py-0.5 rounded-full">
-                                            {item.schemeChannelName}
-                                          </span>
-                                        )}
-                                        {item.sourceChannelName && item.sourceChannelName !== item.schemeChannelName && (
-                                          <span className="text-gray-500 text-xs bg-gray-100 px-2 py-0.5 rounded-full">
-                                            {item.sourceChannelName}
-                                          </span>
-                                        )}
-                                      </div>
-                                      {item.note && <div className="text-xs text-gray-600 bg-white/50 px-2 py-1 rounded">💡 {item.note}</div>}
-                                      <div className="text-xs text-gray-500 mt-1">
-                                        {item.rewardBreakdown && <span>📊 組成：{item.rewardBreakdown}</span>}
-                                        {item.activityEndDate && <span className="ml-2">📅 期限：{new Date(item.activityEndDate).toLocaleDateString()}</span>}
-                                      </div>
+                                // 統一顯示
+                                return allResults.map((result, idx) => {
+                                  const { item, type } = result;
+                                  const isExpired = !item.isExcluded && item.activityEndDate && isExpiredScheme(item.activityEndDate);
+                                  const totalFull = item.totalFull || 0;
+                                  const totalPercentage = type === 'valid' ? item.totalRewardPercentage : (item.totalRewardPercentage || 0);
+                                  const hasPartialQuotaFull = totalFull > 0 && totalFull < (type === 'valid' ? (item.totalRewardPercentage + totalFull) : totalPercentage);
+                                  
+                                  let bgClass = 'bg-green-50 border-l-4 border-green-500';
+                                  if (item.isExcluded || isExpired) {
+                                    bgClass = 'bg-red-50 border-l-4 border-red-500';
+                                  } else if (hasPartialQuotaFull && type === 'normal') {
+                                    bgClass = 'bg-orange-50 border-l-4 border-orange-500';
+                                  }
+                                  
+                                  return (
+                                    <div key={`${type}-${idx}`} className={`p-3 rounded-lg ${bgClass}`}>
+                                      {item.isExcluded ? (
+                                        <div className="text-sm">
+                                          <span className="badge-danger font-medium">排除</span> <span className="font-semibold">{item.excludedSchemeName}</span>
+                                        </div>
+                                      ) : (
+                                        <div className="text-sm">
+                                          <div className="flex flex-wrap items-center gap-2 mb-1">
+                                            <span className={`text-xl font-bold ${isExpired ? 'text-red-600' : (hasPartialQuotaFull && type === 'normal') ? 'text-orange-600' : 'text-green-600'}`}>
+                                              {Math.round(item.totalRewardPercentage)}%
+                                            </span>
+                                            <span className="font-semibold text-gray-800">{item.schemeInfo}</span>
+                                            <span className={`badge ${item.requiresSwitch ? 'badge-warning' : 'badge-success'}`}>
+                                              {item.requiresSwitch ? '需切換' : '免切換'}
+                                            </span>
+                                            {/* 過期/超額徽章（僅在一般結果顯示） */}
+                                            {type === 'normal' && (() => {
+                                              const totalExpired = item.totalExpired || 0;
+                                              const totalFull = item.totalFull || 0;
+                                              const badges = [];
+                                              if (totalExpired > 0) {
+                                                badges.push(<span key="expired" className="badge-danger">{Math.round(totalExpired)}% 已過期</span>);
+                                              }
+                                              if (totalFull > 0) {
+                                                badges.push(<span key="full" className="badge-warning">{Math.round(totalFull)}% 已超額</span>);
+                                              }
+                                              return badges;
+                                            })()}
+                                            {/* 通路徽章 */}
+                                            {item.schemeChannelName && (
+                                              <span className="text-gray-500 text-xs bg-gray-100 px-2 py-0.5 rounded-full">
+                                                {item.schemeChannelName}
+                                              </span>
+                                            )}
+                                            {item.sourceChannelName && item.sourceChannelName !== item.schemeChannelName && (
+                                              <span className="text-gray-500 text-xs bg-gray-100 px-2 py-0.5 rounded-full">
+                                                {item.sourceChannelName}
+                                              </span>
+                                            )}
+                                          </div>
+                                          {item.note && <div className="text-xs text-gray-600 bg-white/50 px-2 py-1 rounded">💡 {item.note}</div>}
+                                          <div className="text-xs text-gray-500 mt-1">
+                                            {item.rewardBreakdown && <span>📊 組成：{item.rewardBreakdown}</span>}
+                                            {item.activityEndDate && <span className="ml-2">📅 期限：{new Date(item.activityEndDate).toLocaleDateString()}</span>}
+                                          </div>
+                                        </div>
+                                      )}
                                     </div>
-                                  </div>
-                                );
-                              })}
+                                  );
+                                });
+                              })()}
                             </div>
                           </div>
                         ))}
