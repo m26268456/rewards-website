@@ -117,6 +117,22 @@ export default function QueryRewards() {
   const [selectedPaymentInfo, setSelectedPaymentInfo] = useState<PaymentMethod | null>(null);
   const [lastAction, setLastAction] = useState<'query' | 'scheme'>('query');
 
+  const calcTotals = (scheme: any) => {
+    const rewards = scheme.rewards || [];
+    const totalAll = rewards.reduce((sum: number, r: any) => sum + (Number(r.percentage) || 0), 0);
+    const totalExpired = rewards
+      .filter((r: any) => isExpiredScheme(scheme.activityEndDate))
+      .reduce((sum: number, r: any) => sum + (Number(r.percentage) || 0), 0);
+    const totalFull = rewards
+      .filter((r: any) => isQuotaFull(r))
+      .reduce((sum: number, r: any) => sum + (Number(r.percentage) || 0), 0);
+    const totalValid = rewards
+      .filter((r: any) => !isExpiredScheme(scheme.activityEndDate) && !isQuotaFull(r))
+      .reduce((sum: number, r: any) => sum + (Number(r.percentage) || 0), 0);
+    const hasBadge = totalExpired > 0 || totalFull > 0;
+    return { totalAll, totalExpired, totalFull, totalValid, hasBadge };
+  };
+
   useEffect(() => {
     api.get('/channels?commonOnly=true').then((res) => {
       setCommonChannels(res.data.data);
@@ -448,6 +464,27 @@ export default function QueryRewards() {
                         </div>
                         
                         {scheme.note && <div className="text-sm text-gray-600 mb-2 bg-gray-50 p-2 rounded" dangerouslySetInnerHTML={{ __html: linkify(scheme.note) }} />}
+
+                        {(() => {
+                          const { totalAll, totalExpired, totalFull, totalValid, hasBadge } = calcTotals(scheme);
+                          if (!(scheme.rewards || []).length) return null;
+                          return (
+                            <>
+                              <div className="mb-2 px-2 py-1 rounded bg-yellow-50 text-[12px] text-gray-800 flex flex-wrap gap-2 items-center">
+                                <span className="font-semibold text-red-600">{totalAll}%</span>
+                                {hasBadge && (
+                                  <>
+                                    {totalExpired > 0 && <span className="text-orange-700">{totalExpired}% 已過期</span>}
+                                    {totalFull > 0 && <span className="text-orange-700">{totalFull}% 已超額</span>}
+                                  </>
+                                )}
+                              </div>
+                              <div className="mb-2 text-sm text-gray-700">
+                                <span className="font-semibold">有效：{totalValid}%</span>
+                              </div>
+                            </>
+                          );
+                        })()}
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                           <div>

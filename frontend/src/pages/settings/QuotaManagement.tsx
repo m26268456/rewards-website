@@ -536,13 +536,13 @@ export default function QuotaManagement() {
                             </div>
                           )}
                         <div className="flex flex-wrap gap-2">
-                          <button onClick={handleSaveAll} className="bg-blue-500 text-white px-2 py-1 rounded text-xs">儲存</button>
+                          <button onClick={handleSaveAll} className="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600">儲存</button>
                           <button onClick={() => { 
                             setEditingReward(null); 
                             setEditingQuota(null); 
                             setQuotaAdjust(''); 
                             setQuotaAdjustChanged(false);
-                          }} className="bg-gray-300 px-2 py-1 rounded text-xs">取消</button>
+                          }} className="px-3 py-1 text-sm bg-gray-300 rounded">取消</button>
                         </div>
                         <div className="flex flex-wrap gap-2 pt-1">
                           <button
@@ -561,14 +561,14 @@ export default function QuotaManagement() {
                         </div>
                       ) : (
                         <div className="flex flex-col gap-1">
-                              <div className="flex flex-wrap gap-2">
-                                <button
-                                  onClick={() => handleRewardEdit(primary.__index, rIdx, groupKey)} 
-                                  className="px-3 py-1 text-sm bg-yellow-500 text-white rounded hover:bg-yellow-600"
-                                >
-                                  編輯
-                                </button>
-                            </div>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              onClick={() => handleRewardEdit(primary.__index, rIdx, groupKey)} 
+                              className="px-3 py-1 text-sm bg-yellow-500 text-white rounded hover:bg-yellow-600"
+                            >
+                              編輯
+                            </button>
+                          </div>
                         </div>
                       )}
                     </td>

@@ -68,22 +68,22 @@ function PaymentMethodItem({ payment, onEdit, onDelete, onReload }: any) {
           )}
         </div>
       </div>
-      <div className="mt-2 flex flex-wrap gap-2 sm:gap-1 sm:items-center sm:justify-start w-full">
+      <div className="mt-2 flex gap-2 flex-wrap">
         <button
           onClick={() => setShowDetails(!showDetails)}
-          className="px-2 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600"
+          className="px-2 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 whitespace-nowrap"
         >
           {showDetails ? '隱藏詳細' : '管理詳細'}
         </button>
         <button
           onClick={onEdit}
-          className="px-2 py-1 bg-yellow-500 text-white rounded text-xs hover:bg-yellow-600"
+          className="px-2 py-1 bg-yellow-500 text-white rounded text-xs hover:bg-yellow-600 whitespace-nowrap"
         >
           編輯
         </button>
         <button
           onClick={onDelete}
-          className="px-2 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600"
+          className="px-2 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600 whitespace-nowrap"
         >
           刪除
         </button>

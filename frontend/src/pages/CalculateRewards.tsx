@@ -13,7 +13,7 @@ interface Scheme {
 
 export default function CalculateRewards() {
   type Mode = 'none' | 'channel' | 'scheme';
-  const [mode, setMode] = useState<Mode>('none');
+  const [mode, setMode] = useState<Mode>('scheme');
   const [channelKeyword, setChannelKeyword] = useState('');
   const [selectedScheme, setSelectedScheme] = useState<string>('');
   const [schemes, setSchemes] = useState<Scheme[]>([]);
@@ -53,7 +53,11 @@ export default function CalculateRewards() {
   const loadSchemes = async () => {
     try {
       const res = await api.get('/calculation/schemes');
-      setSchemes(res.data.data);
+      const data = res.data.data || [];
+      setSchemes(data);
+      if (data.length > 0 && !selectedScheme) {
+        setSelectedScheme(data[0].id);
+      }
     } catch (error) {
       console.error('載入方案錯誤:', error);
     }
@@ -293,7 +297,6 @@ export default function CalculateRewards() {
                 }}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="">不使用</option>
                 {schemes.map((scheme) => (
                   <option key={scheme.id} value={scheme.id}>
                     {scheme.name}
@@ -409,21 +412,34 @@ export default function CalculateRewards() {
                             </div>
                           </td>
                           <td className="px-4 py-3 text-sm">
-                            {item.rewardItems?.map((it: any, i: number) => (
-                              <div key={i}>{(it.percentage ?? 0).toFixed(2)}%</div>
-                            ))}
+                          {item.rewardItems?.length
+                            ? item.rewardItems.map((it: any, i: number) => (
+                                <div key={i}>{(it.percentage ?? 0).toFixed(2)}%</div>
+                              ))
+                            : <div>{(item.percentage ?? 0).toFixed(2)}%</div>
+                          }
                           </td>
                           <td className="px-4 py-3 text-sm">
-                            {item.rewardItems?.map((it: any, i: number) => (
-                              <div key={i}>{methodText(it.calculationMethod || 'round')}</div>
-                            ))}
+                            {item.rewardItems?.length
+                              ? item.rewardItems.map((it: any, i: number) => (
+                                  <div key={i}>{methodText(it.calculationMethod || 'round')}</div>
+                                ))
+                              : <div>{methodText(item.calculationMethod || 'round')}</div>
+                            }
                           </td>
                           <td className="px-4 py-3 text-sm font-medium">
-                            {item.rewardItems?.map((it: any, i: number) => (
-                              <div key={i}>
-                                {(it.originalReward ?? 0).toFixed(2)} → {it.calculatedReward ?? 0}
-                              </div>
-                            ))}
+                            {item.rewardItems?.length
+                              ? item.rewardItems.map((it: any, i: number) => (
+                                  <div key={i}>
+                                    {(it.originalReward ?? 0).toFixed(2)} → {it.calculatedReward ?? 0}
+                                  </div>
+                                ))
+                              : (
+                                  <div>
+                                    {(item.originalReward ?? 0).toFixed(2)} → {(item.calculatedReward ?? 0).toFixed(0)}
+                                  </div>
+                                )
+                            }
                           </td>
                         </tr>
                       );
@@ -437,8 +453,8 @@ export default function CalculateRewards() {
               {quotaInfo && quotaInfo.length > 0 && (
                 <div className="mt-4 pt-4 border-t">
                   <h4 className="font-semibold mb-2">預計消費後餘額</h4>
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200 bg-white rounded-lg">
+                  <div className="overflow-x-auto w-full">
+                    <table className="table-auto min-w-full divide-y divide-gray-200 bg-white rounded-lg">
                       <thead className="bg-gray-50">
                         <tr>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">回饋%數</th>
