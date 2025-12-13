@@ -63,6 +63,8 @@ interface QueryResult {
     requiresSwitch: boolean;
     note?: string;
     activityEndDate?: string;
+    totalExpired?: number;
+    totalFull?: number;
       schemeChannelName?: string; // 方案中記錄的通路名稱
       sourceChannelName?: string; // 後端回傳的來源通路名稱
     }>;
@@ -404,8 +406,25 @@ export default function QueryRewards() {
                               {channel.channelName}
                             </h5>
                       <div className="space-y-2">
-                              {(channel.results || []).map((item, idx) => (
-                          <div key={idx} className={`p-3 rounded-lg ${item.isExcluded ? 'bg-red-50 border-l-4 border-red-500' : 'bg-green-50 border-l-4 border-green-500'}`}>
+                              {(channel.results || []).map((item, idx) => {
+                                // 判斷背景顏色
+                                const isExpired = !item.isExcluded && item.activityEndDate && isExpiredScheme(item.activityEndDate);
+                                const totalFull = item.totalFull || 0;
+                                const totalPercentage = item.totalRewardPercentage || 0;
+                                const hasPartialQuotaFull = totalFull > 0 && totalFull < totalPercentage;
+                                
+                                let bgClass = 'bg-green-50 border-l-4 border-green-500';
+                                if (item.isExcluded || isExpired) {
+                                  bgClass = 'bg-red-50 border-l-4 border-red-500';
+                                } else if (hasPartialQuotaFull) {
+                                  bgClass = 'bg-orange-50 border-l-4 border-orange-500';
+                                }
+                                
+                                // 計算有效總額（排除所有超額的）
+                                const totalValid = !item.isExcluded ? Math.max(0, totalPercentage - (item.totalFull || 0)) : 0;
+                                
+                                return (
+                          <div key={idx} className={`p-3 rounded-lg ${bgClass}`}>
                             {item.isExcluded ? (
                               <div className="text-sm">
                                 <span className="badge-danger font-medium">排除</span> <span className="font-semibold">{item.excludedSchemeName}</span>
@@ -413,7 +432,7 @@ export default function QueryRewards() {
                             ) : (
                               <div className="text-sm">
                                 <div className="flex flex-wrap items-center gap-2 mb-1">
-                                  <span className="text-xl font-bold text-green-600">{item.totalRewardPercentage}%</span>
+                                  <span className={`text-xl font-bold ${isExpired ? 'text-red-600' : hasPartialQuotaFull ? 'text-orange-600' : 'text-green-600'}`}>{item.totalRewardPercentage}%</span>
                                   <span className="font-semibold text-gray-800">{item.schemeInfo}</span>
                                   <span className={`badge ${item.requiresSwitch ? 'badge-warning' : 'badge-success'}`}>{item.requiresSwitch ? '需切換' : '免切換'}</span>
                                   {/* 通路徽章：方案設定通路優先，再顯示來源通路 */}
@@ -433,10 +452,34 @@ export default function QueryRewards() {
                                   {item.rewardBreakdown && <span>📊 組成：{item.rewardBreakdown}</span>}
                                   {item.activityEndDate && <span className="ml-2">📅 期限：{new Date(item.activityEndDate).toLocaleDateString()}</span>}
                                 </div>
+                                {/* 過期/超額提示 */}
+                                {(() => {
+                                  const totalExpired = item.totalExpired || 0;
+                                  const totalFull = item.totalFull || 0;
+                                  const hasBadge = totalExpired > 0 || totalFull > 0;
+                                  
+                                  if (hasBadge) {
+                                    return (
+                                      <div className="mt-1 text-sm text-gray-800 space-x-2">
+                                        <span className={`font-semibold ${isExpired ? 'text-red-600' : hasPartialQuotaFull ? 'text-orange-600' : 'text-green-600'}`}>{item.totalRewardPercentage}%</span>
+                                        {totalExpired > 0 && <span className="text-orange-700">{Math.round(totalExpired)}% 已過期</span>}
+                                        {totalFull > 0 && <span className="text-orange-700">{Math.round(totalFull)}% 已超額</span>}
+                                      </div>
+                                    );
+                                  }
+                                  return null;
+                                })()}
+                                {/* 有效總額（排除所有超額的） */}
+                                {!item.isExcluded && totalValid > 0 && totalValid < totalPercentage && (
+                                  <div className="mt-1 text-sm">
+                                    <span className="font-semibold text-green-600">有效：{Math.round(totalValid)}%</span>
+                                  </div>
+                                )}
                               </div>
                             )}
                                 </div>
-                              ))}
+                              );
+                              })}
                             </div>
                           </div>
                         ))}
@@ -477,22 +520,6 @@ export default function QueryRewards() {
                         </div>
                         
                         {scheme.note && <div className="text-sm text-gray-600 mb-2 bg-gray-50 p-2 rounded" dangerouslySetInnerHTML={{ __html: linkify(scheme.note) }} />}
-
-                        {(() => {
-                          const { totalAll, totalExpired, totalFull, hasBadge } = calcTotals(scheme);
-                          if (!(scheme.rewards || []).length) return null;
-                          return (
-                            <div className="mb-2 px-2 py-1 rounded bg-yellow-50 text-[12px] text-gray-800 flex flex-wrap gap-2 items-center">
-                              <span className="font-semibold text-red-600">{Math.round(totalAll)}%</span>
-                              {hasBadge && (
-                                <>
-                                  {totalExpired > 0 && <span className="text-orange-700">{Math.round(totalExpired)}% 已過期</span>}
-                                  {totalFull > 0 && <span className="text-orange-700">{Math.round(totalFull)}% 已超額</span>}
-                                </>
-                              )}
-                            </div>
-                          );
-                        })()}
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                           <div>

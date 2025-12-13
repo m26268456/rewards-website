@@ -388,8 +388,10 @@ export async function queryChannelRewards(
                 ch.name as channel_name,
                 (SELECT json_agg(
                   json_build_object(
+                    'id', sr.id,
                     'percentage', reward_percentage,
-                    'method', calculation_method
+                    'method', calculation_method,
+                    'quota_limit', quota_limit
                   ) ORDER BY display_order
                 )
                 FROM scheme_rewards sr
@@ -408,8 +410,10 @@ export async function queryChannelRewards(
         `SELECT pm.id, pm.name, pca.note,
                 (SELECT json_agg(
                   json_build_object(
+                    'id', pr.id,
                     'percentage', reward_percentage,
-                    'method', calculation_method
+                    'method', calculation_method,
+                    'quota_limit', quota_limit
                   ) ORDER BY display_order
                 )
                 FROM payment_rewards pr
@@ -427,8 +431,10 @@ export async function queryChannelRewards(
                 pm.name as payment_name, pm.id as payment_id, pca.note,
                 (SELECT json_agg(
                   json_build_object(
+                    'id', sr.id,
                     'percentage', reward_percentage,
-                    'method', calculation_method
+                    'method', calculation_method,
+                    'quota_limit', quota_limit
                   ) ORDER BY display_order
                 )
                 FROM scheme_rewards sr
@@ -444,94 +450,218 @@ export async function queryChannelRewards(
       );
 
       // 組合結果
-      const schemeResults = schemeApplicationsResult.rows.map((row: any) => {
-        const rewards = row.rewards || [];
-        const rewardItems = rewards.map((r: any) => ({
-          percentage: parseFloat(r.percentage),
-          calculationMethod: r.method || 'round',
-        }));
-        const totalPercentage = rewardItems.reduce(
-          (sum: number, r: any) => sum + (isFinite(r.percentage) ? r.percentage : 0),
-          0
-        );
-        const breakdown = rewardItems
-          .map((r: any) => `${r.percentage}%`)
-          .join('+');
+      const schemeResults = await Promise.all(
+        schemeApplicationsResult.rows.map(async (row: any) => {
+          const rewards = row.rewards || [];
+          const rewardItemsWithQuota = await Promise.all(
+            rewards.map(async (r: any) => {
+              const quotaLimit = r.quota_limit ? parseFloat(r.quota_limit) : null;
+              let remainingQuota: number | null = null;
+              
+              // 查詢額度追蹤資訊
+              if (r.id) {
+                const quotaResult = await pool.query(
+                  `SELECT remaining_quota FROM quota_trackings 
+                   WHERE scheme_id = $1 AND reward_id = $2 
+                   AND payment_method_id IS NULL 
+                   LIMIT 1`,
+                  [row.id, r.id]
+                );
+                if (quotaResult.rows.length > 0 && quotaResult.rows[0].remaining_quota !== null) {
+                  remainingQuota = parseFloat(quotaResult.rows[0].remaining_quota);
+                }
+              }
+              
+              // 判斷是否超額
+              const isQuotaFull = quotaLimit !== null && remainingQuota !== null && remainingQuota <= 0;
+              
+              return {
+                percentage: parseFloat(r.percentage),
+                calculationMethod: r.method || 'round',
+                quotaLimit,
+                remainingQuota,
+                isQuotaFull,
+              };
+            })
+          );
+          
+          const totalPercentage = rewardItemsWithQuota.reduce(
+            (sum: number, r: any) => sum + (isFinite(r.percentage) ? r.percentage : 0),
+            0
+          );
+          const breakdown = rewardItemsWithQuota
+            .map((r: any) => `${r.percentage}%`)
+            .join('+');
+          
+          // 計算過期和超額的總額
+          const isExpired = row.activity_end_date && new Date(row.activity_end_date) < new Date();
+          const totalExpired = isExpired ? totalPercentage : 0;
+          const totalFull = rewardItemsWithQuota
+            .filter((r: any) => r.isQuotaFull)
+            .reduce((sum: number, r: any) => sum + (isFinite(r.percentage) ? r.percentage : 0), 0);
 
-        // 方案中記錄的通路名稱：僅使用通路名稱，不取 note
-        const schemeChannelName = row.channel_name;
+          // 方案中記錄的通路名稱：僅使用通路名稱，不取 note
+          const schemeChannelName = row.channel_name;
 
-        return {
-          isExcluded: false,
-          totalRewardPercentage: totalPercentage,
-          rewardBreakdown: breakdown,
-          schemeInfo: `${row.card_name}-${row.name}`,
-          requiresSwitch: row.requires_switch,
-          note: row.note || undefined,
-          activityEndDate: row.activity_end_date || undefined,
-          schemeChannelName,
-          rewardItems,
-          totalCalculatedReward: null,
-          sourceChannelName: channelName,
-        };
-      });
+          return {
+            isExcluded: false,
+            totalRewardPercentage: totalPercentage,
+            rewardBreakdown: breakdown,
+            schemeInfo: `${row.card_name}-${row.name}`,
+            requiresSwitch: row.requires_switch,
+            note: row.note || undefined,
+            activityEndDate: row.activity_end_date || undefined,
+            schemeChannelName,
+            rewardItems: rewardItemsWithQuota.map((r: any) => ({
+              percentage: r.percentage,
+              calculationMethod: r.calculationMethod,
+            })),
+            totalCalculatedReward: null,
+            sourceChannelName: channelName,
+            totalExpired,
+            totalFull,
+          };
+        })
+      );
 
-      const paymentResults = paymentApplicationsResult.rows.map((row: any) => {
-        const rewards = row.rewards || [];
-        const rewardItems = rewards.map((r: any) => ({
-          percentage: parseFloat(r.percentage),
-          calculationMethod: r.method || 'round',
-        }));
-        const totalPercentage = rewardItems.reduce(
-          (sum: number, r: any) => sum + (isFinite(r.percentage) ? r.percentage : 0),
-          0
-        );
-        const breakdown = rewardItems
-          .map((r: any) => `${r.percentage}%`)
-          .join('+');
+      const paymentResults = await Promise.all(
+        paymentApplicationsResult.rows.map(async (row: any) => {
+          const rewards = row.rewards || [];
+          const rewardItemsWithQuota = await Promise.all(
+            rewards.map(async (r: any) => {
+              const quotaLimit = r.quota_limit ? parseFloat(r.quota_limit) : null;
+              let remainingQuota: number | null = null;
+              
+              // 查詢額度追蹤資訊（支付方式本身的回饋）
+              if (r.id) {
+                const quotaResult = await pool.query(
+                  `SELECT remaining_quota FROM quota_trackings 
+                   WHERE payment_method_id = $1 AND payment_reward_id = $2 
+                   AND scheme_id IS NULL 
+                   LIMIT 1`,
+                  [row.id, r.id]
+                );
+                if (quotaResult.rows.length > 0 && quotaResult.rows[0].remaining_quota !== null) {
+                  remainingQuota = parseFloat(quotaResult.rows[0].remaining_quota);
+                }
+              }
+              
+              // 判斷是否超額
+              const isQuotaFull = quotaLimit !== null && remainingQuota !== null && remainingQuota <= 0;
+              
+              return {
+                percentage: parseFloat(r.percentage),
+                calculationMethod: r.method || 'round',
+                quotaLimit,
+                remainingQuota,
+                isQuotaFull,
+              };
+            })
+          );
+          
+          const totalPercentage = rewardItemsWithQuota.reduce(
+            (sum: number, r: any) => sum + (isFinite(r.percentage) ? r.percentage : 0),
+            0
+          );
+          const breakdown = rewardItemsWithQuota
+            .map((r: any) => `${r.percentage}%`)
+            .join('+');
+          
+          // 計算超額的總額（支付方式本身沒有活動期限，所以沒有過期）
+          const totalFull = rewardItemsWithQuota
+            .filter((r: any) => r.isQuotaFull)
+            .reduce((sum: number, r: any) => sum + (isFinite(r.percentage) ? r.percentage : 0), 0);
 
-        return {
-          isExcluded: false,
-          totalRewardPercentage: totalPercentage,
-          rewardBreakdown: breakdown || '0%',
-          schemeInfo: row.name,
-          requiresSwitch: false,
-          note: row.note || undefined,
-          rewardItems,
-          totalCalculatedReward: null,
-          schemeChannelName: channelName,
-          sourceChannelName: channelName,
-        };
-      });
+          return {
+            isExcluded: false,
+            totalRewardPercentage: totalPercentage,
+            rewardBreakdown: breakdown || '0%',
+            schemeInfo: row.name,
+            requiresSwitch: false,
+            note: row.note || undefined,
+            rewardItems: rewardItemsWithQuota.map((r: any) => ({
+              percentage: r.percentage,
+              calculationMethod: r.calculationMethod,
+            })),
+            totalCalculatedReward: null,
+            schemeChannelName: channelName,
+            sourceChannelName: channelName,
+            totalExpired: 0,
+            totalFull,
+          };
+        })
+      );
 
-      const paymentSchemeResults = paymentSchemeLinksResult.rows.map((row: any) => {
-        const schemeRewards = row.scheme_rewards || [];
-        const rewardItems = schemeRewards.map((r: any) => ({
-          percentage: parseFloat(r.percentage),
-          calculationMethod: r.method || 'round',
-        }));
-        const totalPercentage = rewardItems.reduce(
-          (sum: number, r: any) => sum + (isFinite(r.percentage) ? r.percentage : 0),
-          0
-        );
-        
-        const schemeBreakdown = rewardItems.map((r: any) => `${r.percentage}%`).join('+');
-        const breakdown = schemeBreakdown || '0%';
+      const paymentSchemeResults = await Promise.all(
+        paymentSchemeLinksResult.rows.map(async (row: any) => {
+          const schemeRewards = row.scheme_rewards || [];
+          const rewardItemsWithQuota = await Promise.all(
+            schemeRewards.map(async (r: any) => {
+              const quotaLimit = r.quota_limit ? parseFloat(r.quota_limit) : null;
+              let remainingQuota: number | null = null;
+              
+              // 查詢額度追蹤資訊（支付方式綁定的方案）
+              if (r.id) {
+                const quotaResult = await pool.query(
+                  `SELECT remaining_quota FROM quota_trackings 
+                   WHERE scheme_id = $1 AND reward_id = $2 
+                   AND payment_method_id = $3 
+                   LIMIT 1`,
+                  [row.id, r.id, row.payment_id]
+                );
+                if (quotaResult.rows.length > 0 && quotaResult.rows[0].remaining_quota !== null) {
+                  remainingQuota = parseFloat(quotaResult.rows[0].remaining_quota);
+                }
+              }
+              
+              // 判斷是否超額
+              const isQuotaFull = quotaLimit !== null && remainingQuota !== null && remainingQuota <= 0;
+              
+              return {
+                percentage: parseFloat(r.percentage),
+                calculationMethod: r.method || 'round',
+                quotaLimit,
+                remainingQuota,
+                isQuotaFull,
+              };
+            })
+          );
+          
+          const totalPercentage = rewardItemsWithQuota.reduce(
+            (sum: number, r: any) => sum + (isFinite(r.percentage) ? r.percentage : 0),
+            0
+          );
+          
+          const schemeBreakdown = rewardItemsWithQuota.map((r: any) => `${r.percentage}%`).join('+');
+          const breakdown = schemeBreakdown || '0%';
+          
+          // 計算過期和超額的總額
+          const isExpired = row.activity_end_date && new Date(row.activity_end_date) < new Date();
+          const totalExpired = isExpired ? totalPercentage : 0;
+          const totalFull = rewardItemsWithQuota
+            .filter((r: any) => r.isQuotaFull)
+            .reduce((sum: number, r: any) => sum + (isFinite(r.percentage) ? r.percentage : 0), 0);
 
-        return {
-          isExcluded: false,
-          totalRewardPercentage: totalPercentage,
-          rewardBreakdown: breakdown,
-          schemeInfo: `${row.card_name}-${row.name}-${row.payment_name}`,
-          requiresSwitch: row.requires_switch,
-          note: row.note || undefined,
-          activityEndDate: row.activity_end_date || undefined,
-          rewardItems,
-          totalCalculatedReward: null,
-          schemeChannelName: channelName,
-          sourceChannelName: channelName,
-        };
-      });
+          return {
+            isExcluded: false,
+            totalRewardPercentage: totalPercentage,
+            rewardBreakdown: breakdown,
+            schemeInfo: `${row.card_name}-${row.name}-${row.payment_name}`,
+            requiresSwitch: row.requires_switch,
+            note: row.note || undefined,
+            activityEndDate: row.activity_end_date || undefined,
+            rewardItems: rewardItemsWithQuota.map((r: any) => ({
+              percentage: r.percentage,
+              calculationMethod: r.calculationMethod,
+            })),
+            totalCalculatedReward: null,
+            schemeChannelName: channelName,
+            sourceChannelName: channelName,
+            totalExpired,
+            totalFull,
+          };
+        })
+      );
 
       const exclusionResults = exclusions.map((ex: any) => ({
         isExcluded: true,

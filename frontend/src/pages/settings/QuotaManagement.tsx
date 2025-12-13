@@ -401,18 +401,18 @@ export default function QuotaManagement() {
                 const sharedPairs = [['bg-blue-50','bg-blue-100'], ['bg-blue-100','bg-blue-50']];
                 const soloPairs = [['bg-white','bg-gray-50'], ['bg-gray-50','bg-white']];
                 const colorPair = isSharedGroup ? sharedPairs[groupColorIdx % 2] : soloPairs[groupColorIdx % 2];
-                // 共享群組只顯示一行，使用第一個顏色；非共享群組使用交替顏色
-                const rowBgColor = isSharedGroup ? colorPair[0] : colorPair[rIdx % 2];
+                // 同一方案維持同底色
+                const rowBgColor = colorPair[0];
                 const rowBorder = isSharedGroup ? 'border-blue-300' : 'border-gray-200';
 
                 return (
                   <tr
                     key={`${sharedKey}-${primary.__index}-${rIdx}`}
-                    className={`${rowBgColor} border-l-4 ${rowBorder} hover:bg-blue-50 transition-colors`}
+                    className={`${rowBgColor} border-l-4 ${rowBorder}`}
                   >
                     {isFirst && (
-                      <td rowSpan={rowsToRender.length} className={`px-3 py-2 text-sm font-medium sticky left-0 ${rowBgColor} z-10 border-r border-gray-200 align-top whitespace-nowrap min-w-[140px]`}>
-                        <div className="space-y-1">
+                      <td rowSpan={rowsToRender.length} className={`px-3 py-2 text-sm font-medium sticky left-0 ${rowBgColor} z-10 border-r border-gray-200 align-middle whitespace-nowrap min-w-[140px]`}>
+                        <div className="flex items-center">
                           <div className="font-semibold">{rootNameDisplay}</div>
                         </div>
                       </td>
@@ -513,7 +513,8 @@ export default function QuotaManagement() {
                               type="date" 
                               value={rewardForm.refreshDate} 
                               onChange={e => setRewardForm({...rewardForm, refreshDate: e.target.value})} 
-                              className="w-full border p-1 rounded text-xs" 
+                              className="w-full border p-1 rounded text-xs"
+                              onClick={(e) => (e.currentTarget as HTMLInputElement).showPicker?.()}
                             />
                           )}
                           <input 

@@ -29,6 +29,13 @@ export default function QuotaQuery() {
   const [loading, setLoading] = useState(true);
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [expandedPayments, setExpandedPayments] = useState<Set<string>>(new Set());
+  const [currentTime, setCurrentTime] = useState('');
+
+  useEffect(() => {
+    setCurrentTime(new Date().toLocaleString('zh-TW', { hour12: false }));
+    const timer = setInterval(() => setCurrentTime(new Date().toLocaleString('zh-TW', { hour12: false })), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     loadQuotas();
@@ -224,24 +231,17 @@ export default function QuotaQuery() {
                     const currentAmount = primary.currentAmounts?.[rIdx] || 0;
                     const referenceAmount = primary.referenceAmounts?.[rIdx] ?? null;
 
-                    const bgColor = colorPair[rIdx % 2];
+                  const bgColor = colorPair[0];
                     
                     return (
-                      <tr key={`${sharedKey}-${primary.schemeId || primary.paymentMethodId || 'q'}-${rIdx}`} className={`${bgColor} border-l-4 ${borderColor} hover:bg-blue-100 transition-colors`}>
+                  <tr key={`${sharedKey}-${primary.schemeId || primary.paymentMethodId || 'q'}-${rIdx}`} className={`${bgColor} border-l-4 ${borderColor}`}>
                         {isFirst && (
                           <td
                             rowSpan={rowsToRender.length}
-                            className={`px-3 py-2 text-sm font-medium sticky left-0 ${bgColor} z-10 border-r border-gray-200 align-top whitespace-nowrap min-w-[140px]`}
+                        className={`px-3 py-2 text-sm font-medium sticky left-0 ${bgColor} z-10 border-r border-gray-200 align-middle whitespace-nowrap min-w-[140px]`}
                           >
-                            <div className="space-y-1">
+                            <div className="flex items-center">
                               <div className="font-semibold">{rootNameDisplay}</div>
-                              {childNames.length > 0 && (
-                                <div className="text-xs text-gray-600 space-y-0.5">
-                                  {childNames.map((nm: string, i: number) => (
-                                    <div key={i}>{nm}</div>
-                                  ))}
-                                </div>
-                              )}
                             </div>
                           </td>
                         )}
@@ -336,9 +336,12 @@ export default function QuotaQuery() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-3xl font-bold bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
-        額度查詢
-      </h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-3xl font-bold bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
+          額度查詢
+        </h2>
+        <div className="text-sm font-mono bg-gray-100 px-2 rounded">{currentTime}</div>
+      </div>
 
       {!hasAnyQuota && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">

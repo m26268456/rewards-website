@@ -293,11 +293,21 @@ export default function PaymentManagement() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <label className="text-xs text-gray-600 flex flex-col">
                 活動開始日
-                <input type="date" name="activityStartDate" className="border p-2 rounded text-sm" />
+                <input
+                  type="date"
+                  name="activityStartDate"
+                  className="border p-2 rounded text-sm"
+                  onClick={(e) => (e.currentTarget as HTMLInputElement).showPicker?.()}
+                />
               </label>
               <label className="text-xs text-gray-600 flex flex-col">
                 活動結束日
-                <input type="date" name="activityEndDate" className="border p-2 rounded text-sm" />
+                <input
+                  type="date"
+                  name="activityEndDate"
+                  className="border p-2 rounded text-sm"
+                  onClick={(e) => (e.currentTarget as HTMLInputElement).showPicker?.()}
+                />
               </label>
             </div>
             <div className="flex gap-2">
@@ -337,11 +347,23 @@ export default function PaymentManagement() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <label className="text-xs text-gray-600 flex flex-col">
                       活動開始日
-                      <input type="date" name="activityStartDate" defaultValue={editingPayment?.activity_start_date || ''} className="border p-2 rounded text-sm" />
+                      <input
+                        type="date"
+                        name="activityStartDate"
+                        defaultValue={editingPayment?.activity_start_date || ''}
+                        className="border p-2 rounded text-sm"
+                        onClick={(e) => (e.currentTarget as HTMLInputElement).showPicker?.()}
+                      />
                     </label>
                     <label className="text-xs text-gray-600 flex flex-col">
                       活動結束日
-                      <input type="date" name="activityEndDate" defaultValue={editingPayment?.activity_end_date || ''} className="border p-2 rounded text-sm" />
+                      <input
+                        type="date"
+                        name="activityEndDate"
+                        defaultValue={editingPayment?.activity_end_date || ''}
+                        className="border p-2 rounded text-sm"
+                        onClick={(e) => (e.currentTarget as HTMLInputElement).showPicker?.()}
+                      />
                     </label>
                   </div>
                   <div className="flex gap-2">
