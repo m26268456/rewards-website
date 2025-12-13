@@ -465,10 +465,10 @@ export default function QueryRewards() {
                                   {item.rewardBreakdown && <span>📊 組成：{item.rewardBreakdown}</span>}
                                   {item.activityEndDate && <span className="ml-2">📅 期限：{new Date(item.activityEndDate).toLocaleDateString()}</span>}
                                 </div>
-                                {/* 有效總額（僅在未過期且有超額時顯示） */}
+                                {/* 有效總額（僅在未過期且有超額時顯示，獨立區塊） */}
                                 {!item.isExcluded && !isExpired && totalValid > 0 && totalValid < totalPercentage && (
-                                  <div className="mt-1 text-sm">
-                                    <span className="font-semibold text-green-600">有效：{Math.round(totalValid)}%</span>
+                                  <div className="mt-1 text-sm text-green-600">
+                                    <span className="font-semibold">有效：{Math.round(totalValid)}%</span>
                                   </div>
                                 )}
                               </div>

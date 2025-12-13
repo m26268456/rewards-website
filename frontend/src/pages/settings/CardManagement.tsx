@@ -464,8 +464,8 @@ function CardItem({ card, onEdit, onDelete, onReload }: { card: Card; onEdit: ()
                   className="w-full border p-1 rounded text-sm" 
                 />
                 <div className="grid grid-cols-2 gap-2">
-                  <input type="date" value={schemeForm.activityStartDate} onChange={e => setSchemeForm({...schemeForm, activityStartDate: e.target.value})} className="border p-1 rounded text-sm" />
-                  <input type="date" value={schemeForm.activityEndDate} onChange={e => setSchemeForm({...schemeForm, activityEndDate: e.target.value})} className="border p-1 rounded text-sm" />
+                  <input type="date" value={schemeForm.activityStartDate} onChange={e => setSchemeForm({...schemeForm, activityStartDate: e.target.value})} onClick={(e) => (e.currentTarget as HTMLInputElement).showPicker?.()} className="border p-1 rounded text-sm" />
+                  <input type="date" value={schemeForm.activityEndDate} onChange={e => setSchemeForm({...schemeForm, activityEndDate: e.target.value})} onClick={(e) => (e.currentTarget as HTMLInputElement).showPicker?.()} className="border p-1 rounded text-sm" />
                 </div>
                 <textarea placeholder="適用通路 (每行一個)" value={appsText} onChange={e => setAppsText(e.target.value)} className="w-full border p-1 rounded text-sm" rows={3} />
                 <textarea placeholder="排除通路 (每行一個)" value={excsText} onChange={e => setExcsText(e.target.value)} className="w-full border p-1 rounded text-sm" rows={3} />
@@ -520,8 +520,8 @@ function CardItem({ card, onEdit, onDelete, onReload }: { card: Card; onEdit: ()
                         className="w-full border p-1 rounded text-sm" 
                       />
                       <div className="grid grid-cols-2 gap-2">
-                        <input type="date" value={schemeForm.activityStartDate} onChange={e => setSchemeForm({...schemeForm, activityStartDate: e.target.value})} className="border p-1 rounded text-sm" />
-                        <input type="date" value={schemeForm.activityEndDate} onChange={e => setSchemeForm({...schemeForm, activityEndDate: e.target.value})} className="border p-1 rounded text-sm" />
+                        <input type="date" value={schemeForm.activityStartDate} onChange={e => setSchemeForm({...schemeForm, activityStartDate: e.target.value})} onClick={(e) => (e.currentTarget as HTMLInputElement).showPicker?.()} className="border p-1 rounded text-sm" />
+                        <input type="date" value={schemeForm.activityEndDate} onChange={e => setSchemeForm({...schemeForm, activityEndDate: e.target.value})} onClick={(e) => (e.currentTarget as HTMLInputElement).showPicker?.()} className="border p-1 rounded text-sm" />
                       </div>
                       <textarea placeholder="適用通路 (每行一個)" value={appsText} onChange={e => setAppsText(e.target.value)} className="w-full border p-1 rounded text-sm" rows={3} />
                       <textarea placeholder="排除通路 (每行一個)" value={excsText} onChange={e => setExcsText(e.target.value)} className="w-full border p-1 rounded text-sm" rows={3} />
