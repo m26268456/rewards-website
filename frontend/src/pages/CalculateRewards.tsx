@@ -13,7 +13,7 @@ interface Scheme {
 
 export default function CalculateRewards() {
   type Mode = 'none' | 'channel' | 'scheme';
-  const [mode, setMode] = useState<Mode>('scheme');
+  const [mode, setMode] = useState<Mode>('none');
   const [channelKeyword, setChannelKeyword] = useState('');
   const [selectedScheme, setSelectedScheme] = useState<string>('');
   const [schemes, setSchemes] = useState<Scheme[]>([]);

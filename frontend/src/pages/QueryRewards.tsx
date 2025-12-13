@@ -465,16 +465,35 @@ export default function QueryRewards() {
                                   {item.rewardBreakdown && <span>📊 組成：{item.rewardBreakdown}</span>}
                                   {item.activityEndDate && <span className="ml-2">📅 期限：{new Date(item.activityEndDate).toLocaleDateString()}</span>}
                                 </div>
-                                {/* 有效總額（僅在未過期且有超額時顯示，獨立區塊） */}
-                                {!item.isExcluded && !isExpired && totalValid > 0 && totalValid < totalPercentage && (
-                                  <div className="mt-1 text-sm text-green-600">
-                                    <span className="font-semibold">有效：{Math.round(totalValid)}%</span>
-                                  </div>
-                                )}
                               </div>
                             )}
                                 </div>
                               );
+                              })}
+                              {/* 有效總額獨立區塊（僅在未過期且有超額時顯示） */}
+                              {(channel.results || []).map((item, idx) => {
+                                const isExpired = !item.isExcluded && item.activityEndDate && isExpiredScheme(item.activityEndDate);
+                                const totalFull = item.totalFull || 0;
+                                const totalPercentage = item.totalRewardPercentage || 0;
+                                const totalValid = !item.isExcluded ? Math.max(0, totalPercentage - totalFull) : 0;
+                                
+                                if (item.isExcluded || isExpired || totalValid <= 0 || totalValid >= totalPercentage) {
+                                  return null;
+                                }
+                                
+                                return (
+                                  <div key={`valid-${idx}`} className="p-3 rounded-lg bg-green-50 border-l-4 border-green-500">
+                                    <div className="text-sm">
+                                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                                        <span className="text-xl font-bold text-green-600">{Math.round(totalValid)}%</span>
+                                        <span className="font-semibold text-gray-800">有效：{item.schemeInfo}</span>
+                                      </div>
+                                      <div className="text-xs text-gray-500 mt-1">
+                                        <span>有效回饋（排除超額部分）</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
                               })}
                             </div>
                           </div>
