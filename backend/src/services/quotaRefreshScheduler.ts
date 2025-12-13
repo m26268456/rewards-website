@@ -26,6 +26,9 @@ async function checkAndRefreshQuotas() {
             (global as any)[errorKey] = false;
           }, 5 * 60 * 1000);
         }
+        // 記錄結束日誌
+        const elapsed = Date.now() - startedAt;
+        logger.info(`[quota-refresh] done at ${new Date().toISOString()}, refreshed=0 (db connection failed), elapsed=${elapsed}ms`);
         return;
       }
       throw dbError;
@@ -41,6 +44,9 @@ async function checkAndRefreshQuotas() {
     `);
     
     if (!tableCheckResult.rows[0]?.table_exists) {
+      // 記錄結束日誌
+      const elapsed = Date.now() - startedAt;
+      logger.info(`[quota-refresh] done at ${new Date().toISOString()}, refreshed=0 (table not exists), elapsed=${elapsed}ms`);
       return;
     }
 
@@ -118,6 +124,11 @@ async function checkAndRefreshQuotas() {
           const quotaLimit = quota.quota_limit ? parseFloat(quota.quota_limit) : null;
 
           // 執行刷新：重置已用額度、人工干預、更新剩餘額度、設定下次刷新時間
+          // 注意：不論刷新類型為何（monthly/date/activity），都會：
+          // 1. 重置 used_quota = 0（計算區間會在下次查詢時自動更新）
+          // 2. 重置 manual_adjustment = 0（清空人工干預）
+          // 3. 重置 current_amount = 0（重置當前金額）
+          // 4. 更新 next_refresh_at（更新計算區間）
           await client.query(
             `UPDATE quota_trackings
              SET used_quota = 0,
@@ -148,7 +159,8 @@ async function checkAndRefreshQuotas() {
   } catch (error: any) {
     const elapsed = Date.now() - startedAt;
     if (error.code === 'ENOTFOUND' && error.hostname === 'postgres') {
-      // 忽略
+      // 忽略，但仍記錄日誌
+      logger.info(`[quota-refresh] done at ${new Date().toISOString()}, refreshed=0 (ignored error), elapsed=${elapsed}ms`);
     } else {
       logger.error(`[quota-refresh] failed after ${elapsed}ms:`, error.message || error);
     }
