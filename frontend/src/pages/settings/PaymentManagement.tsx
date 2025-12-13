@@ -64,16 +64,16 @@ function PaymentMethodItem({ payment, onEdit, onDelete, onReload }: any) {
           {(payment.activity_start_date || payment.activity_end_date) && (
             <div className="text-xs text-gray-600 mt-1">
               活動期間：{payment.activity_start_date || '未設'} ~ {payment.activity_end_date || '未設'}
-            </div>
-          )}
         </div>
+          )}
+      </div>
         <div className="flex gap-2 flex-wrap">
           <button
             onClick={() => setShowDetails(!showDetails)}
             className="px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600 whitespace-nowrap"
           >
-            {showDetails ? '隱藏詳細' : '管理詳細'}
-          </button>
+          {showDetails ? '隱藏詳細' : '管理詳細'}
+        </button>
           <button
             onClick={onEdit}
             className="px-3 py-1 bg-yellow-500 text-white rounded text-sm hover:bg-yellow-600 whitespace-nowrap"

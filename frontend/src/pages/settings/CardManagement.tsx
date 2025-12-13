@@ -127,7 +127,10 @@ function SchemeDetailManager({
                 <span className="font-medium">排除：</span>
                 {schemeDetails.exclusions.length > 0 ? (
                   schemeDetails.exclusions.map((exc, idx) => (
-                    <span key={idx}>{exc.name}{idx < schemeDetails.exclusions.length - 1 && ', '}</span>
+                    <span key={idx}>
+                      {exc.name}{exc.note && ` (${exc.note})`}
+                      {idx < schemeDetails.exclusions.length - 1 && ', '}
+                    </span>
                   ))
                 ) : <span className="text-gray-500">無</span>}
               </div>
@@ -303,17 +306,23 @@ function CardItem({ card, onEdit, onDelete, onReload }: { card: Card; onEdit: ()
         return match ? { name: match[1].trim(), note: match[2].trim() } : { name: line, note: '' };
       });
       const excLines = excsText.split('\n').map(l => l.trim()).filter(l => l);
+      // 解析排除通路的括號（支援備註）
+      const excEntries = excLines.map(line => {
+        const match = line.match(/^(.+?)\s*\((.+?)\)$/);
+        return match ? { name: match[1].trim(), note: match[2].trim() } : { name: line, note: '' };
+      });
       
-      await resolveChannels([...appEntries.map(a => a.name), ...excLines]);
+      await resolveChannels([...appEntries.map(a => a.name), ...excEntries.map(e => e.name)]);
       
       const applications = appEntries.map(a => ({ 
         channelId: channelCache.current.get(a.name.toLowerCase()), 
         note: a.note 
       })).filter(a => a.channelId);
       
-      const exclusions = excLines.map(name => 
-        channelCache.current.get(name.toLowerCase())
-      ).filter(id => id);
+      const exclusions = excEntries.map(entry => ({
+        channelId: channelCache.current.get(entry.name.toLowerCase()),
+        note: entry.note
+      })).filter(e => e.channelId);
 
       if (editingScheme) {
         await api.put(`/schemes/${editingScheme.id}/batch`, {
@@ -362,7 +371,7 @@ function CardItem({ card, onEdit, onDelete, onReload }: { card: Card; onEdit: ()
       const res = await api.get(`/schemes/${scheme.id}/details`);
       const { applications, exclusions } = res.data.data;
       setAppsText(applications.map((a: any) => a.note ? `${a.name} (${a.note})` : a.name).join('\n'));
-      setExcsText(exclusions.map((e: any) => e.name).join('\n'));
+      setExcsText(exclusions.map((e: any) => e.note ? `${e.name} (${e.note})` : e.name).join('\n'));
     } catch (e) { console.error(e); }
     setShowSchemeForm(true);
   };

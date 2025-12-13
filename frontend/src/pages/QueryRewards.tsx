@@ -620,7 +620,17 @@ export default function QueryRewards() {
                           <div className="mt-1 text-xs">
                             <span className="font-medium text-red-600">排除：</span>
                             <span className="text-gray-600 ml-1">
-                              {scheme.exclusions.join('、')}
+                              {scheme.exclusions.map((ex: any, idx: number) => {
+                                const channelName = typeof ex === 'string' ? ex : ex.channelName;
+                                const note = typeof ex === 'string' ? null : ex.note;
+                                return (
+                                  <span key={idx}>
+                                    {channelName}
+                                    {note && <span className="text-gray-400"> ({note})</span>}
+                                    {idx < scheme.exclusions.length - 1 && '、'}
+                                  </span>
+                                );
+                              })}
                             </span>
                           </div>
                         )}

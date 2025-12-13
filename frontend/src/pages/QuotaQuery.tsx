@@ -337,9 +337,9 @@ export default function QuotaQuery() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-bold bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
-          額度查詢
-        </h2>
+      <h2 className="text-3xl font-bold bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
+        額度查詢
+      </h2>
         <div className="text-sm font-mono bg-gray-100 px-2 rounded">{currentTime}</div>
       </div>
 

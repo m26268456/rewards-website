@@ -116,20 +116,20 @@ export default function QuotaManagement() {
     const q = quotas[editingQuota.idx];
     const targetSchemeId = q.schemeId;
     const rewardId = q.rewardIds[editingQuota.rIdx];
-
+    
     const cleaned = quotaAdjust?.trim() || '';
     const isEmpty = cleaned === '';
 
     // 解析調整值：允許正負數，僅接受數字；空值視為 null（移除人工干預）
     let adjustment: number | null = null;
     if (!isEmpty) {
-      if (cleaned.startsWith('+')) adjustment = parseFloat(cleaned.substring(1));
-      else if (cleaned.startsWith('-')) adjustment = parseFloat(cleaned);
-      else adjustment = parseFloat(cleaned);
+    if (cleaned.startsWith('+')) adjustment = parseFloat(cleaned.substring(1));
+    else if (cleaned.startsWith('-')) adjustment = parseFloat(cleaned);
+    else adjustment = parseFloat(cleaned);
 
-      if (!Number.isFinite(adjustment)) {
-        alert('人工干預請輸入數字');
-        return;
+    if (!Number.isFinite(adjustment)) {
+      alert('人工干預請輸入數字');
+      return;
       }
     }
 
@@ -562,14 +562,14 @@ export default function QuotaManagement() {
                         </div>
                       ) : (
                         <div className="flex flex-col gap-1">
-                          <div className="flex flex-wrap gap-2">
-                            <button
-                              onClick={() => handleRewardEdit(primary.__index, rIdx, groupKey)} 
-                              className="px-3 py-1 text-sm bg-yellow-500 text-white rounded hover:bg-yellow-600"
-                            >
-                              編輯
-                            </button>
-                          </div>
+                              <div className="flex flex-wrap gap-2">
+                                <button
+                                  onClick={() => handleRewardEdit(primary.__index, rIdx, groupKey)} 
+                                  className="px-3 py-1 text-sm bg-yellow-500 text-white rounded hover:bg-yellow-600"
+                                >
+                                  編輯
+                                </button>
+                            </div>
                         </div>
                       )}
                     </td>

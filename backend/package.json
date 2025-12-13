@@ -9,7 +9,8 @@
     "seed": "tsx src/scripts/seed.ts",
     "backup": "tsx src/scripts/backupData.ts",
     "restore": "tsx src/scripts/restoreData.ts",
-    "migrate:payment-activity": "tsx src/scripts/addPaymentActivityColumns.ts"
+    "migrate:payment-activity": "tsx src/scripts/addPaymentActivityColumns.ts",
+    "migrate:exclusion-note": "tsx src/scripts/addExclusionNoteColumn.ts"
   },
   "dependencies": {
     "cors": "^2.8.5",

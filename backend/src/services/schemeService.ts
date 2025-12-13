@@ -56,6 +56,7 @@ export async function getAllCardsWithSchemes(): Promise<
         sr.display_order as reward_display_order,
         excl_ch.id as exclusion_channel_id,
         excl_ch.name as exclusion_channel_name,
+        sce.note as exclusion_note,
         sce.created_at as exclusion_created_at,
         app_ch.id as application_channel_id,
         app_ch.name as application_channel_name,
@@ -169,6 +170,7 @@ export async function getAllCardsWithSchemes(): Promise<
           if (!scheme.exclusions.has(row.exclusion_channel_id)) {
             scheme.exclusions.set(row.exclusion_channel_id, {
               channelName: row.exclusion_channel_name,
+              note: row.exclusion_note || undefined,
               createdAt: row.exclusion_created_at || new Date(),
             });
           }
@@ -205,7 +207,9 @@ export async function getAllCardsWithSchemes(): Promise<
           // 按原始順序排序（如果有 display_order）
           return 0;
         }),
-        exclusions: Array.from(scheme.exclusions.values()).map(ex => ex.channelName),
+        exclusions: Array.from(scheme.exclusions.values()).sort((a, b) => 
+          a.createdAt.getTime() - b.createdAt.getTime()
+        ).map(ex => ({ channelName: ex.channelName, note: ex.note })),
         applications: Array.from(scheme.applications.values()).sort((a, b) => 
           a.createdAt.getTime() - b.createdAt.getTime()
         ).map(({ channelId, channelName, note }) => ({ channelId, channelName, note })),
