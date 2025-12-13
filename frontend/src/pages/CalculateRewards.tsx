@@ -388,7 +388,9 @@ export default function CalculateRewards() {
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">總計</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">方案 / 通路</th>
+                      {(mode === 'channel') && (
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">方案 / 通路</th>
+                      )}
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">回饋%數</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">計算方式</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">計算結果</th>
@@ -401,16 +403,18 @@ export default function CalculateRewards() {
                       return (
                         <tr key={index} className="align-top">
                           <td className={`px-4 py-3 text-sm font-semibold ${item.isExcluded ? 'text-red-600' : 'text-green-700'}`}>
-                            {item.isExcluded ? '排除' : (item.calculatedReward ?? 0).toFixed(2)}
+                            {item.isExcluded ? '排除' : Math.round(item.calculatedReward ?? 0)}
                           </td>
-                          <td className="px-4 py-3 text-sm space-y-1">
-                            <div className="font-semibold text-gray-800">{item.schemeInfo || '—'}</div>
-                            <div>
-                              <span className="text-gray-500 text-xs bg-gray-100 px-2 py-0.5 rounded-full">
-                                {item.schemeChannelName || '—'}
-                              </span>
-                            </div>
-                          </td>
+                          {(mode === 'channel') && (
+                            <td className="px-4 py-3 text-sm space-y-1">
+                              <div className="font-semibold text-gray-800">{item.schemeInfo || '—'}</div>
+                              <div>
+                                <span className="text-gray-500 text-xs bg-gray-100 px-2 py-0.5 rounded-full">
+                                  {item.schemeChannelName || '—'}
+                                </span>
+                              </div>
+                            </td>
+                          )}
                           <td className="px-4 py-3 text-sm">
                           {item.rewardItems?.length
                             ? item.rewardItems.map((it: any, i: number) => (
@@ -431,12 +435,12 @@ export default function CalculateRewards() {
                             {item.rewardItems?.length
                               ? item.rewardItems.map((it: any, i: number) => (
                                   <div key={i}>
-                                    {(it.originalReward ?? 0).toFixed(2)} → {it.calculatedReward ?? 0}
+                                    {Math.round(it.originalReward ?? 0)} → {Math.round(it.calculatedReward ?? 0)}
                                   </div>
                                 ))
                               : (
                                   <div>
-                                    {(item.originalReward ?? 0).toFixed(2)} → {(item.calculatedReward ?? 0).toFixed(0)}
+                                    {Math.round(item.originalReward ?? 0)} → {Math.round(item.calculatedReward ?? 0)}
                                   </div>
                                 )
                             }

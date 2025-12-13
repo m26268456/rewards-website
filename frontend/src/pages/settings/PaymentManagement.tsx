@@ -82,7 +82,7 @@ function PaymentMethodItem({ payment, onEdit, onDelete, onReload }: any) {
           </button>
           <button
             onClick={onDelete}
-            className="px-3 py-1 bg-yellow-500 text-white rounded text-sm hover:bg-yellow-600 whitespace-nowrap"
+            className="px-3 py-1 bg-red-500 text-white rounded text-sm hover:bg-red-600 whitespace-nowrap"
           >
             刪除
           </button>

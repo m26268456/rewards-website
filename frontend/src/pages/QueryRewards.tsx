@@ -486,10 +486,24 @@ export default function QueryRewards() {
                                     <div className="text-sm">
                                       <div className="flex flex-wrap items-center gap-2 mb-1">
                                         <span className="text-xl font-bold text-green-600">{Math.round(totalValid)}%</span>
-                                        <span className="font-semibold text-gray-800">有效：{item.schemeInfo}</span>
+                                        <span className="font-semibold text-gray-800">{item.schemeInfo}</span>
+                                        <span className={`badge ${item.requiresSwitch ? 'badge-warning' : 'badge-success'}`}>{item.requiresSwitch ? '需切換' : '免切換'}</span>
+                                        {/* 通路徽章：方案設定通路優先，再顯示來源通路 */}
+                                        {item.schemeChannelName && (
+                                          <span className="text-gray-500 text-xs bg-gray-100 px-2 py-0.5 rounded-full">
+                                            {item.schemeChannelName}
+                                          </span>
+                                        )}
+                                        {item.sourceChannelName && item.sourceChannelName !== item.schemeChannelName && (
+                                          <span className="text-gray-500 text-xs bg-gray-100 px-2 py-0.5 rounded-full">
+                                            {item.sourceChannelName}
+                                          </span>
+                                        )}
                                       </div>
+                                      {item.note && <div className="text-xs text-gray-600 bg-white/50 px-2 py-1 rounded">💡 {item.note}</div>}
                                       <div className="text-xs text-gray-500 mt-1">
-                                        <span>有效回饋（排除超額部分）</span>
+                                        {item.rewardBreakdown && <span>📊 組成：{item.rewardBreakdown}</span>}
+                                        {item.activityEndDate && <span className="ml-2">📅 期限：{new Date(item.activityEndDate).toLocaleDateString()}</span>}
                                       </div>
                                     </div>
                                   </div>
