@@ -400,10 +400,15 @@ export default function CalculateRewards() {
                     {calculationResult.breakdown.map((item: any, index: number) => {
                       const methodText = (m: string) =>
                         m === 'floor' ? '無條件捨去' : m === 'ceil' ? '無條件進位' : '四捨五入';
+                      // 計算總計：所有取整後的值加總（calculatedReward 已經是取整後的值）
+                      const totalCalculated = item.rewardItems?.length
+                        ? item.rewardItems.reduce((sum: number, it: any) => sum + (it.calculatedReward ?? 0), 0)
+                        : (item.calculatedReward ?? 0);
+                      
                       return (
                         <tr key={index} className="align-top">
                           <td className={`px-4 py-3 text-sm font-semibold ${item.isExcluded ? 'text-red-600' : 'text-green-700'}`}>
-                            {item.isExcluded ? '排除' : Math.round(item.calculatedReward ?? 0)}
+                            {item.isExcluded ? '排除' : totalCalculated}
                           </td>
                           {(mode === 'channel') && (
                             <td className="px-4 py-3 text-sm space-y-1">
@@ -435,12 +440,12 @@ export default function CalculateRewards() {
                             {item.rewardItems?.length
                               ? item.rewardItems.map((it: any, i: number) => (
                                   <div key={i}>
-                                    {Math.round(it.originalReward ?? 0)} → {Math.round(it.calculatedReward ?? 0)}
+                                    {(it.originalReward ?? 0).toFixed(2)} → {it.calculatedReward ?? 0}
                                   </div>
                                 ))
                               : (
                                   <div>
-                                    {Math.round(item.originalReward ?? 0)} → {Math.round(item.calculatedReward ?? 0)}
+                                    {(item.originalReward ?? 0).toFixed(2)} → {item.calculatedReward ?? 0}
                                   </div>
                                 )
                             }
