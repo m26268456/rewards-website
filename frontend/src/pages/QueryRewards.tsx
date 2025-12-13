@@ -466,23 +466,18 @@ export default function QueryRewards() {
                         {scheme.note && <div className="text-sm text-gray-600 mb-2 bg-gray-50 p-2 rounded" dangerouslySetInnerHTML={{ __html: linkify(scheme.note) }} />}
 
                         {(() => {
-                          const { totalAll, totalExpired, totalFull, totalValid, hasBadge } = calcTotals(scheme);
+                          const { totalAll, totalExpired, totalFull, hasBadge } = calcTotals(scheme);
                           if (!(scheme.rewards || []).length) return null;
                           return (
-                            <>
-                              <div className="mb-2 px-2 py-1 rounded bg-yellow-50 text-[12px] text-gray-800 flex flex-wrap gap-2 items-center">
-                                <span className="font-semibold text-red-600">{totalAll}%</span>
-                                {hasBadge && (
-                                  <>
-                                    {totalExpired > 0 && <span className="text-orange-700">{totalExpired}% 已過期</span>}
-                                    {totalFull > 0 && <span className="text-orange-700">{totalFull}% 已超額</span>}
-                                  </>
-                                )}
-                              </div>
-                              <div className="mb-2 text-sm text-gray-700">
-                                <span className="font-semibold">有效：{totalValid}%</span>
-                              </div>
-                            </>
+                            <div className="mb-2 px-2 py-1 rounded bg-yellow-50 text-[12px] text-gray-800 flex flex-wrap gap-2 items-center">
+                              <span className="font-semibold text-red-600">{Math.round(totalAll)}%</span>
+                              {hasBadge && (
+                                <>
+                                  {totalExpired > 0 && <span className="text-orange-700">{Math.round(totalExpired)}% 已過期</span>}
+                                  {totalFull > 0 && <span className="text-orange-700">{Math.round(totalFull)}% 已超額</span>}
+                                </>
+                              )}
+                            </div>
                           );
                         })()}
 
