@@ -30,6 +30,19 @@ const formatBasis = (basis?: string) => {
   return basis === 'statement' ? '帳單總額' : '單筆回饋';
 };
 
+// 過期/額度滿判斷
+const now = new Date();
+const isExpiredScheme = (activityEndDate?: string) =>
+  !!activityEndDate && new Date(activityEndDate) < now;
+
+const isQuotaFull = (reward: any) =>
+  reward &&
+  reward.quotaLimit !== null &&
+  reward.quotaLimit !== undefined &&
+  reward.remainingQuota !== null &&
+  reward.remainingQuota !== undefined &&
+  Number(reward.remainingQuota) <= 0;
+
 interface Channel {
   id: string;
   name: string;
