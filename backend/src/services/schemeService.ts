@@ -20,7 +20,7 @@ export async function getAllCardsWithSchemes(): Promise<
       activityStartDate?: string;
       activityEndDate?: string;
       rewards: RewardComposition[];
-      exclusions: string[];
+      exclusions: Array<{ channelName: string; note?: string }>;
       applications: Array<{
         channelId: string;
         channelName: string;
@@ -91,7 +91,7 @@ export async function getAllCardsWithSchemes(): Promise<
         activityStartDate?: string;
         activityEndDate?: string;
         rewards: RewardComposition[];
-        exclusions: Map<string, { channelName: string; createdAt: Date }>;
+        exclusions: Map<string, { channelName: string; note?: string; createdAt: Date }>;
         applications: Map<string, {
           channelId: string;
           channelName: string;
