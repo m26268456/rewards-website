@@ -108,11 +108,19 @@ function PaymentMethodItem({ payment, onEdit, onDelete, onReload }: any) {
         note: e.note,
       })).filter(e => e.channelId);
 
+      const unresolved = entries.filter(e => !channelCache.current.get(e.name.toLowerCase()));
+      if (unresolved.length > 0) {
+        alert(`以下通路無法解析，請確認名稱：\n${unresolved.map(u => u.name).join('\n')}`);
+        return;
+      }
+
       await api.put(`/payment-methods/${payment.id}/channels`, { applications });
       alert('通路已更新');
       setIsEditingChannels(false);
       loadDetails();
-    } catch (e) { alert('更新失敗'); }
+    } catch (e: any) { 
+      alert(e?.response?.data?.error || '更新失敗，請稍後再試');
+    }
   };
 
   const handleLinkScheme = async () => {
@@ -180,7 +188,7 @@ function PaymentMethodItem({ payment, onEdit, onDelete, onReload }: any) {
               ) : (
                 <div className="flex gap-2">
                   <button onClick={handleSaveChannels} className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700">儲存</button>
-                  <button onClick={() => setIsEditingChannels(false)} className="px-2 py-1 bg-gray-400 text-white rounded text-xs">取消</button>
+                  <button onClick={() => { if (!confirm('確定要取消編輯嗎？未儲存的變更將遺失。')) return; setIsEditingChannels(false); loadDetails(); }} className="px-2 py-1 bg-gray-400 text-white rounded text-xs">取消</button>
                 </div>
               )}
             </div>
@@ -317,6 +325,7 @@ export default function PaymentManagement() {
   const [isReordering, setIsReordering] = useState(false);
   const [reorderedPayments, setReorderedPayments] = useState<any[]>([]);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const confirmDiscard = () => confirm('確定要取消編輯嗎？未儲存的變更將遺失。');
 
   useEffect(() => { loadPayments(); }, []);
   useEffect(() => {
@@ -460,7 +469,7 @@ export default function PaymentManagement() {
             </div>
             <div className="flex gap-2">
               <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded">儲存</button>
-              <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 bg-gray-300 rounded">取消</button>
+                  <button type="button" onClick={() => { if (!confirmDiscard()) return; setShowForm(false); setEditingPayment(null); }} className="px-4 py-2 bg-gray-300 rounded">取消</button>
             </div>
           </form>
         </div>
@@ -516,7 +525,7 @@ export default function PaymentManagement() {
                   </div>
                   <div className="flex gap-2">
                     <button type="submit" className="px-3 py-1 bg-blue-600 text-white rounded text-xs">儲存</button>
-                    <button type="button" onClick={() => { setShowForm(false); setEditingPayment(null); }} className="px-3 py-1 bg-gray-400 text-white rounded text-xs">取消</button>
+                    <button type="button" onClick={() => { if (!confirmDiscard()) return; setShowForm(false); setEditingPayment(null); }} className="px-3 py-1 bg-gray-400 text-white rounded text-xs">取消</button>
                   </div>
                 </form>
               </div>

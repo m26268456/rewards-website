@@ -142,6 +142,7 @@ export default function QueryRewards() {
   const [expandedSchemeOverview, setExpandedSchemeOverview] = useState(false);
   const [expandedCardsSection, setExpandedCardsSection] = useState(false);
   const [expandedPaymentsSection, setExpandedPaymentsSection] = useState(false);
+  const [channelHint, setChannelHint] = useState<string>('');
   const rootRef = useRef<HTMLDivElement | null>(null);
 
   const calcTotals = (scheme: any) => {
@@ -238,10 +239,13 @@ export default function QueryRewards() {
       const newMap = new Map(selectedChannelNames);
       newMap.delete(virtualId);
       setSelectedChannelNames(newMap);
+      setChannelHint(`已移除：${channel.name}`);
     } else {
       setSelectedChannels([...selectedChannels, virtualId]);
       setSelectedChannelNames(new Map(selectedChannelNames.set(virtualId, channel.name)));
+      setChannelHint(`已選擇：${channel.name}`);
     }
+    setTimeout(() => setChannelHint(''), 2000);
   };
 
   const handleManualInput = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -427,12 +431,16 @@ export default function QueryRewards() {
             
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">常用通路</label>
+              {channelHint && <div className="mb-2 text-xs text-green-700 bg-green-50 border border-green-200 px-2 py-1 rounded">{channelHint}</div>}
               <div className="flex flex-wrap gap-2">
-                {commonChannels.map((channel) => (
-                  <button key={channel.id} onClick={() => handleToggleCommonChannel(channel.id)} className={`px-4 py-2 rounded-lg text-sm font-medium shadow-md transition-all duration-200 ${selectedChannels.includes(channel.id) ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white' : 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white'}`}>
-                    {selectedChannels.includes(channel.id) ? '✓ ' : ''}{channel.name}
-                  </button>
-                ))}
+                {commonChannels.map((channel) => {
+                  const vid = `keyword_common_${channel.id}`;
+                  return (
+                    <button key={channel.id} onClick={() => handleToggleCommonChannel(channel.id)} className={`px-4 py-2 rounded-lg text-sm font-medium shadow-md transition-all duration-200 ${selectedChannels.includes(vid) ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white' : 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white'}`}>
+                      {selectedChannels.includes(vid) ? '✓ ' : ''}{channel.name}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 

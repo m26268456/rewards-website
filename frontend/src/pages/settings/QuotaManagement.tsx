@@ -423,8 +423,8 @@ export default function QuotaManagement() {
                 const sharedPairs = [['bg-blue-50','bg-blue-100'], ['bg-blue-100','bg-blue-50']];
                 const soloPairs = [['bg-white','bg-gray-50'], ['bg-gray-50','bg-white']];
                 const colorPair = isSharedGroup ? sharedPairs[groupColorIdx % 2] : soloPairs[groupColorIdx % 2];
-                // 同一方案使用與額度查詢一致的交錯底色
-                const rowBgColor = colorPair[rIdx % colorPair.length];
+                // 同一方案使用與額度查詢一致的底色（不依 rIdx 交錯）
+                const rowBgColor = colorPair[0];
                 const rowBorder = isSharedGroup ? 'border-blue-300' : 'border-gray-200';
 
                 return (
