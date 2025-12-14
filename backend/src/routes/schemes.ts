@@ -435,14 +435,17 @@ router.put('/:id/batch', async (req: Request, res: Response, next: NextFunction)
       await client.query('DELETE FROM scheme_channel_exclusions WHERE scheme_id = $1', [id]);
 
       if (exclusions && Array.isArray(exclusions) && exclusions.length > 0) {
-        const validExclusions = exclusions.filter((channelId: any) => channelId && typeof channelId === 'string');
+        const validExclusions = exclusions.filter((ex: any) => ex && (typeof ex === 'string' ? ex : ex.channelId));
+        // 按順序插入，確保 created_at 反映順序
         for (let i = 0; i < validExclusions.length; i++) {
-          const channelId = validExclusions[i];
+          const exclusion = validExclusions[i];
+          const channelId = typeof exclusion === 'string' ? exclusion : exclusion.channelId;
+          const note = typeof exclusion === 'string' ? null : (exclusion.note || null);
           await client.query(
-            `INSERT INTO scheme_channel_exclusions (scheme_id, channel_id)
-             VALUES ($1::uuid, $2::uuid)
-             ON CONFLICT (scheme_id, channel_id) DO NOTHING`,
-            [id, channelId]
+            `INSERT INTO scheme_channel_exclusions (scheme_id, channel_id, note)
+             VALUES ($1::uuid, $2::uuid, $3::text)
+             ON CONFLICT (scheme_id, channel_id) DO UPDATE SET note = EXCLUDED.note`,
+            [id, channelId, note]
           );
         }
       }
