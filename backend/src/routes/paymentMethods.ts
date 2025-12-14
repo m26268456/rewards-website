@@ -325,6 +325,30 @@ router.get('/:id/channels', async (req: Request, res: Response, next: NextFuncti
   }
 });
 
+// 取得支付方式已綁定的卡片方案
+router.get('/:id/linked-schemes', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      `SELECT 
+         psl.scheme_id as "schemeId",
+         cs.name as "schemeName",
+         c.name as "cardName"
+       FROM payment_scheme_links psl
+       JOIN card_schemes cs ON psl.scheme_id = cs.id
+       JOIN cards c ON cs.card_id = c.id
+       WHERE psl.payment_method_id = $1
+       ORDER BY psl.display_order, psl.created_at`,
+      [id]
+    );
+
+    return res.json({ success: true, data: result.rows });
+  } catch (error) {
+    logger.error(`取得綁定方案失敗 PaymentID ${req.params.id}:`, error);
+    return next(error);
+  }
+});
+
 // 取得與方案綁定的支付方式
 router.get('/scheme/:schemeId', async (req: Request, res: Response, next: NextFunction) => {
   try {

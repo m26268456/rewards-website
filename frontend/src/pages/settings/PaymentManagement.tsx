@@ -17,6 +17,8 @@ function PaymentMethodItem({ payment, onEdit, onDelete, onReload }: any) {
   const [channels, setChannels] = useState<any[]>([]);
   const [rewards, setRewards] = useState<any[]>([]);
   const [linkedSchemes, setLinkedSchemes] = useState<any[]>([]);
+  const [schemeOptions, setSchemeOptions] = useState<any[]>([]);
+  const [linkSchemeId, setLinkSchemeId] = useState<string>('');
   const [isEditingChannels, setIsEditingChannels] = useState(false);
   const [channelText, setChannelText] = useState('');
   
@@ -28,13 +30,26 @@ function PaymentMethodItem({ payment, onEdit, onDelete, onReload }: any) {
 
   const loadDetails = async () => {
     try {
-      const [chRes, rwRes] = await Promise.all([
+      const [chRes, rwRes, lsRes, schemeRes] = await Promise.all([
         api.get(`/payment-methods/${payment.id}/channels`),
-        api.get(`/payment-methods/${payment.id}/rewards`)
+        api.get(`/payment-methods/${payment.id}/rewards`),
+        api.get(`/payment-methods/${payment.id}/linked-schemes`),
+        api.get('/schemes/overview'),
       ]);
       setChannels(chRes.data.data);
       setRewards(rwRes.data.data);
-      setLinkedSchemes(payment.linkedSchemes || []);
+      setLinkedSchemes(lsRes.data.data || []);
+      // 展開 overview 取得方案選項（cardName + schemeName）
+      const options: any[] = [];
+      (schemeRes.data.data || []).forEach((card: any) => {
+        (card.schemes || []).forEach((s: any) => {
+          options.push({
+            schemeId: s.id,
+            label: `${card.name} - ${s.name}`,
+          });
+        });
+      });
+      setSchemeOptions(options);
       setChannelText(chRes.data.data.map((c: any) => c.note ? `${c.name} (${c.note})` : c.name).join('\n'));
     } catch (e) { console.error(e); }
   };
@@ -52,6 +67,29 @@ function PaymentMethodItem({ payment, onEdit, onDelete, onReload }: any) {
       setIsEditingChannels(false);
       loadDetails();
     } catch (e) { alert('更新失敗'); }
+  };
+
+  const handleLinkScheme = async () => {
+    if (!linkSchemeId) return;
+    try {
+      await api.post(`/payment-methods/${payment.id}/link-scheme`, {
+        schemeId: linkSchemeId,
+        displayOrder: linkedSchemes.length,
+      });
+      setLinkSchemeId('');
+      await loadDetails();
+    } catch (e) {
+      alert('綁定失敗');
+    }
+  };
+
+  const handleUnlinkScheme = async (schemeId: string) => {
+    try {
+      await api.delete(`/payment-methods/${payment.id}/unlink-scheme/${schemeId}`);
+      await loadDetails();
+    } catch (e) {
+      alert('解除綁定失敗');
+    }
   };
 
   // 回饋組成改為唯讀，不提供編輯
@@ -124,6 +162,51 @@ function PaymentMethodItem({ payment, onEdit, onDelete, onReload }: any) {
                     <span className="font-semibold text-gray-800">{ls.cardName}</span>
                     <span className="text-gray-500">-</span>
                     <span>{ls.schemeName}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-xs text-gray-500">尚未綁定方案</div>
+            )}
+          </div>
+
+          {/* 綁定的卡片方案（信用卡綁定支付方式） */}
+          <div className="space-y-2">
+            <div className="flex justify-between items-center">
+              <h5 className="text-sm font-medium">綁定的卡片方案</h5>
+              <div className="flex gap-2 items-center">
+                <select
+                  value={linkSchemeId}
+                  onChange={(e) => setLinkSchemeId(e.target.value)}
+                  className="border rounded px-2 py-1 text-xs"
+                >
+                  <option value="">選擇方案</option>
+                  {schemeOptions.map((opt) => (
+                    <option key={opt.schemeId} value={opt.schemeId}>{opt.label}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={handleLinkScheme}
+                  className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
+                  disabled={!linkSchemeId}
+                >
+                  綁定
+                </button>
+              </div>
+            </div>
+            {linkedSchemes && linkedSchemes.length > 0 ? (
+              <div className="flex flex-wrap gap-2 text-xs">
+                {linkedSchemes.map((ls: any, idx: number) => (
+                  <div key={idx} className="inline-flex items-center gap-2 bg-gray-100 px-2 py-1 rounded border">
+                    <span className="font-semibold text-gray-800">{ls.cardName}</span>
+                    <span className="text-gray-500">-</span>
+                    <span>{ls.schemeName}</span>
+                    <button
+                      onClick={() => handleUnlinkScheme(ls.schemeId)}
+                      className="text-red-600 text-[11px] hover:underline"
+                    >
+                      解除
+                    </button>
                   </div>
                 ))}
               </div>
