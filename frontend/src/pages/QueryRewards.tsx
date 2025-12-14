@@ -30,10 +30,12 @@ const formatBasis = (basis?: string) => {
   return basis === 'statement' ? '帳單總額' : '單筆回饋';
 };
 
-// 本頁百分比顯示：含小數點
+// 本頁百分比顯示：保留實際精度（最多 4 位），不強制 .00
 const formatPercent = (v: any) => {
   const num = Number(v ?? 0);
-  return Number.isFinite(num) ? num.toFixed(2) : '0.00';
+  if (!Number.isFinite(num)) return '0';
+  const rounded = Math.round(num * 10000) / 10000; // 最多 4 位小數，避免過長
+  return Number.isInteger(rounded) ? `${rounded}` : `${rounded}`;
 };
 
 // 過期/額度滿判斷
