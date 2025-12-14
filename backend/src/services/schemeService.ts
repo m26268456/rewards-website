@@ -383,7 +383,7 @@ export async function queryChannelRewards(
 
       // 1. 找出排除此通路的方案
       const exclusionsResult = await pool.query(
-        `SELECT cs.id, cs.name, c.name as card_name, ch.name as channel_name
+        `SELECT cs.id, cs.name, c.name as card_name, ch.name as channel_name, sce.note
          FROM scheme_channel_exclusions sce
          JOIN card_schemes cs ON sce.scheme_id = cs.id
          JOIN cards c ON cs.card_id = c.id
@@ -397,6 +397,7 @@ export async function queryChannelRewards(
         schemeName: r.name,
         cardName: r.card_name,
         channelName: r.channel_name,
+        note: r.note || undefined,
       }));
 
       // 2. 找出適用此通路的卡片方案
@@ -688,7 +689,7 @@ export async function queryChannelRewards(
         schemeInfo: `${ex.cardName}-${ex.schemeName}`,
         requiresSwitch: false,
         channelName: ex.channelName, // 排除通路的通路名稱
-        note: undefined, // 排除通路沒有備註
+        note: ex.note, // 排除通路的備註
       }));
 
       // 合併所有結果並排序（排除的置頂，然後按回饋%數降序）

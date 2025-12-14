@@ -473,7 +473,10 @@ export default function QueryRewards() {
                                               </span>
                                             )}
                                           </div>
-                                          {/* 排除通路沒有備註 */}
+                                          {/* 排除通路備註 */}
+                                          {item.note && (
+                                            <div className="text-xs text-gray-600 bg-white/50 px-2 py-1 rounded mt-1">💡 {item.note}</div>
+                                          )}
                                         </div>
                                       ) : (
                                         <div className="text-sm">
