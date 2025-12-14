@@ -421,12 +421,11 @@ router.put('/:id/batch', async (req: Request, res: Response, next: NextFunction)
         if (validApps.length > 0) {
           for (let i = 0; i < validApps.length; i++) {
             const app = validApps[i];
-            const params = [id, app.channelId, app.note || null];
             await client.query(
-              `INSERT INTO scheme_channel_applications (scheme_id, channel_id, note)
-               VALUES ($1::uuid, $2::uuid, $3::text)
+              `INSERT INTO scheme_channel_applications (scheme_id, channel_id, note, created_at)
+               VALUES ($1::uuid, $2::uuid, $3::text, NOW() + ($4::int * interval '1 millisecond'))
                ON CONFLICT (scheme_id, channel_id) DO UPDATE SET note = EXCLUDED.note`,
-              params
+              [id, app.channelId, app.note || null, i]
             );
           }
         }
@@ -442,10 +441,10 @@ router.put('/:id/batch', async (req: Request, res: Response, next: NextFunction)
           const channelId = typeof exclusion === 'string' ? exclusion : exclusion.channelId;
           const note = typeof exclusion === 'string' ? null : (exclusion.note || null);
           await client.query(
-            `INSERT INTO scheme_channel_exclusions (scheme_id, channel_id, note)
-             VALUES ($1::uuid, $2::uuid, $3::text)
+            `INSERT INTO scheme_channel_exclusions (scheme_id, channel_id, note, created_at)
+             VALUES ($1::uuid, $2::uuid, $3::text, NOW() + ($4::int * interval '1 millisecond'))
              ON CONFLICT (scheme_id, channel_id) DO UPDATE SET note = EXCLUDED.note`,
-            [id, channelId, note]
+            [id, channelId, note, i]
           );
         }
       }
@@ -601,12 +600,12 @@ router.put('/:id/channels', async (req: Request, res: Response, next: NextFuncti
           } catch (error: any) {
             // 如果表沒有display_order欄位，使用舊的方式
             if (error.code === '42703') {
-          await client.query(
-            `INSERT INTO scheme_channel_applications (scheme_id, channel_id, note)
-             VALUES ($1::uuid, $2::uuid, $3::text)
-             ON CONFLICT (scheme_id, channel_id) DO UPDATE SET note = EXCLUDED.note`,
-                [id, app.channelId, app.note || null]
-          );
+              await client.query(
+                `INSERT INTO scheme_channel_applications (scheme_id, channel_id, note, created_at)
+                 VALUES ($1::uuid, $2::uuid, $3::text, NOW() + ($4::int * interval '1 millisecond'))
+                 ON CONFLICT (scheme_id, channel_id) DO UPDATE SET note = EXCLUDED.note`,
+                [id, app.channelId, app.note || null, i]
+              );
             } else {
               throw error;
             }
@@ -624,10 +623,10 @@ router.put('/:id/channels', async (req: Request, res: Response, next: NextFuncti
           const channelId = typeof exclusion === 'string' ? exclusion : exclusion.channelId;
           const note = typeof exclusion === 'string' ? null : (exclusion.note || null);
           await client.query(
-            `INSERT INTO scheme_channel_exclusions (scheme_id, channel_id, note)
-             VALUES ($1::uuid, $2::uuid, $3::text)
+            `INSERT INTO scheme_channel_exclusions (scheme_id, channel_id, note, created_at)
+             VALUES ($1::uuid, $2::uuid, $3::text, NOW() + ($4::int * interval '1 millisecond'))
              ON CONFLICT (scheme_id, channel_id) DO UPDATE SET note = EXCLUDED.note`,
-            [id, channelId, note]
+            [id, channelId, note, i]
           );
         }
       }
