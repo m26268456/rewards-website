@@ -456,40 +456,6 @@ function CardItem({ card, onEdit, onDelete, onReload }: { card: Card; onEdit: ()
             </div>
           </div>
 
-          {showSchemeForm && (
-            <div className="mb-4 p-3 bg-white rounded border shadow-sm">
-              <h4 className="font-medium mb-2">{editingScheme ? '編輯方案' : '新增方案'}</h4>
-              <form onSubmit={handleSchemeSubmit} className="space-y-3">
-                <input 
-                  placeholder="方案名稱" 
-                  value={schemeForm.name} 
-                  onChange={e => setSchemeForm({...schemeForm, name: e.target.value})} 
-                  className="w-full border p-1 rounded text-sm" required 
-                />
-                <input 
-                  placeholder="備註" 
-                  value={schemeForm.note} 
-                  onChange={e => setSchemeForm({...schemeForm, note: e.target.value})} 
-                  className="w-full border p-1 rounded text-sm" 
-                />
-                <div className="grid grid-cols-2 gap-2">
-                  <input type="date" value={schemeForm.activityStartDate} onChange={e => setSchemeForm({...schemeForm, activityStartDate: e.target.value})} onClick={(e) => (e.currentTarget as HTMLInputElement).showPicker?.()} className="border p-1 rounded text-sm" />
-                  <input type="date" value={schemeForm.activityEndDate} onChange={e => setSchemeForm({...schemeForm, activityEndDate: e.target.value})} onClick={(e) => (e.currentTarget as HTMLInputElement).showPicker?.()} className="border p-1 rounded text-sm" />
-                </div>
-                <textarea placeholder="適用通路 (每行一個)" value={appsText} onChange={e => setAppsText(e.target.value)} className="w-full border p-1 rounded text-sm" rows={3} />
-                <textarea placeholder="排除通路 (每行一個)" value={excsText} onChange={e => setExcsText(e.target.value)} className="w-full border p-1 rounded text-sm" rows={3} />
-                <label className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" checked={schemeForm.requiresSwitch} onChange={e => setSchemeForm({...schemeForm, requiresSwitch: e.target.checked})} />
-                  需切換
-                </label>
-                <div className="flex gap-2">
-                  <button type="submit" className="px-3 py-1 bg-blue-500 text-white rounded text-xs">儲存</button>
-                  <button type="button" onClick={() => setShowSchemeForm(false)} className="px-3 py-1 bg-gray-500 text-white rounded text-xs">取消</button>
-                </div>
-              </form>
-            </div>
-          )}
-
           <div className="space-y-3">
             {(isReorderingSchemes ? reorderedSchemes : schemes).map((s, idx) => (
               <div key={s.id} className="space-y-2">
@@ -547,6 +513,41 @@ function CardItem({ card, onEdit, onDelete, onReload }: { card: Card; onEdit: ()
                 )}
               </div>
             ))}
+
+            {/* 新增方案：放在列表末尾，保持上下文位置 */}
+            {!isReorderingSchemes && !editingScheme && showSchemeForm && (
+              <div className="p-3 bg-white rounded border shadow-sm">
+                <h4 className="font-medium mb-2">新增方案</h4>
+                <form onSubmit={handleSchemeSubmit} className="space-y-3">
+                  <input 
+                    placeholder="方案名稱" 
+                    value={schemeForm.name} 
+                    onChange={e => setSchemeForm({...schemeForm, name: e.target.value})} 
+                    className="w-full border p-1 rounded text-sm" required 
+                  />
+                  <input 
+                    placeholder="備註" 
+                    value={schemeForm.note} 
+                    onChange={e => setSchemeForm({...schemeForm, note: e.target.value})} 
+                    className="w-full border p-1 rounded text-sm" 
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <input type="date" value={schemeForm.activityStartDate} onChange={e => setSchemeForm({...schemeForm, activityStartDate: e.target.value})} onClick={(e) => (e.currentTarget as HTMLInputElement).showPicker?.()} className="border p-1 rounded text-sm" />
+                    <input type="date" value={schemeForm.activityEndDate} onChange={e => setSchemeForm({...schemeForm, activityEndDate: e.target.value})} onClick={(e) => (e.currentTarget as HTMLInputElement).showPicker?.()} className="border p-1 rounded text-sm" />
+                  </div>
+                  <textarea placeholder="適用通路 (每行一個)" value={appsText} onChange={e => setAppsText(e.target.value)} className="w-full border p-1 rounded text-sm" rows={3} />
+                  <textarea placeholder="排除通路 (每行一個)" value={excsText} onChange={e => setExcsText(e.target.value)} className="w-full border p-1 rounded text-sm" rows={3} />
+                  <label className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" checked={schemeForm.requiresSwitch} onChange={e => setSchemeForm({...schemeForm, requiresSwitch: e.target.checked})} />
+                    需切換
+                  </label>
+                  <div className="flex gap-2">
+                    <button type="submit" className="px-3 py-1 bg-blue-500 text-white rounded text-xs">儲存</button>
+                    <button type="button" onClick={() => setShowSchemeForm(false)} className="px-3 py-1 bg-gray-500 text-white rounded text-xs">取消</button>
+                  </div>
+                </form>
+              </div>
+            )}
           </div>
         </div>
       )}
