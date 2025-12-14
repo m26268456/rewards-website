@@ -309,12 +309,23 @@ router.get('/:id/channels', async (req: Request, res: Response, next: NextFuncti
   try {
     const { id } = req.params;
 
+    // 檢查是否有 display_order 欄位
+    const checkColumnResult = await pool.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'payment_channel_applications' 
+      AND column_name = 'display_order'
+    `);
+    
+    const hasDisplayOrder = checkColumnResult.rows.length > 0;
+    const orderBy = hasDisplayOrder ? 'pca.display_order, pca.created_at' : 'pca.created_at';
+
     const result = await pool.query(
       `SELECT c.id, c.name, pca.note
        FROM payment_channel_applications pca
        JOIN channels c ON pca.channel_id = c.id
        WHERE pca.payment_method_id = $1
-       ORDER BY pca.created_at`,
+       ORDER BY ${orderBy}`,
       [id]
     );
 
@@ -406,11 +417,12 @@ router.put('/:id/channels', async (req: Request, res: Response, next: NextFuncti
               [id, app.channelId, app.note || null, i]
             );
           } else {
+            // 使用 created_at 來確保順序（參考信用卡方案的邏輯）
             await client.query(
-              `INSERT INTO payment_channel_applications (payment_method_id, channel_id, note)
-               VALUES ($1::uuid, $2::uuid, $3::text)
+              `INSERT INTO payment_channel_applications (payment_method_id, channel_id, note, created_at)
+               VALUES ($1::uuid, $2::uuid, $3::text, NOW() + ($4::int * interval '1 millisecond'))
                ON CONFLICT (payment_method_id, channel_id) DO UPDATE SET note = EXCLUDED.note`,
-              [id, app.channelId, app.note || null]
+              [id, app.channelId, app.note || null, i]
             );
           }
         }

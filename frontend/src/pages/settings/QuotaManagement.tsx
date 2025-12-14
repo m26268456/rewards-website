@@ -373,7 +373,7 @@ export default function QuotaManagement() {
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {groupedQuotas.map(({ key: sharedKey, items }) => {
-                const isSharedGroup = false;
+                const isSharedGroup = !sharedKey.startsWith('solo-');
               
               // 排序：root 方案在前，被綁定方案在後（與 QuotaQuery 一致）
                   const sortedItems = items.slice();
