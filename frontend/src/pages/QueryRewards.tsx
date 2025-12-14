@@ -30,6 +30,12 @@ const formatBasis = (basis?: string) => {
   return basis === 'statement' ? '帳單總額' : '單筆回饋';
 };
 
+// 本頁百分比顯示：含小數點
+const formatPercent = (v: any) => {
+  const num = Number(v ?? 0);
+  return Number.isFinite(num) ? num.toFixed(2) : '0.00';
+};
+
 // 過期/額度滿判斷
 const now = new Date();
 const isExpiredScheme = (activityEndDate?: string) =>
@@ -161,49 +167,61 @@ export default function QueryRewards() {
   }, []);
 
   useEffect(() => {
-    if (selectedChannels.length > 0) {
-      setLastAction('query');
-      const realChannelIds: string[] = [];
-      const keywords: string[] = [];
-      
-      selectedChannels.forEach((id) => {
-        if (id.startsWith('keyword_')) {
-          const parts = id.split('_');
-          if (parts.length >= 2) {
-            keywords.push(parts.slice(1, -1).join('_'));
-          }
-        } else {
-          realChannelIds.push(id);
-        }
-      });
-
-      const requestBody = keywords.length > 0 ? { keywords } : { channelIds: realChannelIds };
-
-      api.post('/schemes/query-channels', requestBody)
-        .then((res) => {
-          const data = res.data?.data || [];
-          // 如果是關鍵字查詢，後端已分組；若是通路 ID 查詢，需包成單一分組以供前端顯示
-          if (keywords.length > 0) {
-            setQueryResults(data);
-          } else {
-            const normalized = [{
-              keyword: '通路查詢',
-              channels: (Array.isArray(data) ? data : []).map((c: any) => ({
-                channelId: c.channelId,
-                channelName: c.channelName || selectedChannelNames.get(c.channelId) || '',
-                results: c.results || [],
-              })),
-            }];
-            setQueryResults(normalized);
-          }
-        })
-        .catch((error) => {
-          console.error('查詢錯誤:', error);
-          setQueryResults([]);
-        });
-    } else {
+    if (selectedChannels.length === 0) {
       setQueryResults([]);
+      return;
     }
+
+    setLastAction('query');
+
+    const realChannelIds: string[] = [];
+    const keywords: string[] = [];
+    
+    selectedChannels.forEach((id) => {
+      if (id.startsWith('keyword_')) {
+        const parts = id.split('_');
+        if (parts.length >= 2) {
+          keywords.push(parts.slice(1, -1).join('_'));
+        }
+      } else {
+        realChannelIds.push(id);
+      }
+    });
+
+    const requests: Promise<any>[] = [];
+    if (keywords.length > 0) requests.push(api.post('/schemes/query-channels', { keywords }));
+    if (realChannelIds.length > 0) requests.push(api.post('/schemes/query-channels', { channelIds: realChannelIds }));
+
+    Promise.all(requests)
+      .then((responses) => {
+        const merged: QueryResult[] = [];
+
+        // keywords 查詢結果（後端已分組）
+        if (keywords.length > 0 && responses[0]) {
+          const kwData = responses[0].data?.data || [];
+          merged.push(...kwData);
+        }
+
+        // channelIds 查詢結果（包成單一分組）
+        const idxOffset = keywords.length > 0 ? 1 : 0;
+        if (realChannelIds.length > 0 && responses[idxOffset]) {
+          const chData = responses[idxOffset].data?.data || [];
+          merged.push({
+            keyword: '通路查詢',
+            channels: (Array.isArray(chData) ? chData : []).map((c: any) => ({
+              channelId: c.channelId,
+              channelName: c.channelName || selectedChannelNames.get(c.channelId) || '',
+              results: c.results || [],
+            })),
+          });
+        }
+
+        setQueryResults(merged);
+      })
+      .catch((error) => {
+        console.error('查詢錯誤:', error);
+        setQueryResults([]);
+      });
   }, [selectedChannels]);
 
   const handleToggleCommonChannel = (channelId: string) => {
@@ -482,7 +500,7 @@ export default function QueryRewards() {
                                         <div className="text-sm">
                                           <div className="flex flex-wrap items-center gap-2 mb-1">
                                             <span className={`text-xl font-bold ${isExpired ? 'text-red-600' : (hasPartialQuotaFull && type === 'normal') ? 'text-orange-600' : 'text-green-600'}`}>
-                                              {Math.round(item.totalRewardPercentage)}%
+                                              {formatPercent(totalPercentage)}%
                                             </span>
                                             <span className="font-semibold text-gray-800">{item.schemeInfo}</span>
                                             <span className={`badge ${item.requiresSwitch ? 'badge-warning' : 'badge-success'}`}>
@@ -494,10 +512,10 @@ export default function QueryRewards() {
                                               const totalFull = item.totalFull || 0;
                                               const badges = [];
                                               if (totalExpired > 0) {
-                                                badges.push(<span key="expired" className="badge-danger">{Math.round(totalExpired)}% 已過期</span>);
+                                                badges.push(<span key="expired" className="badge-danger">{formatPercent(totalExpired)}% 已過期</span>);
                                               }
                                               if (totalFull > 0) {
-                                                badges.push(<span key="full" className="badge-warning">{Math.round(totalFull)}% 已超額</span>);
+                                                badges.push(<span key="full" className="badge-warning">{formatPercent(totalFull)}% 已超額</span>);
                                               }
                                               return badges;
                                             })()}
