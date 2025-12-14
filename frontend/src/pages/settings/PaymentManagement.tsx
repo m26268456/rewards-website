@@ -17,8 +17,10 @@ function PaymentMethodItem({ payment, onEdit, onDelete, onReload }: any) {
   const [channels, setChannels] = useState<any[]>([]);
   const [rewards, setRewards] = useState<any[]>([]);
   const [linkedSchemes, setLinkedSchemes] = useState<any[]>([]);
-  const [schemeOptions, setSchemeOptions] = useState<any[]>([]);
-  const [linkSchemeId, setLinkSchemeId] = useState<string>('');
+  const [cardsOptions, setCardsOptions] = useState<any[]>([]);
+  const [cardSchemeMap, setCardSchemeMap] = useState<Record<string, any[]>>({});
+  const [selectedCardId, setSelectedCardId] = useState<string>('');
+  const [selectedSchemeId, setSelectedSchemeId] = useState<string>('');
   const [isEditingChannels, setIsEditingChannels] = useState(false);
   const [channelText, setChannelText] = useState('');
   
@@ -40,16 +42,17 @@ function PaymentMethodItem({ payment, onEdit, onDelete, onReload }: any) {
       setRewards(rwRes.data.data);
       setLinkedSchemes(lsRes.data.data || []);
       // 展開 overview 取得方案選項（cardName + schemeName）
-      const options: any[] = [];
+      const cardOpts: any[] = [];
+      const csMap: Record<string, any[]> = {};
       (schemeRes.data.data || []).forEach((card: any) => {
-        (card.schemes || []).forEach((s: any) => {
-          options.push({
-            schemeId: s.id,
-            label: `${card.name} - ${s.name}`,
-          });
-        });
+        cardOpts.push({ cardId: card.id, cardName: card.name });
+        csMap[card.id] = (card.schemes || []).map((s: any) => ({
+          schemeId: s.id,
+          schemeName: s.name,
+        }));
       });
-      setSchemeOptions(options);
+      setCardsOptions(cardOpts);
+      setCardSchemeMap(csMap);
       setChannelText(chRes.data.data.map((c: any) => c.note ? `${c.name} (${c.note})` : c.name).join('\n'));
     } catch (e) { console.error(e); }
   };
@@ -70,13 +73,13 @@ function PaymentMethodItem({ payment, onEdit, onDelete, onReload }: any) {
   };
 
   const handleLinkScheme = async () => {
-    if (!linkSchemeId) return;
+    if (!selectedSchemeId) return;
     try {
       await api.post(`/payment-methods/${payment.id}/link-scheme`, {
-        schemeId: linkSchemeId,
+        schemeId: selectedSchemeId,
         displayOrder: linkedSchemes.length,
       });
-      setLinkSchemeId('');
+      setSelectedSchemeId('');
       await loadDetails();
     } catch (e) {
       alert('綁定失敗');
@@ -174,21 +177,36 @@ function PaymentMethodItem({ payment, onEdit, onDelete, onReload }: any) {
           <div className="space-y-2">
             <div className="flex justify-between items-center">
               <h5 className="text-sm font-medium">綁定的卡片方案</h5>
-              <div className="flex gap-2 items-center">
+            </div>
+            <div className="p-4 bg-gray-50 rounded-lg border space-y-2">
+              <div className="flex flex-wrap gap-2 items-center">
+                <span className="text-xs font-medium text-gray-700">卡片</span>
                 <select
-                  value={linkSchemeId}
-                  onChange={(e) => setLinkSchemeId(e.target.value)}
+                  value={selectedCardId}
+                  onChange={(e) => { setSelectedCardId(e.target.value); setSelectedSchemeId(''); }}
                   className="border rounded px-2 py-1 text-xs"
                 >
+                  <option value="">選擇卡片</option>
+                  {cardsOptions.map((opt) => (
+                    <option key={opt.cardId} value={opt.cardId}>{opt.cardName}</option>
+                  ))}
+                </select>
+                <span className="text-xs font-medium text-gray-700">方案</span>
+                <select
+                  value={selectedSchemeId}
+                  onChange={(e) => setSelectedSchemeId(e.target.value)}
+                  className="border rounded px-2 py-1 text-xs"
+                  disabled={!selectedCardId}
+                >
                   <option value="">選擇方案</option>
-                  {schemeOptions.map((opt) => (
-                    <option key={opt.schemeId} value={opt.schemeId}>{opt.label}</option>
+                  {(cardSchemeMap[selectedCardId] || []).map((s) => (
+                    <option key={s.schemeId} value={s.schemeId}>{s.schemeName}</option>
                   ))}
                 </select>
                 <button
                   onClick={handleLinkScheme}
-                  className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
-                  disabled={!linkSchemeId}
+                  className="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 disabled:opacity-50"
+                  disabled={!selectedSchemeId}
                 >
                   綁定
                 </button>
