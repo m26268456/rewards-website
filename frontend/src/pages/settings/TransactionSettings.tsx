@@ -68,6 +68,20 @@ export default function TransactionSettings() {
     }
   }, [showForm]);
 
+  // 初始化清除日期：上上個月1號 ~ 上個月1號
+  useEffect(() => {
+    const today = new Date();
+    const thisMonth1 = new Date(today.getFullYear(), today.getMonth(), 1);
+    const lastMonth1 = new Date(thisMonth1);
+    lastMonth1.setMonth(lastMonth1.getMonth() - 1);
+    const prevMonth1 = new Date(lastMonth1);
+    prevMonth1.setMonth(prevMonth1.getMonth() - 1);
+    setClearDateRange({
+      startDate: prevMonth1.toISOString().split('T')[0],
+      endDate: lastMonth1.toISOString().split('T')[0],
+    });
+  }, []);
+
   useEffect(() => {
     if (formData.selectedCardId) {
       loadCardSchemes();

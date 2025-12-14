@@ -226,18 +226,30 @@ export default function QueryRewards() {
       });
   }, [selectedChannels]);
 
+  // 常用通路改用 keyword 方式（支援部分匹配，與手動輸入一致）
   const handleToggleCommonChannel = (channelId: string) => {
     const channel = commonChannels.find((c) => c.id === channelId);
     if (!channel) return;
 
-    if (selectedChannels.includes(channelId)) {
-      setSelectedChannels(selectedChannels.filter((id) => id !== channelId));
+    // 以名稱當作 keyword，建立虛擬 id
+    const keywordId = `keyword_${channel.name}_${Date.now()}`;
+    // 若已選該 channel（以名稱辨識），移除同名 keyword
+    const already = Array.from(selectedChannelNames.values()).includes(channel.name);
+    if (already) {
+      const remaining = selectedChannels.filter(
+        (id) => selectedChannelNames.get(id) !== channel.name
+      );
       const newMap = new Map(selectedChannelNames);
-      newMap.delete(channelId);
+      for (const [k, v] of newMap.entries()) {
+        if (v === channel.name) newMap.delete(k);
+      }
+      setSelectedChannels(remaining);
       setSelectedChannelNames(newMap);
     } else {
-      setSelectedChannels([...selectedChannels, channelId]);
-      setSelectedChannelNames(new Map(selectedChannelNames.set(channelId, channel.name)));
+      setSelectedChannels([...selectedChannels, keywordId]);
+      const newMap = new Map(selectedChannelNames);
+      newMap.set(keywordId, channel.name);
+      setSelectedChannelNames(newMap);
     }
   };
 
@@ -335,13 +347,39 @@ export default function QueryRewards() {
 
       {/* 方案總覽 */}
       <div className="card bg-gradient-to-br from-white to-blue-50">
-        <details className="group border-2 border-indigo-200 rounded-lg overflow-hidden">
+        <details 
+          className="group border-2 border-indigo-200 rounded-lg overflow-hidden"
+          onToggle={(e) => {
+            // 快速收合：一次收合一層
+            const target = e.currentTarget;
+            if (!target.open) {
+              // 收合時，同時收合所有子層
+              const subDetails = target.querySelectorAll('details');
+              subDetails.forEach((d) => {
+                if (d.open) d.open = false;
+              });
+            }
+          }}
+        >
           <summary className="cursor-pointer font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-4 py-3 flex items-center justify-between transition-colors">
             <span className="flex items-center gap-2"><span className="text-xl">☰</span><span>方案總覽</span></span>
             <span className="text-sm text-indigo-500 group-open:rotate-180 transition-transform">▼</span>
           </summary>
           <div className="px-4 py-2 bg-white border-t border-indigo-200 space-y-2">
-            <details className="group border-2 border-blue-200 rounded-lg overflow-hidden">
+            <details 
+              className="group border-2 border-blue-200 rounded-lg overflow-hidden"
+              onToggle={(e) => {
+                // 快速收合：一次收合一層
+                const target = e.currentTarget;
+                if (!target.open) {
+                  // 收合時，同時收合所有子層（如果有）
+                  const subDetails = target.querySelectorAll('details');
+                  subDetails.forEach((d) => {
+                    if (d.open) d.open = false;
+                  });
+                }
+              }}
+            >
               <summary className="cursor-pointer font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 px-4 py-3 flex items-center justify-between transition-colors">
                 <span className="flex items-center gap-2"><span className="text-xl">☰</span><span>信用卡</span></span>
                 <span className="text-sm text-blue-500 group-open:rotate-180 transition-transform">▼</span>
@@ -355,7 +393,20 @@ export default function QueryRewards() {
               </div>
             </details>
             
-            <details className="group border-2 border-purple-200 rounded-lg overflow-hidden">
+            <details 
+              className="group border-2 border-purple-200 rounded-lg overflow-hidden"
+              onToggle={(e) => {
+                // 快速收合：一次收合一層
+                const target = e.currentTarget;
+                if (!target.open) {
+                  // 收合時，同時收合所有子層（如果有）
+                  const subDetails = target.querySelectorAll('details');
+                  subDetails.forEach((d) => {
+                    if (d.open) d.open = false;
+                  });
+                }
+              }}
+            >
               <summary className="cursor-pointer font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 px-4 py-3 flex items-center justify-between transition-colors">
                 <span className="flex items-center gap-2"><span className="text-xl">☰</span><span>支付方式</span></span>
                 <span className="text-sm text-purple-500 group-open:rotate-180 transition-transform">▼</span>

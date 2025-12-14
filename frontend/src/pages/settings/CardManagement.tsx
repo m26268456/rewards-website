@@ -202,47 +202,28 @@ function CardItem({ card, onEdit, onDelete, onReload }: { card: Card; onEdit: ()
     activityStartDate: '', activityEndDate: '', displayOrder: 0,
   });
 
-  // ESC / 點擊空白收合或取消編輯
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        if (showSchemeForm || editingScheme) {
-          setShowSchemeForm(false);
-          setEditingScheme(null);
-        } else if (expandedSchemeId) {
-          setExpandedSchemeId(null);
-        } else if (showSchemes) {
-          setShowSchemes(false);
-        }
+  // 取消編輯確認函數
+  const handleCancelEdit = () => {
+    if (showSchemeForm || editingScheme) {
+      if (confirm('確定要取消編輯嗎？未儲存的變更將會遺失。')) {
+        setShowSchemeForm(false);
+        setEditingScheme(null);
+        setAppsText('');
+        setExcsText('');
+        setSchemeForm({
+          name: '', note: '', requiresSwitch: false,
+          activityStartDate: '', activityEndDate: '', displayOrder: 0,
+        });
       }
-    };
-    const onClickOutside = (e: MouseEvent) => {
-      if (itemRef.current && !itemRef.current.contains(e.target as Node)) {
-        if (showSchemeForm || editingScheme) {
-          setShowSchemeForm(false);
-          setEditingScheme(null);
-        } else if (expandedSchemeId) {
-          setExpandedSchemeId(null);
-        } else if (showSchemes) {
-          setShowSchemes(false);
-        }
-      }
-    };
-    document.addEventListener('keydown', onKey);
-    document.addEventListener('mousedown', onClickOutside);
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      document.removeEventListener('mousedown', onClickOutside);
-    };
-  }, [showSchemeForm, editingScheme, expandedSchemeId, showSchemes]);
+    }
+  };
 
   // ESC / 點擊空白收合或取消編輯
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         if (showSchemeForm || editingScheme) {
-          setShowSchemeForm(false);
-          setEditingScheme(null);
+          handleCancelEdit();
         } else if (expandedSchemeId) {
           setExpandedSchemeId(null);
         } else if (showSchemes) {
@@ -253,8 +234,7 @@ function CardItem({ card, onEdit, onDelete, onReload }: { card: Card; onEdit: ()
     const onClickOutside = (e: MouseEvent) => {
       if (itemRef.current && !itemRef.current.contains(e.target as Node)) {
         if (showSchemeForm || editingScheme) {
-          setShowSchemeForm(false);
-          setEditingScheme(null);
+          handleCancelEdit();
         } else if (expandedSchemeId) {
           setExpandedSchemeId(null);
         } else if (showSchemes) {
@@ -464,7 +444,30 @@ function CardItem({ card, onEdit, onDelete, onReload }: { card: Card; onEdit: ()
                   <SchemeDetailManager 
                     scheme={s} 
                     isExpanded={expandedSchemeId === s.id}
-                    onExpand={() => !isReorderingSchemes && setExpandedSchemeId(expandedSchemeId === s.id ? null : s.id)}
+                    onExpand={() => {
+                      if (!isReorderingSchemes) {
+                        if (expandedSchemeId === s.id) {
+                          setExpandedSchemeId(null);
+                        } else {
+                          // 展開其他方案時，如果正在編輯，先確認取消
+                          if (showSchemeForm || editingScheme) {
+                            if (confirm('確定要取消編輯嗎？未儲存的變更將會遺失。')) {
+                              setShowSchemeForm(false);
+                              setEditingScheme(null);
+                              setAppsText('');
+                              setExcsText('');
+                              setSchemeForm({
+                                name: '', note: '', requiresSwitch: false,
+                                activityStartDate: '', activityEndDate: '', displayOrder: 0,
+                              });
+                              setExpandedSchemeId(s.id);
+                            }
+                          } else {
+                            setExpandedSchemeId(s.id);
+                          }
+                        }
+                      }
+                    }}
                     onEdit={() => !isReorderingSchemes && handleEditScheme(s)}
                     onDelete={() => !isReorderingSchemes && handleSchemeDelete(s.id)}
                   />
@@ -506,7 +509,7 @@ function CardItem({ card, onEdit, onDelete, onReload }: { card: Card; onEdit: ()
                       </label>
                       <div className="flex gap-2">
                         <button type="submit" className="px-3 py-1 bg-blue-600 text-white rounded text-xs">儲存</button>
-                        <button type="button" onClick={() => { setShowSchemeForm(false); setEditingScheme(null); }} className="px-3 py-1 bg-gray-400 text-white rounded text-xs">取消</button>
+                        <button type="button" onClick={handleCancelEdit} className="px-3 py-1 bg-gray-400 text-white rounded text-xs">取消</button>
                       </div>
                     </form>
                   </div>
@@ -543,7 +546,7 @@ function CardItem({ card, onEdit, onDelete, onReload }: { card: Card; onEdit: ()
                   </label>
                   <div className="flex gap-2">
                     <button type="submit" className="px-3 py-1 bg-blue-500 text-white rounded text-xs">儲存</button>
-                    <button type="button" onClick={() => setShowSchemeForm(false)} className="px-3 py-1 bg-gray-500 text-white rounded text-xs">取消</button>
+                    <button type="button" onClick={handleCancelEdit} className="px-3 py-1 bg-gray-500 text-white rounded text-xs">取消</button>
                   </div>
                 </form>
               </div>

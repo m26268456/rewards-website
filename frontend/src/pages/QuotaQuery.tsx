@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import api from '../utils/api';
 
 interface QuotaInfo {
@@ -29,6 +29,7 @@ export default function QuotaQuery() {
   const [loading, setLoading] = useState(true);
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [expandedPayments, setExpandedPayments] = useState<Set<string>>(new Set());
+  const rootRef = useRef<HTMLDivElement | null>(null);
   const [currentTime, setCurrentTime] = useState('');
 
   useEffect(() => {
@@ -41,6 +42,28 @@ export default function QuotaQuery() {
     loadQuotas();
     const interval = setInterval(loadQuotas, 60000);
     return () => clearInterval(interval);
+  }, []);
+
+  // 點擊空白 / ESC 收合
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setExpandedCards(new Set());
+        setExpandedPayments(new Set());
+      }
+    };
+    const onClickOutside = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+        setExpandedCards(new Set());
+        setExpandedPayments(new Set());
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('mousedown', onClickOutside);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('mousedown', onClickOutside);
+    };
   }, []);
 
   const loadQuotas = async () => {
@@ -231,7 +254,7 @@ export default function QuotaQuery() {
                     const currentAmount = primary.currentAmounts?.[rIdx] || 0;
                     const referenceAmount = primary.referenceAmounts?.[rIdx] ?? null;
 
-                  const bgColor = colorPair[0];
+                  const bgColor = colorPair[rIdx % 2 === 0 ? 0 : 1];
                     
                     return (
                   <tr key={`${sharedKey}-${primary.schemeId || primary.paymentMethodId || 'q'}-${rIdx}`} className={`${bgColor} border-l-4 ${borderColor}`}>
@@ -335,7 +358,7 @@ export default function QuotaQuery() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" ref={rootRef}>
       <div className="flex items-center justify-between">
       <h2 className="text-3xl font-bold bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
         額度查詢

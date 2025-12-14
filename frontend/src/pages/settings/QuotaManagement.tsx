@@ -1,5 +1,5 @@
 // @ts-nocheck
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import api from '../../utils/api';
 
 // 格式化函數
@@ -70,9 +70,10 @@ const formatQuotaInfo = (
 
 export default function QuotaManagement() {
   const [quotas, setQuotas] = useState<any[]>([]);
-  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
-  const [expandedPayments, setExpandedPayments] = useState<Set<string>>(new Set());
+  const [expandedCard, setExpandedCard] = useState<string | null>(null);
+  const [expandedPayment, setExpandedPayment] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState('');
+  const rootRef = useRef<HTMLDivElement | null>(null);
   
   // 編輯額度狀態 (數值調整)
   const [editingQuota, setEditingQuota] = useState<{ idx: number; rIdx: number; group: string } | null>(null);
@@ -93,6 +94,28 @@ export default function QuotaManagement() {
     loadQuotas();
     const timer = setInterval(() => setCurrentTime(new Date().toLocaleString('zh-TW', { hour12: false })), 1000);
     return () => clearInterval(timer);
+  }, []);
+
+  // 點擊空白 / ESC 收合
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setExpandedCard(null);
+        setExpandedPayment(null);
+      }
+    };
+    const onClickOutside = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+        setExpandedCard(null);
+        setExpandedPayment(null);
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('mousedown', onClickOutside);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('mousedown', onClickOutside);
+    };
   }, []);
 
   const loadQuotas = async () => {
@@ -583,8 +606,26 @@ export default function QuotaManagement() {
     </div>
   );
 
+  const toggleCard = (cardId: string) => {
+    if (expandedCard === cardId) {
+      setExpandedCard(null);
+    } else {
+      setExpandedCard(cardId);
+      setExpandedPayment(null); // 收合支付方式
+    }
+  };
+
+  const togglePayment = (paymentId: string) => {
+    if (expandedPayment === paymentId) {
+      setExpandedPayment(null);
+    } else {
+      setExpandedPayment(paymentId);
+      setExpandedCard(null); // 收合信用卡
+    }
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" ref={rootRef}>
       <div className="flex justify-between items-center">
         <h3 className="text-lg font-semibold">額度管理</h3>
         <div className="text-sm font-mono bg-gray-100 px-2 rounded">{currentTime}</div>
@@ -596,17 +637,13 @@ export default function QuotaManagement() {
           {Array.from(cardGroups.entries()).map(([id, list]: [string, any[]]) => (
             <div key={id} className="border rounded-lg overflow-hidden bg-white shadow-sm">
               <button 
-                onClick={() => {
-                  const newSet = new Set(expandedCards);
-                  newSet.has(id) ? newSet.delete(id) : newSet.add(id);
-                  setExpandedCards(newSet);
-                }}
+                onClick={() => toggleCard(id)}
                 className="w-full px-4 py-3 bg-gray-50 flex justify-between items-center hover:bg-gray-100 transition-colors"
               >
                 <span className="font-bold text-gray-800">{list[0].cardName}</span>
-                <span className="text-gray-500">{expandedCards.has(id) ? '▼' : '▶'}</span>
+                <span className="text-gray-500">{expandedCard === id ? '▼' : '▶'}</span>
               </button>
-              {expandedCards.has(id) && renderTable(list, `card-${id}`)}
+              {expandedCard === id && renderTable(list, `card-${id}`)}
             </div>
           ))}
         </div>
@@ -618,17 +655,13 @@ export default function QuotaManagement() {
           {Array.from(paymentGroups.entries()).map(([id, list]: [string, any[]]) => (
             <div key={id} className="border rounded-lg overflow-hidden bg-white shadow-sm">
               <button 
-                onClick={() => {
-                  const newSet = new Set(expandedPayments);
-                  newSet.has(id) ? newSet.delete(id) : newSet.add(id);
-                  setExpandedPayments(newSet);
-                }}
+                onClick={() => togglePayment(id)}
                 className="w-full px-4 py-3 bg-gray-50 flex justify-between items-center hover:bg-gray-100 transition-colors"
               >
                 <span className="font-bold text-gray-800">{list[0].paymentMethodName}</span>
-                <span className="text-gray-500">{expandedPayments.has(id) ? '▼' : '▶'}</span>
+                <span className="text-gray-500">{expandedPayment === id ? '▼' : '▶'}</span>
               </button>
-              {expandedPayments.has(id) && renderTable(list, `payment-${id}`)}
+              {expandedPayment === id && renderTable(list, `payment-${id}`)}
             </div>
           ))}
         </div>
