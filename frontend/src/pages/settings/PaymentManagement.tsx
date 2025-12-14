@@ -169,9 +169,14 @@ function PaymentMethodItem({ payment, onEdit, onDelete, onReload }: any) {
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2">
         <div className="flex-1 min-w-0">
           <div className="font-medium">{payment.name}</div>
-          {payment.note && <div className="text-sm text-gray-600 mt-1" dangerouslySetInnerHTML={{ __html: linkify(payment.note) }} />}
+          {payment.note && (
+            <div
+              className="text-sm text-gray-600 mt-1"
+              dangerouslySetInnerHTML={{ __html: linkify(payment.note) }}
+            />
+          )}
           {/* 活動期間不顯示 */}
-      </div>
+        </div>
         <div className="flex gap-2 flex-wrap">
           <button
             onClick={() => {
