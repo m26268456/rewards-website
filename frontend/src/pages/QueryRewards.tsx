@@ -142,7 +142,6 @@ export default function QueryRewards() {
   const [expandedSchemeOverview, setExpandedSchemeOverview] = useState(false);
   const [expandedCardsSection, setExpandedCardsSection] = useState(false);
   const [expandedPaymentsSection, setExpandedPaymentsSection] = useState(false);
-  const [channelHint, setChannelHint] = useState<string>('');
   const rootRef = useRef<HTMLDivElement | null>(null);
 
   const calcTotals = (scheme: any) => {
@@ -239,13 +238,10 @@ export default function QueryRewards() {
       const newMap = new Map(selectedChannelNames);
       newMap.delete(virtualId);
       setSelectedChannelNames(newMap);
-      setChannelHint(`已移除：${channel.name}`);
     } else {
       setSelectedChannels([...selectedChannels, virtualId]);
       setSelectedChannelNames(new Map(selectedChannelNames.set(virtualId, channel.name)));
-      setChannelHint(`已選擇：${channel.name}`);
     }
-    setTimeout(() => setChannelHint(''), 2000);
   };
 
   const handleManualInput = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -431,7 +427,6 @@ export default function QueryRewards() {
             
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">常用通路</label>
-              {channelHint && <div className="mb-2 text-xs text-green-700 bg-green-50 border border-green-200 px-2 py-1 rounded">{channelHint}</div>}
               <div className="flex flex-wrap gap-2">
                 {commonChannels.map((channel) => {
                   const vid = `keyword_common_${channel.id}`;

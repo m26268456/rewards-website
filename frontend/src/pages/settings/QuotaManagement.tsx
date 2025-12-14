@@ -347,11 +347,17 @@ export default function QuotaManagement() {
     return items.map((item, idx) => ({
       key: item.schemeId ? `scheme-${item.schemeId}` : `pay-${item.paymentMethodId || idx}`,
       items: [item],
-      colorIndexMap: new Map<string, number>([[item.schemeId || item.paymentMethodId || String(idx), idx]]),
     }));
   };
 
-  const renderTable = (list: any[], groupKey: string) => (
+  const renderTable = (list: any[], groupKey: string) => {
+    const groupedQuotas = groupByShared(list);
+    
+    // 為每個群組分配顏色索引（與 QuotaQuery 一致）
+    const colorIndexMap = new Map<string, number>();
+    groupedQuotas.forEach(({ key }, idx) => colorIndexMap.set(key, idx));
+    
+    return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
       <div className="w-full overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
@@ -366,7 +372,7 @@ export default function QuotaManagement() {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {groupByShared(list).map(({ key: sharedKey, items, colorIndexMap }) => {
+            {groupedQuotas.map(({ key: sharedKey, items }) => {
                 const isSharedGroup = false;
               
               // 排序：root 方案在前，被綁定方案在後（與 QuotaQuery 一致）
@@ -419,7 +425,7 @@ export default function QuotaManagement() {
                   : 'transaction';
                 const basisText = basis === 'statement' ? '帳單總額' : '單筆回饋';
 
-                const groupColorIdx = colorIndexMap?.get(sharedKey) || 0;
+                const groupColorIdx = colorIndexMap.get(sharedKey) || 0;
                 const sharedPairs = [['bg-blue-50','bg-blue-100'], ['bg-blue-100','bg-blue-50']];
                 const soloPairs = [['bg-white','bg-gray-50'], ['bg-gray-50','bg-white']];
                 const colorPair = isSharedGroup ? sharedPairs[groupColorIdx % 2] : soloPairs[groupColorIdx % 2];
@@ -600,10 +606,11 @@ export default function QuotaManagement() {
               });
             })}
           </tbody>
-        </table>
-      </div>
-    </div>
-  );
+         </table>
+       </div>
+     </div>
+    );
+  };
 
   return (
     <div className="space-y-6" ref={rootRef}>

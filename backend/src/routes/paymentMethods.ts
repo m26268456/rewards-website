@@ -384,29 +384,34 @@ router.put('/:id/channels', async (req: Request, res: Response, next: NextFuncti
 
       if (Array.isArray(applications) && applications.length > 0) {
         const validApps = applications.filter((app: any) => app.channelId);
+        
+        // 先檢查表是否有 display_order 欄位
+        const checkColumnResult = await client.query(`
+          SELECT column_name 
+          FROM information_schema.columns 
+          WHERE table_name = 'payment_channel_applications' 
+          AND column_name = 'display_order'
+        `);
+        
+        const hasDisplayOrder = checkColumnResult.rows.length > 0;
+        
         // 按前端傳遞的順序插入，使用索引作為display_order
         for (let i = 0; i < validApps.length; i++) {
           const app = validApps[i];
-          // 嘗試添加display_order，如果表沒有此欄位則忽略
-          try {
+          if (hasDisplayOrder) {
             await client.query(
               `INSERT INTO payment_channel_applications (payment_method_id, channel_id, note, display_order)
                VALUES ($1::uuid, $2::uuid, $3::text, $4::integer)
                ON CONFLICT (payment_method_id, channel_id) DO UPDATE SET note = EXCLUDED.note, display_order = EXCLUDED.display_order`,
               [id, app.channelId, app.note || null, i]
             );
-          } catch (error: any) {
-            // 如果表沒有display_order欄位，使用舊的方式
-            if (error.code === '42703') {
-          await client.query(
-            `INSERT INTO payment_channel_applications (payment_method_id, channel_id, note)
-             VALUES ($1::uuid, $2::uuid, $3::text)
-             ON CONFLICT (payment_method_id, channel_id) DO UPDATE SET note = EXCLUDED.note`,
-                [id, app.channelId, app.note || null]
-          );
-            } else {
-              throw error;
-            }
+          } else {
+            await client.query(
+              `INSERT INTO payment_channel_applications (payment_method_id, channel_id, note)
+               VALUES ($1::uuid, $2::uuid, $3::text)
+               ON CONFLICT (payment_method_id, channel_id) DO UPDATE SET note = EXCLUDED.note`,
+              [id, app.channelId, app.note || null]
+            );
           }
         }
       }
