@@ -34,6 +34,7 @@ function PaymentMethodItem({ payment, onEdit, onDelete, onReload }: any) {
       ]);
       setChannels(chRes.data.data);
       setRewards(rwRes.data.data);
+      setLinkedSchemes(payment.linkedSchemes || []);
       setChannelText(chRes.data.data.map((c: any) => c.note ? `${c.name} (${c.note})` : c.name).join('\n'));
     } catch (e) { console.error(e); }
   };
@@ -110,6 +111,24 @@ function PaymentMethodItem({ payment, onEdit, onDelete, onReload }: any) {
               <div className="text-xs text-gray-700">
                 {channels.length > 0 ? channels.map(c => c.name).join(', ') : '無'}
               </div>
+            )}
+          </div>
+
+          {/* 綁定的卡片方案（信用卡綁定支付方式） */}
+          <div>
+            <h5 className="text-sm font-medium mb-1">綁定的卡片方案</h5>
+            {linkedSchemes && linkedSchemes.length > 0 ? (
+              <div className="text-xs text-gray-700 space-y-1">
+                {linkedSchemes.map((ls: any, idx: number) => (
+                  <div key={idx} className="inline-flex items-center gap-1 bg-gray-100 px-2 py-1 rounded">
+                    <span className="font-semibold text-gray-800">{ls.cardName}</span>
+                    <span className="text-gray-500">-</span>
+                    <span>{ls.schemeName}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-xs text-gray-500">尚未綁定方案</div>
             )}
           </div>
 
