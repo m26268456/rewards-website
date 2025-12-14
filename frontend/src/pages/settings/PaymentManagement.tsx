@@ -13,7 +13,6 @@ function linkify(text: string): string {
 
 // 支付方式項目組件
 function PaymentMethodItem({ payment, onEdit, onDelete, onReload }: any) {
-  const itemRef = useRef<HTMLDivElement | null>(null);
   const [showDetails, setShowDetails] = useState(false);
   const [channels, setChannels] = useState<any[]>([]);
   const [rewards, setRewards] = useState<any[]>([]);
@@ -22,9 +21,10 @@ function PaymentMethodItem({ payment, onEdit, onDelete, onReload }: any) {
   const [cardSchemeMap, setCardSchemeMap] = useState<Record<string, any[]>>({});
   const [selectedCardId, setSelectedCardId] = useState<string>('');
   const [selectedSchemeId, setSelectedSchemeId] = useState<string>('');
-  const [channelCache] = useState<Map<string, string>>(new Map());
   const [isEditingChannels, setIsEditingChannels] = useState(false);
   const [channelText, setChannelText] = useState('');
+  const channelCache = useRef<Map<string, string>>(new Map());
+  const itemRef = useRef<HTMLDivElement | null>(null);
   
   // 回饋組成改為唯讀，不提供編輯
 
@@ -32,37 +32,14 @@ function PaymentMethodItem({ payment, onEdit, onDelete, onReload }: any) {
     if (showDetails) loadDetails();
   }, [showDetails, payment.id]);
 
-  // 取消編輯確認函數
-  const handleCancelEdit = () => {
-    if (isEditingChannels) {
-      if (confirm('確定要取消編輯嗎？未儲存的變更將會遺失。')) {
-        setIsEditingChannels(false);
-        // 恢復原始通道文字
-        loadDetails();
-      }
-    } else {
-      setShowDetails(false);
-    }
-  };
-
-  // 點擊空白/ESC 收合
   useEffect(() => {
+    if (!showDetails) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        if (isEditingChannels) {
-          handleCancelEdit();
-        } else {
-          setShowDetails(false);
-        }
-      }
+      if (e.key === 'Escape') setShowDetails(false);
     };
     const onClickOutside = (e: MouseEvent) => {
       if (itemRef.current && !itemRef.current.contains(e.target as Node)) {
-        if (isEditingChannels) {
-          handleCancelEdit();
-        } else {
-          setShowDetails(false);
-        }
+        setShowDetails(false);
       }
     };
     document.addEventListener('keydown', onKey);
@@ -71,7 +48,23 @@ function PaymentMethodItem({ payment, onEdit, onDelete, onReload }: any) {
       document.removeEventListener('keydown', onKey);
       document.removeEventListener('mousedown', onClickOutside);
     };
-  }, [isEditingChannels]);
+  }, [showDetails]);
+
+  const resolveChannels = async (names: string[]) => {
+    const pending = names.filter(n => !channelCache.current.has(n.toLowerCase()));
+    if (pending.length > 0) {
+      try {
+        const res = await api.post('/channels/batch-resolve', { items: pending.map(name => ({ name })), createIfMissing: true });
+        (res.data.data || []).forEach((item: any) => {
+          if (item.inputName && item.channelId) {
+            channelCache.current.set(item.inputName.toLowerCase(), item.channelId);
+          }
+        });
+      } catch (e) {
+        console.error('解析通路失敗', e);
+      }
+    }
+  };
 
   const loadDetails = async () => {
     try {
@@ -100,43 +93,26 @@ function PaymentMethodItem({ payment, onEdit, onDelete, onReload }: any) {
     } catch (e) { console.error(e); }
   };
 
-  // 解析通路文字並更新（支援括號備註）
-  const resolveChannels = async (names: string[]) => {
-    const pending = names.filter(n => !channelCache.has(n.toLowerCase()));
-    if (pending.length > 0) {
-      const res = await api.post('/channels/batch-resolve', {
-        items: pending.map((name) => ({ name })),
-        createIfMissing: true,
-      });
-      res.data.data.forEach((item: any) => {
-        if (item.inputName && item.channelId) {
-          channelCache.set(item.inputName.toLowerCase(), item.channelId);
-        }
-      });
-    }
-  };
-
   const handleSaveChannels = async () => {
     try {
       const lines = channelText.split('\n').map(l => l.trim()).filter(l => l);
       const entries = lines.map(line => {
-        const m = line.match(/^(.+?)\s*\((.+?)\)$/);
-        return m ? { name: m[1].trim(), note: m[2].trim() } : { name: line, note: '' };
+        const match = line.match(/^(.+?)\s*\((.+?)\)$/);
+        return match ? { name: match[1].trim(), note: match[2].trim() } : { name: line, note: '' };
       });
+
       await resolveChannels(entries.map(e => e.name));
+
       const applications = entries.map(e => ({
-        channelId: channelCache.get(e.name.toLowerCase()),
+        channelId: channelCache.current.get(e.name.toLowerCase()),
         note: e.note,
-      })).filter(a => a.channelId);
+      })).filter(e => e.channelId);
 
       await api.put(`/payment-methods/${payment.id}/channels`, { applications });
       alert('通路已更新');
       setIsEditingChannels(false);
       loadDetails();
-    } catch (e) {
-      console.error(e);
-      alert('更新失敗');
-    }
+    } catch (e) { alert('更新失敗'); }
   };
 
   const handleLinkScheme = async () => {
@@ -165,32 +141,15 @@ function PaymentMethodItem({ payment, onEdit, onDelete, onReload }: any) {
   // 回饋組成改為唯讀，不提供編輯
 
   return (
-    <div className="p-3 bg-gray-50 rounded border">
+    <div className="p-3 bg-gray-50 rounded border" ref={itemRef}>
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2">
         <div className="flex-1 min-w-0">
           <div className="font-medium">{payment.name}</div>
-          {payment.note && (
-            <div
-              className="text-sm text-gray-600 mt-1"
-              dangerouslySetInnerHTML={{ __html: linkify(payment.note) }}
-            />
-          )}
-          {/* 活動期間不顯示 */}
-        </div>
+          {payment.note && <div className="text-sm text-gray-600 mt-1" dangerouslySetInnerHTML={{ __html: linkify(payment.note) }} />}
+      </div>
         <div className="flex gap-2 flex-wrap">
           <button
-            onClick={() => {
-              if (showDetails && isEditingChannels) {
-                // 如果正在編輯，先確認取消
-                if (confirm('確定要取消編輯嗎？未儲存的變更將會遺失。')) {
-                  setIsEditingChannels(false);
-                  setShowDetails(false);
-                  loadDetails(); // 恢復原始資料
-                }
-              } else {
-                setShowDetails(!showDetails);
-              }
-            }}
+            onClick={() => setShowDetails(!showDetails)}
             className="px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600 whitespace-nowrap"
           >
           {showDetails ? '隱藏詳細' : '管理詳細'}
@@ -210,7 +169,6 @@ function PaymentMethodItem({ payment, onEdit, onDelete, onReload }: any) {
         </div>
       </div>
  
-      <div ref={itemRef}>
       {showDetails && (
         <div className="mt-3 space-y-4 border-t pt-2">
           {/* 通路管理 */}
@@ -222,7 +180,7 @@ function PaymentMethodItem({ payment, onEdit, onDelete, onReload }: any) {
               ) : (
                 <div className="flex gap-2">
                   <button onClick={handleSaveChannels} className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700">儲存</button>
-                  <button onClick={handleCancelEdit} className="px-2 py-1 bg-gray-400 text-white rounded text-xs">取消</button>
+                  <button onClick={() => setIsEditingChannels(false)} className="px-2 py-1 bg-gray-400 text-white rounded text-xs">取消</button>
                 </div>
               )}
             </div>
@@ -232,24 +190,6 @@ function PaymentMethodItem({ payment, onEdit, onDelete, onReload }: any) {
               <div className="text-xs text-gray-700">
                 {channels.length > 0 ? channels.map(c => c.name).join(', ') : '無'}
               </div>
-            )}
-          </div>
-
-          {/* 綁定的卡片方案（信用卡綁定支付方式） */}
-          <div>
-            <h5 className="text-sm font-medium mb-1">綁定的卡片方案</h5>
-            {linkedSchemes && linkedSchemes.length > 0 ? (
-              <div className="text-xs text-gray-700 space-y-1">
-                {linkedSchemes.map((ls: any, idx: number) => (
-                  <div key={idx} className="inline-flex items-center gap-1 bg-gray-100 px-2 py-1 rounded">
-                    <span className="font-semibold text-gray-800">{ls.cardName}</span>
-                    <span className="text-gray-500">-</span>
-                    <span>{ls.schemeName}</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-xs text-gray-500">尚未綁定方案</div>
             )}
           </div>
 
@@ -380,9 +320,16 @@ export default function PaymentManagement() {
 
   useEffect(() => { loadPayments(); }, []);
   useEffect(() => {
+    const confirmClose = () => {
+      if (editingPayment || showForm) {
+        return confirm('確定要取消編輯嗎？未儲存的變更將遺失。');
+      }
+      return true;
+    };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         if (editingPayment || showForm) {
+          if (!confirmClose()) return;
           setEditingPayment(null);
           setShowForm(false);
         }
@@ -391,6 +338,7 @@ export default function PaymentManagement() {
     const onClickOutside = (e: MouseEvent) => {
       if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
         if (editingPayment || showForm) {
+          if (!confirmClose()) return;
           setEditingPayment(null);
           setShowForm(false);
         }

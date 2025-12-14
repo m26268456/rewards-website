@@ -29,8 +29,8 @@ export default function QuotaQuery() {
   const [loading, setLoading] = useState(true);
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [expandedPayments, setExpandedPayments] = useState<Set<string>>(new Set());
-  const rootRef = useRef<HTMLDivElement | null>(null);
   const [currentTime, setCurrentTime] = useState('');
+  const rootRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setCurrentTime(new Date().toLocaleString('zh-TW', { hour12: false }));
@@ -44,7 +44,6 @@ export default function QuotaQuery() {
     return () => clearInterval(interval);
   }, []);
 
-  // 點擊空白 / ESC 收合
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -254,7 +253,7 @@ export default function QuotaQuery() {
                     const currentAmount = primary.currentAmounts?.[rIdx] || 0;
                     const referenceAmount = primary.referenceAmounts?.[rIdx] ?? null;
 
-                  const bgColor = colorPair[rIdx % 2 === 0 ? 0 : 1];
+                  const bgColor = colorPair[0];
                     
                     return (
                   <tr key={`${sharedKey}-${primary.schemeId || primary.paymentMethodId || 'q'}-${rIdx}`} className={`${bgColor} border-l-4 ${borderColor}`}>
@@ -313,6 +312,7 @@ export default function QuotaQuery() {
       newExpanded.add(cardId);
     }
     setExpandedCards(newExpanded);
+    setExpandedPayments(new Set());
   };
 
   const togglePayment = (paymentId: string) => {
@@ -320,7 +320,8 @@ export default function QuotaQuery() {
     if (!expandedPayments.has(paymentId)) {
       newExpanded.add(paymentId);
     }
-    setExpandedPayments(newExpanded);
+    setExpandedPayments(new Set(newExpanded));
+    setExpandedCards(new Set());
   };
 
   const cardQuotas = quotas.filter(q => q.schemeId && !q.paymentMethodId);

@@ -68,20 +68,6 @@ export default function TransactionSettings() {
     }
   }, [showForm]);
 
-  // 初始化清除日期：上上個月1號 ~ 上個月1號
-  useEffect(() => {
-    const today = new Date();
-    const thisMonth1 = new Date(today.getFullYear(), today.getMonth(), 1);
-    const lastMonth1 = new Date(thisMonth1);
-    lastMonth1.setMonth(lastMonth1.getMonth() - 1);
-    const prevMonth1 = new Date(lastMonth1);
-    prevMonth1.setMonth(prevMonth1.getMonth() - 1);
-    setClearDateRange({
-      startDate: prevMonth1.toISOString().split('T')[0],
-      endDate: lastMonth1.toISOString().split('T')[0],
-    });
-  }, []);
-
   useEffect(() => {
     if (formData.selectedCardId) {
       loadCardSchemes();
@@ -471,7 +457,15 @@ export default function TransactionSettings() {
               <div className="flex gap-2 items-end">
                 <div className="flex-1"><label className="block text-sm font-medium mb-1">開始日期</label><input type="date" value={clearDateRange.startDate} onChange={e => setClearDateRange({ ...clearDateRange, startDate: e.target.value })} onClick={(e) => (e.currentTarget as HTMLInputElement).showPicker?.()} className="w-full border p-2 rounded" /></div>
                 <div className="flex-1"><label className="block text-sm font-medium mb-1">結束日期</label><input type="date" value={clearDateRange.endDate} onChange={e => setClearDateRange({ ...clearDateRange, endDate: e.target.value })} onClick={(e) => (e.currentTarget as HTMLInputElement).showPicker?.()} className="w-full border p-2 rounded" /></div>
-                <button onClick={() => { const now = new Date(); const lastM = new Date(now.getFullYear(), now.getMonth()-2, 1); setClearDateRange({ startDate: lastM.toISOString().split('T')[0], endDate: new Date(now.getFullYear(), now.getMonth()-1, 0).toISOString().split('T')[0] }); }} className="px-3 py-2 bg-gray-500 text-white rounded text-sm">快速設定</button>
+                <button onClick={() => { 
+                  const now = new Date();
+                  const start = new Date(now.getFullYear(), now.getMonth() - 2, 1); // 上上個月1號
+                  const end = new Date(now.getFullYear(), now.getMonth() - 1, 1);   // 上個月1號
+                  setClearDateRange({ 
+                    startDate: start.toISOString().split('T')[0], 
+                    endDate: end.toISOString().split('T')[0] 
+                  }); 
+                }} className="px-3 py-2 bg-gray-500 text-white rounded text-sm">快速設定</button>
               </div>
               <button onClick={handleClearTransactions} className="px-4 py-2 bg-red-600 text-white rounded">確認清除</button>
             </div>

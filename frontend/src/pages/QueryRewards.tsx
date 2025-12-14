@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import api from '../utils/api';
 
 // 輔助函數：將文字中的網址轉換為可點擊的連結
@@ -139,6 +139,10 @@ export default function QueryRewards() {
   const [selectedCardInfo, setSelectedCardInfo] = useState<Card | null>(null);
   const [selectedPaymentInfo, setSelectedPaymentInfo] = useState<PaymentMethod | null>(null);
   const [lastAction, setLastAction] = useState<'query' | 'scheme'>('query');
+  const [expandedSchemeOverview, setExpandedSchemeOverview] = useState(false);
+  const [expandedCardsSection, setExpandedCardsSection] = useState(false);
+  const [expandedPaymentsSection, setExpandedPaymentsSection] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
 
   const calcTotals = (scheme: any) => {
     const rewards = scheme.rewards || [];
@@ -178,13 +182,11 @@ export default function QueryRewards() {
 
     const realChannelIds: string[] = [];
     const keywords: string[] = [];
-    
+
     selectedChannels.forEach((id) => {
       if (id.startsWith('keyword_')) {
-        const parts = id.split('_');
-        if (parts.length >= 2) {
-          keywords.push(parts.slice(1, -1).join('_'));
-        }
+        const keyword = selectedChannelNames.get(id);
+        if (keyword) keywords.push(keyword);
       } else {
         realChannelIds.push(id);
       }
@@ -226,30 +228,19 @@ export default function QueryRewards() {
       });
   }, [selectedChannels]);
 
-  // 常用通路改用 keyword 方式（支援部分匹配，與手動輸入一致）
   const handleToggleCommonChannel = (channelId: string) => {
     const channel = commonChannels.find((c) => c.id === channelId);
     if (!channel) return;
 
-    // 以名稱當作 keyword，建立虛擬 id
-    const keywordId = `keyword_${channel.name}_${Date.now()}`;
-    // 若已選該 channel（以名稱辨識），移除同名 keyword
-    const already = Array.from(selectedChannelNames.values()).includes(channel.name);
-    if (already) {
-      const remaining = selectedChannels.filter(
-        (id) => selectedChannelNames.get(id) !== channel.name
-      );
+    const virtualId = `keyword_common_${channelId}`;
+    if (selectedChannels.includes(virtualId)) {
+      setSelectedChannels(selectedChannels.filter((id) => id !== virtualId));
       const newMap = new Map(selectedChannelNames);
-      for (const [k, v] of newMap.entries()) {
-        if (v === channel.name) newMap.delete(k);
-      }
-      setSelectedChannels(remaining);
+      newMap.delete(virtualId);
       setSelectedChannelNames(newMap);
     } else {
-      setSelectedChannels([...selectedChannels, keywordId]);
-      const newMap = new Map(selectedChannelNames);
-      newMap.set(keywordId, channel.name);
-      setSelectedChannelNames(newMap);
+      setSelectedChannels([...selectedChannels, virtualId]);
+      setSelectedChannelNames(new Map(selectedChannelNames.set(virtualId, channel.name)));
     }
   };
 
@@ -339,88 +330,95 @@ export default function QueryRewards() {
     }, 100);
   };
 
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setExpandedSchemeOverview(false);
+        setExpandedCardsSection(false);
+        setExpandedPaymentsSection(false);
+      }
+    };
+    const onClickOutside = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+        setExpandedSchemeOverview(false);
+        setExpandedCardsSection(false);
+        setExpandedPaymentsSection(false);
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('mousedown', onClickOutside);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('mousedown', onClickOutside);
+    };
+  }, []);
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" ref={rootRef}>
       <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
         回饋查詢
       </h2>
 
       {/* 方案總覽 */}
       <div className="card bg-gradient-to-br from-white to-blue-50">
-        <details 
-          className="group border-2 border-indigo-200 rounded-lg overflow-hidden"
-          onToggle={(e) => {
-            // 快速收合：一次收合一層
-            const target = e.currentTarget;
-            if (!target.open) {
-              // 收合時，同時收合所有子層
-              const subDetails = target.querySelectorAll('details');
-              subDetails.forEach((d) => {
-                if (d.open) d.open = false;
-              });
-            }
-          }}
-        >
-          <summary className="cursor-pointer font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-4 py-3 flex items-center justify-between transition-colors">
+        <div className="border-2 border-indigo-200 rounded-lg overflow-hidden">
+          <button
+            onClick={() => setExpandedSchemeOverview(!expandedSchemeOverview)}
+            className="w-full cursor-pointer font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-4 py-3 flex items-center justify-between transition-colors"
+          >
             <span className="flex items-center gap-2"><span className="text-xl">☰</span><span>方案總覽</span></span>
-            <span className="text-sm text-indigo-500 group-open:rotate-180 transition-transform">▼</span>
-          </summary>
-          <div className="px-4 py-2 bg-white border-t border-indigo-200 space-y-2">
-            <details 
-              className="group border-2 border-blue-200 rounded-lg overflow-hidden"
-              onToggle={(e) => {
-                // 快速收合：一次收合一層
-                const target = e.currentTarget;
-                if (!target.open) {
-                  // 收合時，同時收合所有子層（如果有）
-                  const subDetails = target.querySelectorAll('details');
-                  subDetails.forEach((d) => {
-                    if (d.open) d.open = false;
-                  });
-                }
-              }}
-            >
-              <summary className="cursor-pointer font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 px-4 py-3 flex items-center justify-between transition-colors">
-                <span className="flex items-center gap-2"><span className="text-xl">☰</span><span>信用卡</span></span>
-                <span className="text-sm text-blue-500 group-open:rotate-180 transition-transform">▼</span>
-              </summary>
-              <div className="px-4 py-2 bg-white border-t border-blue-200">
-                {cards.length > 0 ? cards.map((card) => (
-                  <button key={card.id} onClick={() => handleCardClick(card)} className="w-full text-left py-2 px-3 hover:bg-blue-50 rounded transition-colors border-l-4 border-blue-300 mb-1">
-                    <span className="font-medium text-blue-800">▶ {card.name}</span>
-                  </button>
-                )) : <div className="text-sm text-gray-500 py-2">尚無信用卡資料</div>}
+            <span className={`text-sm text-indigo-500 transition-transform ${expandedSchemeOverview ? 'rotate-180' : ''}`}>▼</span>
+          </button>
+          {expandedSchemeOverview && (
+            <div className="px-4 py-2 bg-white border-t border-indigo-200 space-y-2">
+              <div className="border-2 border-blue-200 rounded-lg overflow-hidden">
+                <button
+                  onClick={() => {
+                    const next = !expandedCardsSection;
+                    setExpandedCardsSection(next);
+                    if (next) setExpandedPaymentsSection(false);
+                  }}
+                  className="w-full cursor-pointer font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 px-4 py-3 flex items-center justify-between transition-colors"
+                >
+                  <span className="flex items-center gap-2"><span className="text-xl">☰</span><span>信用卡</span></span>
+                  <span className={`text-sm text-blue-500 transition-transform ${expandedCardsSection ? 'rotate-180' : ''}`}>▼</span>
+                </button>
+                {expandedCardsSection && (
+                  <div className="px-4 py-2 bg-white border-t border-blue-200">
+                    {cards.length > 0 ? cards.map((card) => (
+                      <button key={card.id} onClick={() => handleCardClick(card)} className="w-full text-left py-2 px-3 hover:bg-blue-50 rounded transition-colors border-l-4 border-blue-300 mb-1">
+                        <span className="font-medium text-blue-800">▶ {card.name}</span>
+                      </button>
+                    )) : <div className="text-sm text-gray-500 py-2">尚無信用卡資料</div>}
+                  </div>
+                )}
               </div>
-            </details>
-            
-            <details 
-              className="group border-2 border-purple-200 rounded-lg overflow-hidden"
-              onToggle={(e) => {
-                // 快速收合：一次收合一層
-                const target = e.currentTarget;
-                if (!target.open) {
-                  // 收合時，同時收合所有子層（如果有）
-                  const subDetails = target.querySelectorAll('details');
-                  subDetails.forEach((d) => {
-                    if (d.open) d.open = false;
-                  });
-                }
-              }}
-            >
-              <summary className="cursor-pointer font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 px-4 py-3 flex items-center justify-between transition-colors">
-                <span className="flex items-center gap-2"><span className="text-xl">☰</span><span>支付方式</span></span>
-                <span className="text-sm text-purple-500 group-open:rotate-180 transition-transform">▼</span>
-              </summary>
-              <div className="px-4 py-2 bg-white border-t border-purple-200">
-                {paymentMethods.length > 0 ? paymentMethods.map((pm) => (
-                  <button key={pm.id} onClick={() => handlePaymentClick(pm)} className="w-full text-left py-2 px-3 hover:bg-purple-50 rounded transition-colors border-l-4 border-purple-300 mb-1">
-                    <span className="font-medium text-purple-800">▶ {pm.name}</span>
-                  </button>
-                )) : <div className="text-sm text-gray-500 py-2">尚無支付方式資料</div>}
+              
+              <div className="border-2 border-purple-200 rounded-lg overflow-hidden">
+                <button
+                  onClick={() => {
+                    const next = !expandedPaymentsSection;
+                    setExpandedPaymentsSection(next);
+                    if (next) setExpandedCardsSection(false);
+                  }}
+                  className="w-full cursor-pointer font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 px-4 py-3 flex items-center justify-between transition-colors"
+                >
+                  <span className="flex items-center gap-2"><span className="text-xl">☰</span><span>支付方式</span></span>
+                  <span className={`text-sm text-purple-500 transition-transform ${expandedPaymentsSection ? 'rotate-180' : ''}`}>▼</span>
+                </button>
+                {expandedPaymentsSection && (
+                  <div className="px-4 py-2 bg-white border-t border-purple-200">
+                    {paymentMethods.length > 0 ? paymentMethods.map((pm) => (
+                      <button key={pm.id} onClick={() => handlePaymentClick(pm)} className="w-full text-left py-2 px-3 hover:bg-purple-50 rounded transition-colors border-l-4 border-purple-300 mb-1">
+                        <span className="font-medium text-purple-800">▶ {pm.name}</span>
+                      </button>
+                    )) : <div className="text-sm text-gray-500 py-2">尚無支付方式資料</div>}
+                  </div>
+                )}
               </div>
-            </details>
-          </div>
-        </details>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="space-y-6">
