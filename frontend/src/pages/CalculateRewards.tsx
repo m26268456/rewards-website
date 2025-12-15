@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { isApp } from '../utils/isApp';
 import api from '../utils/api';
 import { calculateReward } from '../utils/rewardCalculation';
