@@ -389,7 +389,7 @@ export default function CalculateRewards() {
                     <tr>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">總計</th>
                       {(mode === 'channel') && (
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">方案 / 通路</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">方案 / 通路</th>
                       )}
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">回饋%數</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">計算方式</th>
@@ -411,19 +411,19 @@ export default function CalculateRewards() {
                             {item.isExcluded ? '排除' : totalCalculated}
                           </td>
                           {(mode === 'channel') && (
-                            <td className="px-4 py-3 text-sm space-y-1">
-                              <div className="font-semibold text-gray-800">{item.schemeInfo || '—'}</div>
-                              <div>
-                                <span className="text-gray-500 text-xs bg-gray-100 px-2 py-0.5 rounded-full">
-                                  {item.schemeChannelName || '—'}
-                                </span>
-                              </div>
-                            </td>
+                          <td className="px-4 py-3 text-sm space-y-1">
+                            <div className="font-semibold text-gray-800">{item.schemeInfo || '—'}</div>
+                            <div>
+                              <span className="text-gray-500 text-xs bg-gray-100 px-2 py-0.5 rounded-full">
+                                {item.schemeChannelName || '—'}
+                              </span>
+                            </div>
+                          </td>
                           )}
                           <td className="px-4 py-3 text-sm">
                           {item.rewardItems?.length
                             ? item.rewardItems.map((it: any, i: number) => (
-                                <div key={i}>{(it.percentage ?? 0).toFixed(2)}%</div>
+                              <div key={i}>{(it.percentage ?? 0).toFixed(2)}%</div>
                               ))
                             : <div>{(item.percentage ?? 0).toFixed(2)}%</div>
                           }
@@ -431,7 +431,7 @@ export default function CalculateRewards() {
                           <td className="px-4 py-3 text-sm">
                             {item.rewardItems?.length
                               ? item.rewardItems.map((it: any, i: number) => (
-                                  <div key={i}>{methodText(it.calculationMethod || 'round')}</div>
+                              <div key={i}>{methodText(it.calculationMethod || 'round')}</div>
                                 ))
                               : <div>{methodText(item.calculationMethod || 'round')}</div>
                             }
@@ -439,9 +439,9 @@ export default function CalculateRewards() {
                           <td className="px-4 py-3 text-sm font-medium">
                             {item.rewardItems?.length
                               ? item.rewardItems.map((it: any, i: number) => (
-                                  <div key={i}>
-                                    {(it.originalReward ?? 0).toFixed(2)} → {it.calculatedReward ?? 0}
-                                  </div>
+                              <div key={i}>
+                                {(it.originalReward ?? 0).toFixed(2)} → {it.calculatedReward ?? 0}
+                              </div>
                                 ))
                               : (
                                   <div>

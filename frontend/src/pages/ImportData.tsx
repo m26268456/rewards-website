@@ -15,8 +15,8 @@ export default function ImportData() {
     setMessage('');
 
     try {
-      // 這裡需要將用戶提供的 JavaScript 資料轉換為 JSON
-      // 由於資料量很大，我們將在另一個文件中定義
+// 導入資料需將 JavaScript 資料結構轉換為 JSON 格式
+// 將大容量資料移至獨立檔案以提升維護性和可讀性
       const response = await api.post('/import/import', {
         cards: DEFAULT_CARDS,
         payments: DEFAULT_PAYMENTS,

@@ -239,7 +239,7 @@ router.post('/import', async (_req: Request, res: Response, next: NextFunction) 
     console.log('✅ 事務開始');
 
     console.log('🗑️  開始刪除現有測試資料...');
-    // 先刪除現有測試資料（使用特定ID）
+    // 刪除現有測試資料（僅限於特定測試ID，避免影響正式資料）
     await client.query(`
       DELETE FROM calculation_schemes WHERE scheme_id IN (
         'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',

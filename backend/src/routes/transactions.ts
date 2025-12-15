@@ -173,6 +173,7 @@ router.post('/', validate(createTransactionSchema), async (req: Request, res: Re
           await client.query(
             `UPDATE quota_trackings
              SET used_quota = 0,
+                 manual_adjustment = 0,
                  current_amount = 0,
                  remaining_quota = $1,
                  last_refresh_at = NOW(),

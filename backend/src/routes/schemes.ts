@@ -600,12 +600,12 @@ router.put('/:id/channels', async (req: Request, res: Response, next: NextFuncti
           } catch (error: any) {
             // 如果表沒有display_order欄位，使用舊的方式
             if (error.code === '42703') {
-              await client.query(
+          await client.query(
                 `INSERT INTO scheme_channel_applications (scheme_id, channel_id, note, created_at)
                  VALUES ($1::uuid, $2::uuid, $3::text, NOW() + ($4::int * interval '1 millisecond'))
-                 ON CONFLICT (scheme_id, channel_id) DO UPDATE SET note = EXCLUDED.note`,
+             ON CONFLICT (scheme_id, channel_id) DO UPDATE SET note = EXCLUDED.note`,
                 [id, app.channelId, app.note || null, i]
-              );
+          );
             } else {
               throw error;
             }

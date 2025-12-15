@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { pool } from '../config/database';
 
-// 從命令行參數獲取備份檔案路徑
+// 讀取命令列提供之備份檔路徑
 const backupFile = process.argv[2];
 
 async function restoreData() {
@@ -25,7 +25,7 @@ async function restoreData() {
     await client.query('BEGIN');
     console.log('✅ 開始還原資料 (Transaction Started)');
 
-    // 1. 清空所有表格 (順序重要：先刪除有依賴的表)
+    // 按資料表的依賴順序，逐一清空資料內容
     const tablesToDelete = [
       'quota_trackings',
       'transactions',
@@ -49,8 +49,7 @@ async function restoreData() {
       await client.query(`DELETE FROM ${table}`);
     }
 
-    // 2. 寫入資料 (順序重要：先寫入無依賴的表)
-    // 對應 backupData.ts 的順序
+// 依照資料依賴順序寫入資料表，順序需配合資料備份檔內容
     const tablesToInsert = [
       'reason_strings',
       'transaction_types',
