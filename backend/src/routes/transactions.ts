@@ -578,20 +578,38 @@ router.get('/export', async (_req: Request, res: Response, next: NextFunction) =
        LEFT JOIN card_schemes cs ON t.scheme_id = cs.id
        LEFT JOIN cards c ON cs.card_id = c.id
        LEFT JOIN payment_methods pm ON t.payment_method_id = pm.id
-       ORDER BY t.created_at DESC`
+       ORDER BY t.created_at ASC`
     );
 
-    const rows = result.rows.map((r: any) => ({
-      建立時間: r.created_at,
-      交易日期: r.transaction_date,
-      事由: r.reason,
-      金額: r.amount,
-      類型: r.type_name,
-      使用方案: r.scheme_name || '',
-      備註: r.note || '',
-    }));
+    const rows = result.rows.map((r: any) => {
+      const ts = new Date(r.created_at);
+      const timestamp =
+        isNaN(ts.getTime()) ? '' : ts.toISOString().replace('T', ' ').replace('Z', '');
+      const amountInt = r.amount !== null && r.amount !== undefined
+        ? Math.trunc(Number(r.amount))
+        : '';
+      return {
+        時間戳記: timestamp,
+        交易日期: r.transaction_date,
+        事由: r.reason,
+        金額: amountInt,
+        類型: r.type_name,
+        使用方案: r.scheme_name || '',
+        備註: r.note || '',
+      };
+    });
 
     const sheet = XLSX.utils.json_to_sheet(rows);
+    // 調整欄寬以符合內容
+    const headers = Object.keys(rows[0] || {});
+    sheet['!cols'] = headers.map((key) => {
+      const maxLen = rows.reduce((len: number, row: any) => {
+        const cell = row[key] !== undefined && row[key] !== null ? String(row[key]) : '';
+        return Math.max(len, cell.length);
+      }, key.length);
+      return { wch: Math.max(8, maxLen + 2) };
+    });
+
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, sheet, 'Transactions');
     const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });

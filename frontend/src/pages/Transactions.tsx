@@ -326,7 +326,7 @@ export default function Transactions() {
         </form>
       </div>
 
-      <div className="bg-white shadow rounded-lg p-6">
+      <div className="bg-white shadow rounded-lg p-6 w-full">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-semibold">檢視交易</h3>
           <button

@@ -17,6 +17,7 @@ export default function CalculateRewards() {
   const [channelKeyword, setChannelKeyword] = useState('');
   const [selectedScheme, setSelectedScheme] = useState<string>('');
   const [schemes, setSchemes] = useState<Scheme[]>([]);
+  const selectedSchemeRef = useRef<string>('');
   const [amount, setAmount] = useState('');
   const [rewards, setRewards] = useState([
     { percentage: 0.3, calculationMethod: 'round' as const },
@@ -55,13 +56,22 @@ export default function CalculateRewards() {
       const res = await api.get('/calculation/schemes');
       const data = res.data.data || [];
       setSchemes(data);
-      if (data.length > 0 && !selectedScheme) {
-        setSelectedScheme(data[0].id);
+      const currentSelection = selectedSchemeRef.current;
+      if (data.length > 0) {
+        const stillExists = currentSelection && data.some((s: any) => s.id === currentSelection);
+        if (!stillExists) {
+          selectedSchemeRef.current = data[0].id;
+          setSelectedScheme(data[0].id);
+        }
       }
     } catch (error) {
       console.error('載入方案錯誤:', error);
     }
   };
+
+  useEffect(() => {
+    selectedSchemeRef.current = selectedScheme;
+  }, [selectedScheme]);
 
   useEffect(() => {
     let cancelled = false;
@@ -463,7 +473,7 @@ export default function CalculateRewards() {
                 <div className="mt-4 pt-4 border-t">
                   <h4 className="font-semibold mb-2">預計消費後餘額</h4>
                   <div className="overflow-x-auto w-full">
-                    <table className="table-auto min-w-full divide-y divide-gray-200 bg-white rounded-lg">
+                    <table className="table-auto min-w-max divide-y divide-gray-200 bg-white rounded-lg">
                       <thead className="bg-gray-50">
                         <tr>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">回饋%數</th>
