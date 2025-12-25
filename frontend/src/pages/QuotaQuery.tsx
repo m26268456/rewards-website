@@ -201,7 +201,7 @@ export default function QuotaQuery() {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {groupedQuotas.map(({ key: sharedKey, items: quotas }) => {
-                  const isSharedGroup = !sharedKey.startsWith('solo-');
+                  // 共享回饋已移除，全部視為獨立
                   const colorIndex = colorIndexMap.get(sharedKey) || 0;
                   
                   // 排序：root 方案在前，被綁定方案在後
@@ -218,13 +218,11 @@ export default function QuotaQuery() {
                     validRewardIndices = [0];
                   }
 
-                  // 共享群組只渲染第一個回饋組成，非共享群組渲染所有回饋組成
                   const rowsToRender = validRewardIndices;
 
-                  const bgPairShared = [['bg-blue-50', 'bg-blue-100'], ['bg-blue-100', 'bg-blue-50']];
                   const bgPairSolo = [['bg-white', 'bg-gray-50'], ['bg-gray-50', 'bg-white']];
-                  const colorPair = isSharedGroup ? bgPairShared[colorIndex % 2] : bgPairSolo[colorIndex % 2];
-                  const borderColor = isSharedGroup ? 'border-blue-300' : 'border-gray-200';
+                  const colorPair = bgPairSolo[colorIndex % 2];
+                  const borderColor = 'border-gray-200';
 
                   // 找出 root 方案名稱和被綁定方案名稱
                   const rootName = primary.schemeName || primary.name || '';

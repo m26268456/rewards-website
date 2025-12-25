@@ -472,8 +472,10 @@ export default function CalculateRewards() {
               {quotaInfo && quotaInfo.length > 0 && (
                 <div className="mt-4 pt-4 border-t">
                   <h4 className="font-semibold mb-2">預計消費後餘額</h4>
-                  <div className="overflow-x-auto w-full">
-                    <table className="table-auto min-w-max divide-y divide-gray-200 bg-white rounded-lg">
+                  <div className={isApp() ? 'overflow-x-auto w-full' : 'overflow-x-auto w-full -mx-4 px-4'}>
+                    <table className={isApp()
+                      ? 'table-auto min-w-max divide-y divide-gray-200 bg-white rounded-lg'
+                      : 'min-w-full divide-y divide-gray-200 bg-white rounded-lg'}>
                       <thead className="bg-gray-50">
                         <tr>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">回饋%數</th>

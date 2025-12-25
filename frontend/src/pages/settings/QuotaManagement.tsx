@@ -373,10 +373,8 @@ export default function QuotaManagement() {
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {groupedQuotas.map(({ key: sharedKey, items }) => {
-                const isSharedGroup = !sharedKey.startsWith('solo-');
-              
-              // 排序：root 方案在前，被綁定方案在後（與 QuotaQuery 一致）
-                  const sortedItems = items.slice();
+                // 共享回饋已移除，全部視為獨立群組
+              const sortedItems = items.slice();
               
               const primary = sortedItems[0];
               let rewardIndices: number[] = [];
@@ -385,30 +383,23 @@ export default function QuotaManagement() {
                 (primary.rewardComposition && primary.rewardComposition.split('/').length) ||
                 1;
               rewardIndices = Array.from({ length: rewardCount }, (_, i) => i);
-              // 若正在新增新的組成，非共享群組時增加一列空白
-              if (!isSharedGroup && isAddingReward && editingReward?.idx === primary.__index) {
+              // 若正在新增新的組成，增加一列空白
+              if (isAddingReward && editingReward?.idx === primary.__index) {
                 rewardIndices = [...rewardIndices, rewardIndices.length];
               }
               
-              // 找出 root 方案名稱和被綁定方案名稱
-                  const rootName = primary.schemeName || primary.name || '';
+              const rootName = primary.schemeName || primary.name || '';
               const rootNameParts = rootName.split('-');
               const rootNameDisplay = rootNameParts.length > 1 ? rootNameParts[rootNameParts.length - 1] : rootName;
-              
-                  const childNames: string[] = [];
-              
-              const schemeNames = [rootNameDisplay, ...childNames];
 
-              // 共享群組只渲染第一個回饋組成，非共享群組渲染所有回饋組成
-              const rowsToRender = isSharedGroup ? [0] : rewardIndices;
+              // 渲染所有回饋組成
+              const rowsToRender = rewardIndices;
 
               return rowsToRender.map((rIdx: number) => {
                 const isFirst = rIdx === 0;
                 const isEditingQ = editingQuota?.idx === primary.__index && editingQuota?.rIdx === rIdx;
                 const isEditingR = editingReward?.idx === primary.__index && editingReward?.rIdx === rIdx;
                 const isCardScheme = primary.schemeId && !primary.paymentMethodId;
-                const sharedBound = null;
-                const isSharedChild = false;
 
                 const isTempNewRow = isAddingReward && editingReward?.idx === primary.__index && editingReward?.rIdx === rIdx;
 
@@ -426,12 +417,11 @@ export default function QuotaManagement() {
                 const basisText = basis === 'statement' ? '帳單總額' : '單筆回饋';
 
                 const groupColorIdx = colorIndexMap.get(sharedKey) || 0;
-                const sharedPairs = [['bg-blue-50','bg-blue-100'], ['bg-blue-100','bg-blue-50']];
                 const soloPairs = [['bg-white','bg-gray-50'], ['bg-gray-50','bg-white']];
-                const colorPair = isSharedGroup ? sharedPairs[groupColorIdx % 2] : soloPairs[groupColorIdx % 2];
+                const colorPair = soloPairs[groupColorIdx % 2];
                 // 同一方案使用與額度查詢一致的底色（不依 rIdx 交錯）
                 const rowBgColor = colorPair[0];
-                const rowBorder = isSharedGroup ? 'border-blue-300' : 'border-gray-200';
+                const rowBorder = 'border-gray-200';
 
                 return (
                   <tr
@@ -559,11 +549,6 @@ export default function QuotaManagement() {
                     <td className="px-3 py-2 text-sm align-top whitespace-normal break-words min-w-0">
                       {isEditingR ? (
                         <div className="flex flex-col gap-1">
-                          {sharedBound && (
-                            <div className="text-[11px] text-blue-700 bg-blue-50 border border-blue-100 rounded px-2 py-1">
-                              共用回饋：此變更會影響同組方案
-                            </div>
-                          )}
                         <div className="flex flex-wrap gap-2">
                           <button onClick={handleSaveAll} className="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600">儲存</button>
                           <button onClick={() => { 
@@ -630,6 +615,12 @@ export default function QuotaManagement() {
                   if (!expandedCards.has(id)) newSet.add(id);
                   setExpandedCards(newSet);
                   setExpandedPayments(new Set());
+                  // 收合/切換時清除編輯狀態
+                  setEditingReward(null);
+                  setEditingQuota(null);
+                  setQuotaAdjust('');
+                  setQuotaAdjustChanged(false);
+                  setIsAddingReward(false);
                 }}
                 className="w-full px-4 py-3 bg-gray-50 flex justify-between items-center hover:bg-gray-100 transition-colors"
               >
@@ -653,6 +644,12 @@ export default function QuotaManagement() {
                   if (!expandedPayments.has(id)) newSet.add(id);
                   setExpandedPayments(newSet);
                   setExpandedCards(new Set());
+                  // 收合/切換時清除編輯狀態
+                  setEditingReward(null);
+                  setEditingQuota(null);
+                  setQuotaAdjust('');
+                  setQuotaAdjustChanged(false);
+                  setIsAddingReward(false);
                 }}
                 className="w-full px-4 py-3 bg-gray-50 flex justify-between items-center hover:bg-gray-100 transition-colors"
               >

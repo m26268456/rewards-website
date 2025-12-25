@@ -61,6 +61,17 @@ router.post('/', validate(createTransactionSchema), async (req: Request, res: Re
       });
     }
 
+    // 金額允許為空，僅當有值時檢查整數
+    const amountNum =
+      amount === undefined || amount === null
+        ? null
+        : typeof amount === 'number'
+          ? amount
+          : parseFloat(String(amount));
+    if (amountNum !== null && !Number.isInteger(amountNum)) {
+      return res.status(400).json({ success: false, error: '金額必須為整數' });
+    }
+
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
@@ -102,19 +113,13 @@ router.post('/', validate(createTransactionSchema), async (req: Request, res: Re
          (transaction_date, reason, amount, type_id, note, scheme_id, payment_method_id)
          VALUES ($1, $2, $3, $4, $5, $6, $7)
          RETURNING id, transaction_date, reason, amount, note, created_at`,
-        [transactionDate, reason, amount || null, typeId, note || null, validSchemeId, validPaymentMethodId]
+        [transactionDate, reason, amountNum, typeId, note || null, validSchemeId, validPaymentMethodId]
       );
 
       const transaction = transactionResult.rows[0];
 
       // 如果有選擇方案或支付方式，計算回饋並更新額度
-      if ((validSchemeId || validPaymentMethodId) && amount) {
-        const amountNum = parseFloat(amount);
-        if (!Number.isInteger(amountNum)) {
-          await client.query('ROLLBACK');
-          return res.status(400).json({ success: false, error: '金額必須為整數' });
-        }
-
+      if ((validSchemeId || validPaymentMethodId) && amountNum !== null) {
         // 1. 取得所有相關的回饋組成 (Scheme Rewards + Payment Rewards)
         // 這裡需要分別處理，因為我們要支持獨立計算 (Item 1 需求)
         // 但此處 Transactions 主要是扣額度，所以我們會遍歷所有適用規則並扣除
@@ -561,6 +566,16 @@ router.delete('/:id', async (req: Request, res: Response, next: NextFunction) =>
 // 導出交易記錄為 Excel
 router.get('/export', async (_req: Request, res: Response, next: NextFunction) => {
   try {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const formatDateTime = (d: Date | null) => {
+      if (!d || isNaN(d.getTime())) return '';
+      return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    };
+    const formatDate = (d: Date | null) => {
+      if (!d || isNaN(d.getTime())) return '';
+      return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())}`;
+    };
+
     const result = await pool.query(
       `SELECT t.transaction_date, t.reason, t.amount, t.note, t.created_at,
               tt.name as type_name,
@@ -581,34 +596,27 @@ router.get('/export', async (_req: Request, res: Response, next: NextFunction) =
        ORDER BY t.created_at ASC`
     );
 
-    const rows = result.rows.map((r: any) => {
-      const ts = new Date(r.created_at);
-      const timestamp =
-        isNaN(ts.getTime()) ? '' : ts.toISOString().replace('T', ' ').replace('Z', '');
-      const amountInt = r.amount !== null && r.amount !== undefined
-        ? Math.trunc(Number(r.amount))
-        : '';
-      return {
-        時間戳記: timestamp,
-        交易日期: r.transaction_date,
-        事由: r.reason,
-        金額: amountInt,
-        類型: r.type_name,
-        使用方案: r.scheme_name || '',
-        備註: r.note || '',
-      };
-    });
+    const rows = result.rows.map((r: any) => ({
+      時間戳記: formatDateTime(r.created_at ? new Date(r.created_at) : null),
+      交易日期: formatDate(r.transaction_date ? new Date(r.transaction_date) : null),
+      事由: r.reason,
+      金額: r.amount !== null && r.amount !== undefined ? Math.trunc(Number(r.amount)) : '',
+      類型: r.type_name,
+      使用方案: r.scheme_name || '',
+      備註: r.note || '',
+    }));
 
     const sheet = XLSX.utils.json_to_sheet(rows);
-    // 調整欄寬以符合內容
-    const headers = Object.keys(rows[0] || {});
-    sheet['!cols'] = headers.map((key) => {
-      const maxLen = rows.reduce((len: number, row: any) => {
-        const cell = row[key] !== undefined && row[key] !== null ? String(row[key]) : '';
-        return Math.max(len, cell.length);
-      }, key.length);
-      return { wch: Math.max(8, maxLen + 2) };
-    });
+    // 固定欄寬以符合指定格式
+    sheet['!cols'] = [
+      { wch: 19 }, // yyyy/MM/dd HH:mm:ss
+      { wch: 12 }, // yyyy/MM/dd
+      { wch: 24 }, // 事由
+      { wch: 10 }, // 金額
+      { wch: 12 }, // 類型
+      { wch: 32 }, // 使用方案
+      { wch: 20 }, // 備註
+    ];
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, sheet, 'Transactions');

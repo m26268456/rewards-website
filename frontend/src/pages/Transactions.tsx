@@ -3,6 +3,7 @@ import { format } from 'date-fns';
 import { utcToZonedTime, format as formatTz } from 'date-fns-tz';
 import api from '../utils/api';
 import * as XLSX from 'xlsx';
+import { isApp } from '../utils/isApp';
 
 // 時區設定：UTC+8 (Asia/Taipei)
 const TIMEZONE = 'Asia/Taipei';
@@ -35,6 +36,7 @@ export default function Transactions() {
   const [transactionTypes, setTransactionTypes] = useState<TransactionType[]>([]);
   const [schemes, setSchemes] = useState<Scheme[]>([]);
   const [reasonString, setReasonString] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     transactionDate: format(new Date(), 'yyyy-MM-dd'),
     reason: '',
@@ -107,13 +109,15 @@ export default function Transactions() {
       return;
     }
 
-    const amountNum = parseFloat(formData.amount || '');
-    if (!Number.isInteger(amountNum)) {
+    const trimmed = (formData.amount || '').trim();
+    const amountNum = trimmed === '' ? null : parseFloat(trimmed);
+    if (amountNum !== null && !Number.isInteger(amountNum)) {
       alert('金額需為正負整數（不允許小數）');
       return;
     }
 
     try {
+      setSubmitting(true);
       const selectedScheme = schemes.find(s => s.id === formData.schemeId);
       let submitSchemeId: string | undefined;
       let submitPaymentMethodId: string | undefined;
@@ -181,6 +185,8 @@ export default function Transactions() {
     } catch (error: any) {
       console.error('新增交易錯誤:', error);
       alert(error.response?.data?.error || '新增交易失敗');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -319,9 +325,10 @@ export default function Transactions() {
 
           <button
             type="submit"
-            className="btn-primary w-full"
+            disabled={submitting}
+            className={`btn-primary w-full ${submitting ? 'opacity-60 cursor-not-allowed' : ''}`}
           >
-            ✨ 新增交易
+            {submitting ? '新增中，請稍候...' : '✨ 新增交易'}
           </button>
         </form>
       </div>
@@ -337,8 +344,8 @@ export default function Transactions() {
           </button>
         </div>
 
-        <div className="overflow-x-auto w-full">
-          <table className="table-auto min-w-max divide-y divide-gray-200 text-sm">
+        <div className={isApp() ? 'overflow-x-auto w-full' : 'overflow-x-auto w-full -mx-4 px-4'}>
+          <table className="table-auto min-w-max divide-y divide-gray-200 text-sm w-full">
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">時間戳記</th>

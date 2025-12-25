@@ -26,8 +26,6 @@ interface Scheme {
   activity_start_date?: string;
   activity_end_date?: string;
   display_order?: number;
-  shared_reward_group_id?: string;
-  shared_reward_group_name?: string;
 }
 
 function SchemeDetailManager({
@@ -88,11 +86,6 @@ function SchemeDetailManager({
           <div className="text-xs text-gray-500 mt-1">
             {scheme.requires_switch ? '需切換' : '免切換'}
           </div>
-          {scheme.shared_reward_group_id && (
-            <div className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded mt-1 inline-block">
-              🔗 共用回饋：{scheme.shared_reward_group_name || '載入中...'}
-            </div>
-          )}
         </div>
         <div className="flex gap-1 flex-shrink-0 flex-wrap">
           <button onClick={onExpand} className="px-2 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 whitespace-nowrap">
@@ -293,14 +286,7 @@ function CardItem({ card, onEdit, onDelete, onReload }: { card: Card; onEdit: ()
   const loadSchemes = async () => {
     try {
       const res = await api.get(`/schemes/card/${card.id}`);
-      const data = res.data.data;
-      const nameMap = new Map();
-      data.forEach((s: any) => nameMap.set(s.id, s.name));
-      const enriched = data.map((s: any) => ({
-        ...s,
-        shared_reward_group_name: s.shared_reward_group_id ? nameMap.get(s.shared_reward_group_id) || '（來源已移除）' : undefined
-      }));
-      setSchemes(enriched);
+      setSchemes(res.data.data);
     } catch (error) { console.error('載入方案錯誤:', error); }
   };
 
@@ -372,7 +358,6 @@ function CardItem({ card, onEdit, onDelete, onReload }: { card: Card; onEdit: ()
     setSchemeForm({
       name: '', note: '', requiresSwitch: false,
       activityStartDate: '', activityEndDate: '', displayOrder: 0,
-      // 共同綁定由額度管理控制，表單不再設置
     });
     setAppsText(''); setExcsText('');
     setShowSchemeForm(true);
@@ -385,7 +370,6 @@ function CardItem({ card, onEdit, onDelete, onReload }: { card: Card; onEdit: ()
       activityStartDate: scheme.activity_start_date ? String(scheme.activity_start_date).split('T')[0] : '',
       activityEndDate: scheme.activity_end_date ? String(scheme.activity_end_date).split('T')[0] : '',
       displayOrder: scheme.display_order || 0,
-      // 共同綁定由額度管理控制，表單不再設置
     });
     try {
       const res = await api.get(`/schemes/${scheme.id}/details`);
